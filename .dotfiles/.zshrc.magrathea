@@ -1,0 +1,1 @@
+alias br='br --port=/dev/ttyS0'
