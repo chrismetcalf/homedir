@@ -1,0 +1,10 @@
+#!/bin/sh
+
+ME=`basename $0`
+TIMESTAMP="$HOME/.ssh/.$ME.timestamp"
+
+[ -r $TIMESTAMP ] && cat $TIMESTAMP
+
+echo "  Last ssh:" `date +'%a %b %e %H:%M:%S %Y'` > $TIMESTAMP
+
+rscreen $ME $*
