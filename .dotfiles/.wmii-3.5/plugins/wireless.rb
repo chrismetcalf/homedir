@@ -7,13 +7,18 @@ Plugin.define "wireless" do
       loop do
         output = `sudo iwconfig #{interface}`
 
-        status = output.scan(/Quality=\d+\/\d+/).to_s.sub('Quality=','')
-        essid = output.scan(/ESSID:"\w+"/).to_s.sub('Quality=','')
-        
-        if status.empty?
+        status = output.scan(/Quality=(\d+\/\d+)/)[0]
+        essid = output.scan(/ESSID:"(\w+)"/)[0]
+
+        if status == nil || status.empty?
           status = '--/--'
         end
-        bar.data = "W:#{status}"
+
+        if essid == nil || essid.empty?
+          essid = '-'
+        end
+
+        bar.data = "#{essid}:#{status}"
         sleep interval
       end
     end

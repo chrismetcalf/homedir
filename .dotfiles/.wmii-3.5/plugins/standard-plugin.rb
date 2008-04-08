@@ -210,8 +210,8 @@ Plugin.define "standard"  do
           # If percent is 100 and state is discharging then
           # the battery is full and not discharging.
           batt_state = "=" if batt_state == "charged" || ( batt_state == "discharging" && batt_percent >= 97 )
-          batt_state = "C" if batt_state == "charging"
-          batt_state = "D" if batt_state == "discharging"
+          batt_state = "^" if batt_state == "charging"
+          batt_state = "v" if batt_state == "discharging"
           text = "#{batt_state}:#{batt_percent}"
           bar.data = text
         else

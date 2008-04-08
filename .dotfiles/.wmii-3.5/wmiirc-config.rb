@@ -150,11 +150,11 @@ EOF
     use_binding "bookmark-open"
     use_feature "bookmark:actions"
   end
-  
+
   # {{{ del.icio.us bookmark import
   plugin_config["standard:bookmark"]["del.icio.us-user"] = 'krezel'
   plugin_config["standard:bookmark"]["del.icio.us-password"] = 'hjui89'
-  
+
   ## WORD OF CAUTION! 
   ## Before setting the sync mode to :bidirectional, make sure
   ## that your bookmarks.txt file contains all the bookmarks you want to keep,
