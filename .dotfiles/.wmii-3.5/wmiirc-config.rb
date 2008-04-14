@@ -19,7 +19,10 @@ WMII::Configuration.define do
   normcolors  '#ffffff #285577 #4c7899'
   grabmod     'Mod1'
   rules <<EOF
-/Kdict.*/ -> dict
+/gvim:.*/ -> gvim
+/pidgin:.*/ -> pidgin
+/xchat:.*/ -> xchat
+/gecko:.*/ -> web
 /XMMS.*/ -> ~
 /Gimp.*/ -> ~
 /MPlayer.*/ -> ~
@@ -94,7 +97,7 @@ EOF
       'echo "Critical battery" | xmessage -center -buttons quit:0 -default quit -file -'
 
   # Allows you to override the default internal actions and define new ones:
-  #plugin_config["standard:actions"]["internal"].update({
+  plugin_config["standard:actions"]["internal"].update({
   #  "screenshot" => nil,    # remove default screenshot action
   #  "google" => lambda do |wmii, *selection|
   #    require 'cgi'
@@ -112,7 +115,15 @@ EOF
   #  "foo" => lambda do |wmii, *args|
   #    IO.popen("xmessage -file -", "w"){|f| f.puts "Args: #{args.inspect}"; f.close_write }
   #  end
-  #})
+
+    "lock" => lambda do |wmii, *args|
+      system "xscreensaver-command -lock"
+    end,
+    "suspend" => lambda do |wmii, *args|
+      system "sudo s2disk"
+    end
+
+  })
 
   # {{{ Import bindings and bar applets
   from "standard"  do
@@ -250,32 +261,34 @@ EOF
   on_key("MODKEY-Control-RIGHT"){ write "/tag/sel/ctl", "swap sel right" }
 
   # My Plugins
+  from "twitter" do
+    use_binding "menu"
+  end
+
   from "yubnub" do
     use_binding "menu"
   end
 
-  from "mail" do
-     use_bar_applet "imap", 440
-  end
   plugin_config["mail:imap"]["host"] = 'imap.gmail.com'
   plugin_config["mail:imap"]["boxes"] = ['INBOX']
   plugin_config["mail:imap"]["summarize_at"] = 3
   plugin_config["mail:imap"]["user"] = 'chrismetcalf'
   plugin_config["mail:imap"]["pass"] = 'lbtyoc*'
   plugin_config["mail:imap"]["use_ssl"] = true
+  from "mail" do
+     use_bar_applet "imap", 440
+  end
 
 
+  plugin_config["wireless:wireless"]["interface"] = "ath0"
+  plugin_config["wireless:wireless"]["interval"] = 5 #change if you disagree with this default
   from "wireless" do
     use_bar_applet "wireless", 400
   end
-  plugin_config["wireless:wireless"]["interface"] = "ath0"
-  plugin_config["wireless:wireless"]["interval"] = 5 #change if you disagree with this default
 
   from "temporaer at gmx dot de" do
     use_bar_applet "msgs"
   end
-
-
 
   # {{{ ======== CONFIGURATION ENDS HERE ==============
 end

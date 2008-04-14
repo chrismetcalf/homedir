@@ -22,6 +22,10 @@ Plugin.define "wireless" do
         sleep interval
       end
     end
+
+    bar.on_click(MOUSE_BUTTON_LEFT) do
+      system "sudo wpa_gui"
+    end
   end
 end
 

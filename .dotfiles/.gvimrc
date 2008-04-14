@@ -2,7 +2,7 @@
 " GTK-Vim Configuration File
 
 " Get rid of "chrome" 
-set guioptions=cmR
+set guioptions=cR
 
 " set the X11 font to use. See 'man xlsfonts' on unix/linux
 set guifont=ProFontWindows\ 7
