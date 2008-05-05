@@ -3,10 +3,9 @@
 cd $HOME
 
 echo "Linking in dotfiles..."
-for fn in `find $HOME/.dotfiles -type f`; do
-	if [ -f $fn ]; then
-		echo "The file \"$fn\" already exists. Overwrite it? (Y/n)"
-	fi
-	
+for fn in .dotfiles/.*; do
 	echo "Symlinking $fn..."
+	ln -s $fn
 done
+
+echo "Done!"
