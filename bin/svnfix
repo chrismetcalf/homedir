@@ -1,11 +1,17 @@
 #!/bin/sh
 
+PATH=$HOME/bin:$PATH
+
 cd $HOME
 
-echo "Linking in dotfiles..."
-for fn in .dotfiles/.*; do
-	echo "Symlinking $fn..."
-	ln -s $fn
-done
+echo "Setting up .ssh directory"
+if [[ ! -d .ssh ]]; then
+  echo ".ssh doesn't exist yet, creating..."
+  mkdir .ssh 
+fi
+dircombine '.*' .ssh $HOME/.dotfiles/.ssh
+
+echo "Linking in .dotfiles..."
+dircombine '^\.' . $HOME/.dotfiles
 
 echo "Done!"
