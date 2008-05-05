@@ -113,6 +113,8 @@ export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${f
 unset RPROMPT
 setopt AUTOLIST
 
+export PATH=$HOME/bin:$PATH
+
 # Common configs
 if [ -f ~/.zshrc.common ]; then
     source ~/.zshrc.common
