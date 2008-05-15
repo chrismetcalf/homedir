@@ -5,7 +5,7 @@
 set guioptions=cR
 
 " set the X11 font to use. See 'man xlsfonts' on unix/linux
-set guifont=ProFontWindows\ 7
+set guifont=ProFontWindows\ 9
 
 " Highly recommended to set tab keys to 4 spaces
 set smarttab
