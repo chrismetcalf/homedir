@@ -115,6 +115,9 @@ setopt AUTOLIST
 
 export PATH=$HOME/bin:$PATH
 
+# For recordstream
+export PERLLIB=$HOME/bin/record-stream/libs:$PERLLIB
+
 # Common configs
 if [ -f ~/.zshrc.common ]; then
     source ~/.zshrc.common
