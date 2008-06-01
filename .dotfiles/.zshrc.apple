@@ -1,2 +1,2 @@
-# For Fink
-#source /sw/bin/init.sh
+# Make sure /usr/local/bin is in the path
+export PATH=/usr/local/bin:$PATH
