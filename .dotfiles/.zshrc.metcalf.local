@@ -3,3 +3,6 @@ export PATH=/opt/local/bin:/opt/local/sbin:$PATH
 
 # Fixing some stuff
 alias ls='gls --color'
+
+# For the flex ANT build
+export ANT_OPTS="-Xms900m -Xmx900m"
