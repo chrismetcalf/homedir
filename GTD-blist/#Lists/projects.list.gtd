@@ -26,3 +26,5 @@
 @project #XMPPMessaging Evaulate XMPP as a potential communication framework within the app [priority:3]
 @project #RSSFeeds Evaluate how to allow someone to subscribe RSS updates to a blist they own or have been shared [priority:3]
 @project #Jabber Jabber server [priority:5]
+@project #StagingEnv Staging environment for the pre-prod branch [priority:1]
+@project #Hudson Automatic deployment for Development and Staging [priority:1]
