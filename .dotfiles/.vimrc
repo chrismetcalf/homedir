@@ -107,5 +107,10 @@ autocmd BufEnter * cd %:p:h
 " Automatically load HTML/XML script when needed
 au Filetype html,xml,xsl source ~/.vim/scripts/closetag.vim
 
+" Markdown
+augroup mkd
+  autocmd BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
+augroup END
+
 "Formatting options - help formatoptions/fo-table
 set formatoptions=cn
