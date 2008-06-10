@@ -75,8 +75,12 @@ SAVEHIST=15000                 # unique events guarenteed
 HISTFILE=~/.history
 
 # The following lines were added by compinstall
+_force_rehash() {
+    (( CURRENT == 1 )) && rehash
+      return 1 # Because we didn't really complete anything
+}
 
-zstyle ':completion:*' completer _expand _complete _approximate
+zstyle ':completion:*' completer _expand _force_rehash _complete _approximate
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 zstyle ':completion:*' list-prompt '%SAt %p: Hit TAB for more, or the character to insert%s'
 zstyle ':completion:*' matcher-list '' 'm:{a-z}={A-Z}' 'r:|[._-]=** r:|=**' 'l:|=* r:|=*'
