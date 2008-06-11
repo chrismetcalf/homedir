@@ -1,9 +1,3 @@
-+@computer Install Colloquy
 @computer #Metrics Investigate ruby/scripts/metrics
-@waitingfor _kevin Microsoft Mac Office 2008?
 @computer Analysis of multiple user issue
-+@computer #PDFPrinting Analysis of RedMine's PDF printing functionality
-@computer #Hudson Add "rake" task to Hudson build
-@computer #SCRUM Import GA list into Rally
-@computer #Merics Install Cacti on internal01
-+@computer Research status of POI on XLSX importing: http://poi.apache.org/
+@computer #Hudson Setup "rake test" on the hudson build server
