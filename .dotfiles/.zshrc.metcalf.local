@@ -1,5 +1,5 @@
 # For DarwinPorts
-export PATH=/opt/local/bin:/opt/local/sbin:$PATH
+export PATH=/opt/local/bin:/opt/local/sbin:/opt/local/lib/postgresql82/bin:$PATH
 
 # Fixing some stuff
 alias ls='gls --color'

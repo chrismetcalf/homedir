@@ -1,3 +1,0 @@
-@computer #Metrics Investigate ruby/scripts/metrics
-@computer Analysis of multiple user issue
-@computer #Hudson Setup "rake test" on the hudson build server

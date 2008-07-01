@@ -1,3 +1,0 @@
-#!/usr/bin/env gtd
-@computer #SCRUM Import script for Rally bugs
-@computer #Hudson Diagnose test build failure
