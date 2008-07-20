@@ -1,2 +1,8 @@
-# For Fink
-source /sw/bin/init.sh
+# For DarwinPorts
+export PATH=/opt/local/bin:/opt/local/sbin:/opt/local/lib/postgresql82/bin:$PATH
+
+# Fixing some stuff
+alias ls='gls --color'
+
+# For the flex ANT build
+export ANT_OPTS="-Xms900m -Xmx900m"

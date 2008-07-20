@@ -133,6 +133,6 @@ if [ -f ~/.zshrc.$VENDOR -a ! -z $VENDOR ]; then
 fi
 
 # Host-specific configurations
-if [ -f ~/.zshrc.`hostname` ]; then
-    source ~/.zshrc.`hostname`
+if [ -f ~/.zshrc.`hostname -s` ]; then
+    source ~/.zshrc.`hostname -s`
 fi
