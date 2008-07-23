@@ -3,7 +3,7 @@
 # Set the log level
 # It defaults to Logger::INFO.
 # Set to Logger::DEBUG for extra verbosity.
-LOGGER.level = Logger::DEBUG
+LOGGER.level = Logger::INFO
 
 # programs to run when wmiirc starts
 # one per line, they're run sequentially right before the main loop begins
@@ -23,12 +23,14 @@ WMII::Configuration.define do
 /pidgin:.*/ -> pidgin
 /xchat:.*/ -> xchat
 /gecko:.*/ -> web
+/Iceweasel/ -> web
 /XMMS.*/ -> ~
 /Gimp.*/ -> ~
 /MPlayer.*/ -> ~
 /XForm.*/ -> ~
 /XSane.*/ -> ~
 /fontforge.*/ -> ~
+/luvcview:.*/ -> ~
 /.*/ -> !
 /.*/ -> 1
 EOF
@@ -61,20 +63,7 @@ EOF
 
   # {{{ Plugin config
 
-  # Uncomment and change to override default on_click actions for the status
-  # bar
-  #plugin_config["standard:status"]["left_click_action"] = lambda{ system "xeyes" }
-  #plugin_config["standard:status"]["right_click_action"] = lambda{ system "xeyes" }
-  #plugin_config["standard:status"]["middle_click_action"] = lambda{ system "xeyes" }
-
   plugin_config["standard:status"]["refresh_time"] = 1
-
-  # Uncomment and change to override default text
-  currload = nil
-  Thread.new{ loop { currload = `uptime`.chomp.sub(/.*: /,"").gsub(/,/,""); sleep 10 } }
-  plugin_config["standard:status"]["text_proc"] = lambda do
-    "#{Time.new.strftime("%r")} #{currload}"
-  end
 
   plugin_config["standard"]["x-terminal-emulator"] = "x-terminal-emulator"
 
@@ -84,17 +73,6 @@ EOF
   plugin_config["standard:volume"]["mixer"] = "PCM"
 
   plugin_config["standard:mode"]["mode_toggle_keys"] = ["MODKEY2-space"]
-
-  plugin_config["standard:battery-monitor"]["statefile"] = 
-      '/proc/acpi/battery/BAT0/state'
-  plugin_config["standard:battery-monitor"]["infofile"] =
-      '/proc/acpi/battery/BAT0/info'
-  plugin_config["standard:battery-monitor"]["low"] = 5
-  plugin_config["standard:battery-monitor"]["low_action"] =
-      'echo "Low battery" | xmessage -center -buttons quit:0 -default quit -file -'
-  plugin_config["standard:battery-monitor"]["critical"] = 1
-  plugin_config["standard:battery-monitor"]["critical_action"] =
-      'echo "Critical battery" | xmessage -center -buttons quit:0 -default quit -file -'
 
   # Allows you to override the default internal actions and define new ones:
   plugin_config["standard:actions"]["internal"].update({
@@ -112,14 +90,11 @@ EOF
   #    else system "ssid #{browser} '#{url}' &"
   #    end
   #  end,
-  #  "foo" => lambda do |wmii, *args|
-  #    IO.popen("xmessage -file -", "w"){|f| f.puts "Args: #{args.inspect}"; f.close_write }
-  #  end
 
     "lock" => lambda do |wmii, *args|
       system "xscreensaver-command -lock"
     end,
-    "suspend" => lambda do |wmii, *args|
+    "hibernate" => lambda do |wmii, *args|
       system "sudo s2disk"
     end
 
@@ -128,13 +103,6 @@ EOF
   # {{{ Import bindings and bar applets
   from "standard"  do
     use_feature "tag-bar"
-
-    #use_bar_applet "volume", 999
-    use_bar_applet "mode", 900
-    use_bar_applet "status", 100
-    #use_bar_applet "cpuinfo", 150
-    #use_bar_applet "mpd", 110
-    use_bar_applet "battery-monitor"
 
     use_binding "dict-lookup"
     use_binding "execute-program-with-tag"
@@ -269,21 +237,36 @@ EOF
     use_binding "menu"
   end
 
-  plugin_config["mail:imap"]["host"] = 'imap.gmail.com'
-  plugin_config["mail:imap"]["boxes"] = ['INBOX']
-  plugin_config["mail:imap"]["summarize_at"] = 3
-  plugin_config["mail:imap"]["user"] = 'chrismetcalf'
-  plugin_config["mail:imap"]["pass"] = 'lbtyoc*'
-  plugin_config["mail:imap"]["use_ssl"] = true
-  from "mail" do
-     use_bar_applet "imap", 440
-  end
+#  plugin_config["mail:imap"]["host"] = 'imap.gmail.com'
+#  plugin_config["mail:imap"]["boxes"] = ['INBOX']
+#  plugin_config["mail:imap"]["summarize_at"] = 3
+#  plugin_config["mail:imap"]["user"] = 'chrismetcalf'
+#  plugin_config["mail:imap"]["pass"] = 'lbtyoc*'
+#  plugin_config["mail:imap"]["use_ssl"] = true
+#  from "mail" do
+#     use_bar_applet "imap", 440
+#  end
+  
+  # Tempmon Config
+  plugin_config["sysmon:tempmon"]["file"] = "/proc/eee/temperature"
+  plugin_config["sysmon:tempmon"]["label"] = "cpu"
+  plugin_config["sysmon:tempmon"]["interval"] = 5 
+  plugin_config["sysmon:tempmon"]["warning"] = 65 
+  plugin_config["sysmon:tempmon"]["emergency"] = 68
 
+  # Wireless config
+  plugin_config["sysmon:wireless"]["interface"] = "ath0"
+  plugin_config["sysmon:wireless"]["interval"] = 5
+  plugin_config["sysmon:wireless"]["trunc_essid"] = 3
 
-  plugin_config["wireless:wireless"]["interface"] = "ath0"
-  plugin_config["wireless:wireless"]["interval"] = 5 #change if you disagree with this default
-  from "wireless" do
-    use_bar_applet "wireless", 400
+  # Battery config
+  plugin_config["sysmon:battery"]["warning"] = 20
+  plugin_config["sysmon:battery"]["critical"] = 10 
+  from "sysmon" do
+    use_bar_applet "tempmon", 900 
+    use_bar_applet "wireless", 900 
+    use_bar_applet "battery", 900 
+    use_bar_applet "loadlevel", 950
   end
 
   from "temporaer at gmx dot de" do

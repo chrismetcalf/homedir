@@ -1,0 +1,5 @@
+[default]
+City = Seattle
+Forecast = True
+ID = KSEA
+St = WA

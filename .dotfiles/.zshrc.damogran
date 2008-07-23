@@ -1,1 +1,3 @@
-export PATH=/opt/local/bin:$PATH
+export PATH=/opt/local/bin:/var/lib/gems/1.8/bin:$PATH
+
+alias gvim='gvim --remote'
