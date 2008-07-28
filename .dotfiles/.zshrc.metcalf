@@ -1,6 +1,9 @@
 # For DarwinPorts
 export PATH=/opt/local/bin:/opt/local/sbin:/opt/local/lib/postgresql82/bin:$PATH
 
+# For bin-blist
+export PATH=~/bin-blist:$PATH
+
 # Fixing some stuff
 alias ls='gls --color'
 
