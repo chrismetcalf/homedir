@@ -1,0 +1,15 @@
+#!/bin/sh
+
+f [ -z $1 ]; then
+  echo "usage: new-git project-name.git"
+else
+  gitdir="$HOME/git/$1"
+  mkdir $gitdir
+  pushd $gitdir
+  git --bare init
+  git --bare update-server-info
+  chmod a+x hooks/post-update
+  touch git-daemon-export-ok
+  popd
+fi
+
