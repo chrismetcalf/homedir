@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
-f [ -z $1 ]; then
+if [ -z $1 ]; then
   echo "usage: new-git project-name.git"
 else
   gitdir="$HOME/git/$1"
