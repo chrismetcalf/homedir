@@ -488,7 +488,7 @@ Plugin.define "standard"  do
   end
 
 # {{{ programs (w/ history)
-  binding("execute-program", "MODKEY-p") do |wmii,|
+  binding("execute-program", "Control-space") do |wmii,|
     Thread.new do 
       entry, history_name = run_program(wmii, standard_programs, wmii.plugin_config["standard:programs"]["lists"])
       record_history(wmii, entry, history_name) if entry

@@ -3,12 +3,13 @@
 # Set the log level
 # It defaults to Logger::INFO.
 # Set to Logger::DEBUG for extra verbosity.
-LOGGER.level = Logger::INFO
+LOGGER.level = Logger::DEBUG
 
 # programs to run when wmiirc starts
 # one per line, they're run sequentially right before the main loop begins
 START_PROGS = <<EOF
 xsetroot -solid '#003333'
+xscreensaver -nosplash &
 EOF
 
 # {{{ WM CONFIGURATION
@@ -43,7 +44,6 @@ EOF
             :UP      => :k,
             :DOWN    => :j
 
-
   # Constant used by the intellisort tag selection mechanism
   # set it to   0.0 <= value <= 1.0
   # Lower values make recent choices more likely (modified first order
@@ -62,35 +62,14 @@ EOF
   dmenu_options %(-b -fn "#{font}" -nf "#{normcolors.split[0]}" -nb "#{normcolors.split[1]}" -sf "#{focuscolors.split[0]}" -sb "#{focuscolors.split[1]}")
 
   # {{{ Plugin config
-
-  plugin_config["standard:status"]["refresh_time"] = 1
-
+  plugin_config["standard:status"]["refresh_time"] = 5
   plugin_config["standard"]["x-terminal-emulator"] = "x-terminal-emulator"
-
   plugin_config["standard:actions"]["history_size"] = 3  # set to 0 to disable
   plugin_config["standard:programs"]["history_size"] = 5 # set to 0 to disable
-
   plugin_config["standard:volume"]["mixer"] = "PCM"
-
-  plugin_config["standard:mode"]["mode_toggle_keys"] = ["MODKEY2-space"]
 
   # Allows you to override the default internal actions and define new ones:
   plugin_config["standard:actions"]["internal"].update({
-  #  "screenshot" => nil,    # remove default screenshot action
-  #  "google" => lambda do |wmii, *selection|
-  #    require 'cgi'
-  #    if selection && !selection.empty?
-  #      selection = CGI.escape(selection.join(" "))
-  #    else
-  #      selection = CGI.escape(%!#{`sselp`.strip}!)
-  #    end
-  #    url = "http://www.google.com/search?q=#{selection}"
-  #    case browser = ENV["BROWSER"]
-  #    when nil: system "ssid /etc/alternatives/x-www-browser '#{url}' &"
-  #    else system "ssid #{browser} '#{url}' &"
-  #    end
-  #  end,
-
     "lock" => lambda do |wmii, *args|
       system "xscreensaver-command -lock"
     end,
@@ -134,70 +113,6 @@ EOF
   plugin_config["standard:bookmark"]["del.icio.us-user"] = 'krezel'
   plugin_config["standard:bookmark"]["del.icio.us-password"] = 'hjui89'
 
-  ## WORD OF CAUTION! 
-  ## Before setting the sync mode to :bidirectional, make sure
-  ## that your bookmarks.txt file contains all the bookmarks you want to keep,
-  ## because all the del.icio.us bookmarks not listed there will be deleted!
-  ## You can import your del.icio.us bookmarks by setting it to
-  ## :unidirectional and reloading wmiirc ("ALT-a wmiirc" by default).
-  ## Allow some time for the bookmarks to be downloaded (wait until you see
-  ## "Done importing bookmarks from del.icio.us." in
-  ## $HOME/.wmii-3.5/wmiirc.log). You can then change the mode to :bidirectional
-  ## and reload wmiirc. From that point on, the bookmark lists will be
-  ## synchronized, so local modifications will be propagated to del.icio.us,
-  ## and if you remove a bookmark locally it will also be deleted on
-  ## del.icio.us.
-  #plugin_config["standard:bookmark"]["del.icio.us-mode"] = :bidirectional
-  #plugin_config["standard:bookmark"]["del.icio.us-share"] = true
-
-  ## Sets the encoding used to:
-  #  * store the bookmark descriptions in bookmarks.txt
-  #  * present choices through dmenu
-  # Please make sure your bookmarks.txt uses the appropriate encoding before
-  # setting the next line. If you had already imported bookmarks from
-  # del.icio.us, they will be stored UTF-8, so you might want to
-  #   recode utf-8..NEW_ENCODING bookmarks.txt
-  #
-  # If left to nil, bookmarks imported from del.icio.us will be in UTF-8, and
-  # those created locally will be in the encoding specified by your locale.
-  #plugin_config["standard:bookmark"]["encoding"] = 'KOI8-R'
-
-  # Allows you to override the default bookmark protocols and define new ones:
-  #plugin_config["standard:bookmark"]["protocols"].update({
-  #  'http' => nil,    # remove default http protocol
-  #  'ssh' => {
-  #    :open_urls => lambda do |wmii,bms|
-  #      term = wmii.plugin_config["standard"]["x-terminal-emulator"] || "xterm"
-  #      bms.each do |bm|
-  #        uri = bm[:uri]
-  #        ssh_host = uri.host
-  #        ssh_host = "#{uri.user}@" + ssh_host unless uri.user.nil?
-  #        ssh_port = "-p #{uri.port}" unless uri.port.nil?
-  #        system "ssid #{term} -T '#{bm[:bm].url}' -e 'ssh #{ssh_host} #{ssh_port} || read' &"
-  #      end
-  #    end,
-  #    :get_title => lambda do |wmii,uri|
-  #      title = uri.host
-  #      title = "#{uri.user}@" + title unless uri.user.nil?
-  #      title << ":#{uri.port.to_s}" unless uri.port.nil?
-  #      title
-  #    end
-  #  },
-  #  'pdf' => {
-  #    :open_urls => lambda do |wmii,bms|
-  #      bms.each do |bm|
-  #        path = URI.unescape(bm[:uri].path)
-  #        LOGGER.info "Opening #{path} with xpdf."
-  #        system "ssid xpdf '#{path}' &"
-  #      end
-  #    end,
-  #    :get_title => lambda do |wmii,uri|
-  #      fname = File.basename(URI.unescape(uri.to_s)).gsub(/\.\S+$/,"")
-  #      [fname, fname.downcase, fname.capitalize]
-  #    end
-  #  }
-  #})
-
   # {{{ Tag all browser instances as 'web' in addition to the current tag
   browsers = %w[Firefox Konqueror Iceweasel]
   browser_re = /^#{browsers.join("|")}/
@@ -228,25 +143,20 @@ EOF
   on_key("MODKEY-Control-LEFT") { write "/tag/sel/ctl", "swap sel left" }
   on_key("MODKEY-Control-RIGHT"){ write "/tag/sel/ctl", "swap sel right" }
 
-  # My Plugins
-  from "twitter" do
-    use_binding "menu"
-  end
-
   from "yubnub" do
     use_binding "menu"
   end
 
-#  plugin_config["mail:imap"]["host"] = 'imap.gmail.com'
-#  plugin_config["mail:imap"]["boxes"] = ['INBOX']
-#  plugin_config["mail:imap"]["summarize_at"] = 3
-#  plugin_config["mail:imap"]["user"] = 'chrismetcalf'
-#  plugin_config["mail:imap"]["pass"] = 'lbtyoc*'
-#  plugin_config["mail:imap"]["use_ssl"] = true
-#  from "mail" do
-#     use_bar_applet "imap", 440
-#  end
-  
+  plugin_config["mail:imap"]["host"] = 'imap.gmail.com'
+  plugin_config["mail:imap"]["boxes"] = ['INBOX']
+  plugin_config["mail:imap"]["summarize_at"] = 3
+  plugin_config["mail:imap"]["user"] = 'chrismetcalf'
+  plugin_config["mail:imap"]["pass"] = 'lbtyoc*'
+  plugin_config["mail:imap"]["use_ssl"] = true
+  from "mail" do
+     use_bar_applet "imap", 440
+  end
+
   # Tempmon Config
   plugin_config["sysmon:tempmon"]["file"] = "/proc/eee/temperature"
   plugin_config["sysmon:tempmon"]["label"] = "cpu"
