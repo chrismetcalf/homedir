@@ -3,7 +3,7 @@
 # Set the log level
 # It defaults to Logger::INFO.
 # Set to Logger::DEBUG for extra verbosity.
-LOGGER.level = Logger::DEBUG
+LOGGER.level = Logger::INFO
 
 # programs to run when wmiirc starts
 # one per line, they're run sequentially right before the main loop begins
@@ -151,7 +151,7 @@ EOF
   plugin_config["mail:imap"]["boxes"] = ['INBOX']
   plugin_config["mail:imap"]["summarize_at"] = 3
   plugin_config["mail:imap"]["user"] = 'chrismetcalf'
-  plugin_config["mail:imap"]["pass"] = 'lbtyoc*'
+  plugin_config["mail:imap"]["pass"] = 'statle69'
   plugin_config["mail:imap"]["use_ssl"] = true
   from "mail" do
      use_bar_applet "imap", 440
