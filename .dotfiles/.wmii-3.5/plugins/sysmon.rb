@@ -41,6 +41,8 @@ Plugin.define "sysmon" do
           c[1][1] = 0
           c[1][2] = 0
           bar.colors = c
+
+          system "echo 'system Temperature Critical!' >> ~/.events"
         elsif output >= warning
           # Warning!
           c = bar.colors
@@ -120,6 +122,8 @@ Plugin.define "sysmon" do
           c[1][1] = 0
           c[1][2] = 0
           bar.colors = c
+
+          system "echo 'system Battery Critical!' >> ~/.events"
         elsif status == "Discharging" && percent.to_i <= warning 
           c = bar.colors
           c[1][0] = 255
