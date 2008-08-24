@@ -1,1 +1,5 @@
 alias br='br --port=/dev/ttyS0'
+
+export PYTHONPATH=/opt/local/lib/python2.4/site-packages
+export PATH=/opt/local/bin/:$PATH
+export MANPATH=/opt/local/share/man:$MANPATH
