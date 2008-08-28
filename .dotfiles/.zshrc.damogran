@@ -1,3 +1,5 @@
 export PATH=/opt/local/bin:/var/lib/gems/1.8/bin:$PATH
 
-alias gvim='gvim --remote'
+export PYTHONPATH=/opt/local/lib/python2.4/site-packages
+export PATH=/opt/local/bin/:$PATH
+export MANPATH=/opt/local/share/man:$MANPATH

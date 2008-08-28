@@ -138,7 +138,7 @@ Plugin.define "sysmon" do
         # If percent is 100 and state is discharging then
         # the battery is full and not discharging.
         case status
-        when "Charged"
+        when "Full"
           icon = "="
         when "Discharging"
           icon = "v"
