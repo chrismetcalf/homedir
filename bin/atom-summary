@@ -31,5 +31,5 @@ feed_xml = Net::HTTP.get(URI::parse(feed_url))
 feed = Atom::Feed.new(feed_xml)
 
 feed.entries.reverse.each { |entry|
-  puts "[#{entry.updated.getlocal.strftime '%I:%M %p'}] #{entry.title.sub(/\n.*$/m, '')}"
+  puts "[#{entry.updated.getlocal.strftime '%a %I:%M %p'}] (#{entry.authors[0].name}) #{entry.title.sub(/\n.*$/m, '')}"
 }
