@@ -1,11 +1,25 @@
 # For DarwinPorts
 export PATH=/opt/local/bin:/opt/local/sbin:/opt/local/lib/postgresql82/bin:$PATH
 
-# For bin-blist
-export PATH=~/bin-blist:$PATH
+# Path Updates
+export PATH=~/bin-blist:~/lib/flex-sdk/bin:$PATH
+
+# For Flex builds
+export FLEX_HOME=~/lib/flex-sdk
 
 # Fixing some stuff
 alias ls='gls --color'
 
 # For the flex ANT build
 export ANT_OPTS="-Xms900m -Xmx900m"
+
+# Java
+export JAVA_HOME=/Library/Java/Home
+
+# For EC2
+export EC2_HOME=~/bin-blist/ec2-api-tools-1.3-24159 
+export EC2_PRIVATE_KEY=~/.ec2/pk-EKLR3MP5TSPFFG3URKXYJELSOYPQS6BQ.pem 
+export EC2_CERT=~/.ec2/cert-EKLR3MP5TSPFFG3URKXYJELSOYPQS6BQ.pem  
+
+# blist aliases
+alias git-pull-all='for branch in master prerelease release; do git checkout $branch; git pull --rebase; done'

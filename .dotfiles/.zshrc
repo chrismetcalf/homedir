@@ -92,6 +92,9 @@ autoload -U compinit
 compinit -C
 # End of lines added by compinstall
 
+# rscreen should get ssh's options
+compdef _ssh rscreen
+
 # A less annoying prompt
 autoload colors
 colors
@@ -122,9 +125,9 @@ export PATH=$HOME/bin:$PATH
 # For recordstream
 export PERLLIB=$HOME/bin/record-stream/libs:$PERLLIB
 
-# Common configs
-if [ -f ~/.zshrc.common ]; then
-    source ~/.zshrc.common
+# Local, non-scm controlled configs
+if [ -f ~/.zshrc.local ]; then
+    source ~/.zshrc.local
 fi
 
 # OS-specific configurations
