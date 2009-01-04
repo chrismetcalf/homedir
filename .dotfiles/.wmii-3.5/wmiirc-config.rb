@@ -17,7 +17,7 @@ WMII::Configuration.define do
   border      1
   font        "fixed"
   focuscolors '#888888 #222222 #333333'
-  normcolors  '#ffffff #285577 #4c7899'
+  normcolors  '#ffffff #78828E #777777'
   grabmod     'Mod1'
   rules <<EOF
 /gvim:.*/ -> gvim
@@ -27,7 +27,6 @@ WMII::Configuration.define do
 /Iceweasel/ -> web
 /XMMS.*/ -> ~
 /Gimp.*/ -> ~
-/MPlayer.*/ -> ~
 /XForm.*/ -> ~
 /XSane.*/ -> ~
 /fontforge.*/ -> ~
@@ -173,7 +172,7 @@ EOF
   plugin_config["sysmon:battery"]["warning"] = 20
   plugin_config["sysmon:battery"]["critical"] = 10 
   from "sysmon" do
-    use_bar_applet "tempmon", 900 
+    #use_bar_applet "tempmon", 900 
     use_bar_applet "wireless", 900 
     use_bar_applet "battery", 900 
     use_bar_applet "loadlevel", 950
