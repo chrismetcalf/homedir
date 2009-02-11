@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "Installing necessary CPAN Perl modules..."
+sudo perl -MCPAN -e "install JSON::Syck"
+sudo perl -MCPAN -e "install IO::String"
