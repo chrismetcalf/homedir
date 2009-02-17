@@ -30,10 +30,6 @@ set vb
 " Make command line two lines high
 set ch=3
 
-" Make shift-insert work like in Xterm
-map <S-Insert> <MiddleMouse>
-map! <S-Insert> <MiddleMouse>
-
 " I like highlighting strings inside C comments
 let c_comment_strings=1
 
@@ -72,7 +68,7 @@ set listchars=tab:>-,trail:-
 nnoremap <F5> :make<CR>
 
 "Automagically change directories to the directory of the current buffer
-autocmd BufEnter * cd %:p:h
+"autocmd BufEnter * cd %:p:h
 
 " Automatically load HTML/XML script when needed
 au FileType html,xml,xsl,xhtml source ~/.vim/scripts/closetag.vim
@@ -93,6 +89,12 @@ nmap <silent> <C-Right> :wincmd l<CR>
 
 " Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
+
+" Lusty Explorer keybindings
+set wildignore=*.o,*.bak,.git
+nmap <silent> <C-b> :BufferExplorer<CR>
+nmap <silent> <C-f> :FilesystemExplorer<CR>
+nmap <silent> <C-r> :FilesystemExplorerFromHere<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
