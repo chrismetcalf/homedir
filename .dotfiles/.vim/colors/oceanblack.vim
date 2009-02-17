@@ -19,22 +19,23 @@ let g:colors_name = "oceanblack"
 """" GUI Colors
 
 highlight Cursor        gui=None guibg=PaleTurquoise3 guifg=White
-highlight CursorIM gui=None guifg=white guibg=PaleTurquoise3
+highlight CursorIM gui=bold guifg=white guibg=PaleTurquoise3
 highlight Directory     guifg=LightSeaGreen guibg=bg
 highlight DiffAdd gui=None guifg=fg guibg=DarkCyan
 highlight DiffChange gui=None guifg=fg guibg=Green4
 highlight DiffDelete gui=None guifg=fg guibg=black
-highlight DiffText gui=None guifg=fg guibg=bg
+highlight DiffText gui=bold guifg=fg guibg=bg
 highlight ErrorMsg      guifg=LightYellow  guibg=FireBrick
 " previously 'FillColumn':
 "highlight FillColumn    gui=NONE guifg=black guibg=grey60
 highlight VertSplit    gui=NONE guifg=black guibg=grey60
-highlight Folded        gui=None guibg=#305060 guifg=#b0d0e0
+highlight Folded        gui=bold guibg=#305060 guifg=#b0d0e0
 highlight FoldColumn        gui=None guibg=#305060 guifg=#b0d0e0
 highlight IncSearch gui=reverse guifg=fg guibg=bg
-highlight LineNr        gui=None guibg=grey6 guifg=LightSkyBlue3
+"highlight LineNr        guibg=grey6 guifg=LightSkyBlue3
+highlight LineNr        guibg=grey6 guifg=#777777
 highlight ModeMsg       guibg=DarkGreen guifg=LightGreen
-highlight MoreMsg       gui=None  guifg=SeaGreen4 guibg=bg
+highlight MoreMsg       gui=bold  guifg=SeaGreen4 guibg=bg
 if version < 600
     " same as SpecialKey
     highlight NonText       guibg=#123A4A guifg=#3D5D6D
@@ -43,29 +44,31 @@ else
     highlight NonText       gui=None guibg=#000000 guifg=LightSkyBlue
 endif
 highlight Normal        gui=None guibg=#000000 guifg=honeydew2
-highlight Question      gui=None  guifg=SeaGreen2 guibg=bg
+highlight Question      gui=bold  guifg=SeaGreen2 guibg=bg
 highlight Search        gui=NONE guibg=LightSkyBlue4 guifg=NONE
 highlight SpecialKey    guibg=#103040 guifg=#324262
-highlight StatusLine    gui=None guibg=grey88 guifg=black
+highlight StatusLine    gui=bold guibg=grey88 guifg=black
 highlight StatusLineNC  gui=NONE guibg=grey60 guifg=grey10
-highlight Title         gui=None  guifg=MediumOrchid1 guibg=bg
+highlight Title         gui=bold  guifg=MediumOrchid1 guibg=bg
 highlight Visual        gui=reverse guibg=WHITE guifg=SeaGreen
-highlight VisualNOS     gui=None,underline guifg=fg guibg=bg
-highlight WarningMsg    gui=None guifg=FireBrick1 guibg=bg
-highlight WildMenu      gui=None guibg=Chartreuse guifg=Black
+highlight VisualNOS     gui=bold,underline guifg=fg guibg=bg
+highlight WarningMsg    gui=bold guifg=FireBrick1 guibg=bg
+highlight WildMenu      gui=bold guibg=Chartreuse guifg=Black
 
 
 """" Syntax Colors
 
 "highlight Comment       gui=reverse guifg=#507080
-highlight Comment       gui=None guifg=#507080
+"highlight Comment       gui=None guifg=#507080
+highlight Comment       gui=None guifg=#7C7268
 
 highlight Constant      guifg=cyan3 guibg=bg
 "hi String gui=None guifg=turquoise2 guibg=bg
 hi String gui=None guifg=#80a0ff guibg=bg
     "hi Character gui=None guifg=Cyan guibg=bg
-    highlight Number gui=None guifg=Cyan guibg=bg
-    highlight Boolean gui=None guifg=Cyan guibg=bg
+    "highlight Number gui=None guifg=Cyan guibg=bg
+    highlight Number gui=None guifg=Cyan guibg=black
+    highlight Boolean gui=bold guifg=Cyan guibg=bg
     "hi Float gui=None guifg=Cyan guibg=bg
 
 highlight Identifier    guifg=LightSkyBlue3
@@ -90,13 +93,13 @@ hi StorageClass gui=None guifg=LightBlue guibg=bg
 hi Structure gui=None guifg=LightBlue guibg=bg
 hi Typedef gui=None guifg=LightBlue guibg=bg
 
-"highlight Special       gui=None guifg=aquamarine3
+"highlight Special       gui=bold guifg=aquamarine3
 highlight Special       guifg=#999999
-    "hi SpecialChar gui=None guifg=White guibg=bg
-    "hi Tag gui=None guifg=White guibg=bg
-    "hi Delimiter gui=None guifg=White guibg=bg
-    "hi SpecialComment gui=None guifg=White guibg=bg
-    "hi Debug gui=None guifg=White guibg=bg
+    "hi SpecialChar gui=bold guifg=White guibg=bg
+    "hi Tag gui=bold guifg=White guibg=bg
+    "hi Delimiter gui=bold guifg=White guibg=bg
+    "hi SpecialComment gui=bold guifg=White guibg=bg
+    "hi Debug gui=bold guifg=White guibg=bg
 
 highlight Underlined gui=underline guifg=honeydew4 guibg=bg
 
