@@ -4,6 +4,9 @@ export PATH=/opt/local/bin:/opt/local/sbin:/opt/local/lib/postgresql82/bin:$PATH
 # Path Updates
 export PATH=~/bin-blist:~/lib/flex-sdk/bin:$PATH
 
+# MySQL
+export PATH=/usr/local/mysql/bin:$PATH
+
 # For Flex builds
 export FLEX_HOME=~/lib/flex-sdk
 
