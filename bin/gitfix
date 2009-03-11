@@ -1,0 +1,17 @@
+#!/bin/sh
+
+PATH=$HOME/.homedir/bin:$PATH
+
+cd $HOME
+
+echo "Setting up .ssh directory"
+if [[ ! -d .ssh ]]; then
+  echo ".ssh doesn't exist yet, creating..."
+  mkdir .ssh 
+fi
+dircombine '.*' .ssh $HOME/.ssh
+
+echo "Linking in .dotfiles..."
+dircombine '^\.' . $HOME/
+
+echo "Done!"
