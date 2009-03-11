@@ -12,6 +12,6 @@ fi
 dircombine '.*' .ssh $HOME/.homedir/.ssh
 
 echo "Linking in .dotfiles..."
-dircombine '^\.' . $HOME/.homedir/*
+dircombine '^\.' . $HOME/.homedir
 
 echo "Done!"
