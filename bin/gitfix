@@ -9,9 +9,9 @@ if [[ ! -d .ssh ]]; then
   echo ".ssh doesn't exist yet, creating..."
   mkdir .ssh 
 fi
-dircombine '.*' .ssh $HOME/.ssh
+dircombine '.*' .ssh $HOME/.homedir/.ssh
 
 echo "Linking in .dotfiles..."
-dircombine '^\.' . $HOME/
+dircombine '^\.' . $HOME/.homedir
 
 echo "Done!"
