@@ -1,0 +1,29 @@
+#!/bin/sh
+
+HOST=$1
+PORT=$2
+
+if [[ -z $PORT ]]; then
+  PORT=1080
+fi
+
+if [[ -z $HOST ]]; then
+  echo "Clearing proxy settings..."
+
+  # Set GNOME proxy settings to none
+  gconftool --type string --set /system/proxy/mode none
+
+  # Blow away the proxy file
+  rm $HOME/.proxy-info
+
+else
+  echo "Setting proxy to $HOST:$PORT..."
+
+  # Set up GNOME proxy
+  gconftool --type string --set /system/proxy/socks_host $HOST
+  gconftool --type int --set /system/proxy/socks_port $PORT
+  gconftool --type string --set /system/proxy/mode manual
+
+  # Save away the proxy info for other scripts
+  echo "$HOST:$PORT" >> $HOME/.proxy-info
+fi
