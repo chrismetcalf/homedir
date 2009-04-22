@@ -116,7 +116,13 @@ fg_no_colour=$'%{\e[0m%}'
 fg_white=$'%{\e[1;37m%}'
 fg_black=$'%{\e[0;30m%}'
 
-export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_colour}%#> "
+# Git-bedazzle: http://railstips.org/2009/2/2/bedazzle-your-bash-prompt-with-git-info
+function parse_git_branch {
+  ref=$(git symbolic-ref HEAD 2> /dev/null) || return
+  echo "("${ref#refs/heads/}")" 
+}
+
+export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_colour} $(parse_git_branch)%#> "
 unset RPROMPT
 setopt AUTOLIST
 
