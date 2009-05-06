@@ -1,7 +1,4 @@
-# User defined aliases
-alias ls='ls --color'
-alias vi='vim'
-
+################ Magic Screen Titles
 if [ "x$AUTO_TITLE_SCREENS" '!=' "xNO" ]
 then
 
@@ -26,24 +23,7 @@ then
 
 fi
 
-# Number of directories in your pushd/popd stack
-DIRSTACKSIZE=20   
-
-# Default apps
-export EDITOR="vim"
-export VISUAL="$EDITOR"
-export PAGER="less"
-
-# Options for less 
-export LESS='-i'
-
-# Colors for ls
-export LS_COLORS='no=00:fi=00:di=01;34:ln=01;36:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.gz=01;31:*.bz2=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.mpg=01;35:*.mpeg=01;35:*.avi=01;35:*.fli=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.ogg=01;35:*.mp3=01;35:*.wav=01;35:*.tex=01;33:*.sxw=01;33:*.sxc=01;33:*.lyx=01;33:*.pdf=0;35:*.ps=00;36:*.asm=1;33:*.S=0;33:*.s=0;33:*.h=0;31:*.c=0;35:*.cxx=0;35:*.cc=0;35:*.C=0;35:*.o=1;30:*.am=1;33:*.py=0;34:'
-
-# Turn on grep coloring
-export GREP_COLOR='1;35'
-
-# Vim style line editing
+############### Vim style line editing
 #bindkey -v
 bindkey "" history-incremental-search-backward
 bindkey '' end-of-line
@@ -95,6 +75,8 @@ compinit -C
 # rscreen should get ssh's options
 compdef _ssh rscreen
 
+############### Prompt
+
 # A less annoying prompt
 autoload colors
 colors
@@ -116,25 +98,34 @@ fg_no_colour=$'%{\e[0m%}'
 fg_white=$'%{\e[1;37m%}'
 fg_black=$'%{\e[0;30m%}'
 
-# Git-bedazzle: http://railstips.org/2009/2/2/bedazzle-your-bash-prompt-with-git-info
-function parse_git_branch {
-  ref=$(git symbolic-ref HEAD 2> /dev/null) || return
-  echo "("${ref#refs/heads/}")" 
-}
+# If we've got zsh-git checked out, load it
+ZSH_GIT="$HOME/.zsh/func"
+if [ -d $ZSH_GIT ]; then
+  echo "Loading zsh-git"
+  fpath=($fpath $ZSH_GIT)
+  typeset -U fpath
 
-export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_colour} $(parse_git_branch)%#> "
-unset RPROMPT
-setopt AUTOLIST
+  # Set up the prompt subsystem
+  setopt promptsubst
+  autoload -U promptinit
+  promptinit
 
-export PATH=$HOME/bin:$PATH
+  autoload -U zgitinit
+  zgitinit
 
-# For recordstream
-export PERLLIB=$HOME/bin/record-stream/libs:$PERLLIB
-
-# Local, non-scm controlled configs
-if [ -f ~/.zshrc.local ]; then
-    source ~/.zshrc.local
+  export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_colour} ${prompt_scm_status}%#> "
+else
+  # Otherwise, use our default prompt
+  export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_colour} %#> "
+  unset RPROMPT
+  setopt AUTOLIST
 fi
+
+############## Imports
+
+# Everything not zsh-specific is broken out into imports now
+source ~/.zshrc.aliases
+source ~/.zshrc.exports
 
 # OS-specific configurations
 if [ -f ~/.zshrc.$VENDOR -a ! -z $VENDOR ]; then
@@ -144,4 +135,9 @@ fi
 # Host-specific configurations
 if [ -f ~/.zshrc.`hostname -s` ]; then
     source ~/.zshrc.`hostname -s`
+fi
+
+# Local, non-scm controlled configs. Loaded last to overload any other settings
+if [ -f ~/.zshrc.local ]; then
+    source ~/.zshrc.local
 fi
