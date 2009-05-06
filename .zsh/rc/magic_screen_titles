@@ -1,0 +1,24 @@
+################ Magic Screen Titles
+if [ "x$AUTO_TITLE_SCREENS" '!=' "xNO" ]
+then
+
+  # if you are at a zsh prompt, make your screen title your current directory
+  precmd ()
+  {
+    if [[ "$TERM" == "screen" ]]; then
+      local TIPDIR=`basename $PWD`
+      echo -ne "\ek$TIPDIR\e\\"
+    fi
+  }
+
+  # if you are running a command, make your screen title the command you're
+  # running
+  preexec ()
+  {
+    if [[ "$TERM" == "screen" ]]; then
+      local CMD=${1/% */}  # kill all text after and including the first space
+      echo -ne "\ek$CMD\e\\"
+    fi
+  }
+
+fi

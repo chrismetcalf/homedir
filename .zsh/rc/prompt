@@ -1,0 +1,26 @@
+############### Prompt
+
+# A less annoying prompt
+autoload colors
+colors
+fg_green=$'%{\e[0;32m%}'
+fg_blue=$'%{\e[0;34m%}'
+fg_cyan=$'%{\e[0;36m%}'
+fg_red=$'%{\e[0;31m%}'
+fg_brown=$'%{\e[0;33m%}'
+fg_purple=$'%{\e[0;35m%}'
+
+fg_light_gray=$'%{\e[0;37m%}'
+fg_dark_gray=$'%{\e[1;30m%}'
+fg_light_blue=$'%{\e[1;34m%}'
+fg_light_green=$'%{\e[1;32m%}'
+fg_light_cyan=$'%{\e[1;36m%}' fg_light_red=$'%{\e[1;31m%}'
+fg_light_purple=$'%{\e[1;35m%}'
+fg_no_colour=$'%{\e[0m%}'
+
+fg_white=$'%{\e[1;37m%}'
+fg_black=$'%{\e[0;30m%}'
+
+export PS1="${fg_green}%n${fg_no_colour}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_colour} %#> "
+unset RPROMPT
+setopt AUTOLIST
