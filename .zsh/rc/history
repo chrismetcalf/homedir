@@ -1,0 +1,25 @@
+######################### history options ############################
+setopt EXTENDED_HISTORY        # store time in history
+setopt HIST_EXPIRE_DUPS_FIRST  # unique events are more usefull to me
+setopt HIST_VERIFY	       # Make those history commands nice
+setopt INC_APPEND_HISTORY      # immediatly insert history into history file
+HISTSIZE=16000                 # spots for duplicates/uniques
+SAVEHIST=15000                 # unique events guarenteed
+
+if [[ ! -d ~/.zsh-history ]]; then
+  echo "History location not found; auto-creating"
+  mkdir ~/.zsh-history
+fi
+
+if [[ $USER != "root" ]] ; then
+  HISTFILE=~/.zsh-history/$(hostname)
+else
+  echo "Running as root; using alternate history"      
+  mkdir -p ~root/.zsh-history
+  HISTFILE=~root/.zsh-history/$(hostname).root
+fi
+
+
+
+
+
