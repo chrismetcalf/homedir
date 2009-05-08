@@ -1,8 +1,0 @@
-#!/usr/bin/php4
-<?php
-preg_match_all('{<b>.+= (.+?)</b>}', 
-  file_get_contents('http://www.google.com/search?q=' . 
-     urlencode(join(' ', array_splice($argv, 1)))), $matches);
-print str_replace('<font size=-2> </font>', ',',
-  "{$matches[1][0]}\n");
-?>
