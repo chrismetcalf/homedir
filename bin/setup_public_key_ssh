@@ -8,4 +8,4 @@ fi
 
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
-echo "Done. Submit svn changes to commit"
+echo "Done. Make sure you commit the new version of authorized_keys."
