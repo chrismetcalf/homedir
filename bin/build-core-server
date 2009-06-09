@@ -1,0 +1,12 @@
+#!/bin/sh
+
+BRANCH=`git branch | grep "*" | awk '{print $2}'`
+echo "Building and pushing branch $BRANCH to $1..."
+
+./build.sh clean 
+./build.sh test=no package 
+cp target/blist-core-0.1.0.war /tmp/ROOT-$BRANCH.war 
+md5 /tmp/ROOT-$BRANCH.war 
+rsync -e ssh -avz /tmp/ROOT-$BRANCH.war $1:~/
+ssh $1 "chmod a+r ~/ROOT-$BRANCH.war"
+ssh $1 "md5sum ~/ROOT-$BRANCH.war"
