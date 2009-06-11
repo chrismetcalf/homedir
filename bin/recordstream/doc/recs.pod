@@ -1,0 +1,112 @@
+=head1 NAME
+
+recs - Record Stream Manipulation and output
+
+=head1 SYNOPSIS
+
+A set of programs for creating, manipulating, and outputing a stream of
+Records, or hashes.  Inspired by Monad.
+
+=head1 DESCRIPTION
+
+The recs system consists of 3 basic sets of scripts.  Input scripts responsible
+for generating streams of record objects, Manipulation scripts responsible for
+analyzing, select, and manipulating records, and output scripts which take
+record streams and produce output for humans.  These scripts can interface with
+other systems to retrieve data, parse existing files, or just regex out some
+values from a text stream.
+
+=head2 Input Generation
+
+=over 4
+
+=item recs-fromdb
+
+Produces records for a db table, or from a SELECT statment into a db.
+
+=item recs-fromre
+
+Matches input streams against a regex, puts capture groups into hashes
+
+=item recs-fromsplit
+
+Splits input stream on a delimeter
+
+=back
+
+=head2 Stream Manipulation
+
+=over 4
+
+=item recs-collate
+
+Perforce aggregation operations on records.  Group by a field, get an average,
+sum, corellation, etc.  Very powerful
+
+=item recs-eval
+
+Eval a string of perl against each record
+
+=item recs-grep
+
+Select records for which a string of perl evaluates to true.
+
+=item recs-join
+
+Perform an inner join of two record streams.  Associate records in one stream
+with another stream.
+
+=item recs-sort
+
+Sort records based on keys, may specify multiple levels of sorting, as well as
+numerical or lexical sort ordering
+
+=item recs-xform
+
+Performa block of perl on each record, which may modify the record, Record is
+then output
+
+=back
+
+=head2 Output Generation
+
+=over 4
+
+=item recs-todb
+
+Inserts records into a DBI supported SQL database.  Will crate a local sqlite
+database by default
+
+=item recs-totable
+
+Pretty prints a table of results.
+
+=back
+
+=head1 NOTES
+
+The data stream format of the recs scripts is JSON hashes separated by new
+lines.  If you wish to write your own recs script in your own language, just
+get a JSON parser and you should be good to go.  The recs scripts use
+JSON::Syck, a fast xs-binding of a c implementation of a YAML parser/outputer
+
+=head1 EXAMPLES
+
+  # look in the access log for all accesses with greater than 5 seconds, display in a table
+  cat access.log | recs-fromre --fieds ip,time '^(\d+).*TIME: (\d+)' | recs-grep '$r->{time} > 5' | recs-totable
+
+=head1 SEE ALSO
+
+Each of the recs-* scripts discussed have a --help mode available to print out
+usage and examples for the particular script, See that documentation for
+detailed information on the operation of each of the scripts
+
+=head1 AUTHOR
+
+Benjamin Bernard <perlhacker@benjaminbernard.com>
+Keith Amling <keith.amling@gmail.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2007 by Benjamin Bernard and Keith Amling
+This software is released under the Public Domain

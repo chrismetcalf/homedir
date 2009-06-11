@@ -1,0 +1,165 @@
+#!/usr/bin/perl
+
+$| = 1;
+
+use strict;
+use warnings;
+
+use DBI;
+use Getopt::Long;
+use Data::Dumper;
+use Tie::IxHash;
+
+use Recs::DBHandle;
+use Recs::InputStream;
+use Recs::Record;
+
+my ($drop_table, $table_name, $debug);
+
+my %fields_hash;
+tie %fields_hash, 'Tie::IxHash';
+
+my $fields = \%fields_hash;
+
+Getopt::Long::Configure("pass_through");
+GetOptions(
+   'drop'     => \$drop_table,
+   'table=s'  => \$table_name,
+   'debug'    => \$debug,
+   'fields=s' => sub { shift; add_field($fields, shift) },
+);
+
+my $dbh = Recs::DBHandle::get_dbh();
+
+my $in = Recs::InputStream->new_magic();
+
+unless ( $table_name ) {
+   usage("Must define --table name");
+}
+
+if ( $drop_table ) {
+   eval {
+      dbh_do($dbh, "DROP TABLE $table_name");
+   };
+}
+
+my $first = 1;
+my @keys;
+
+while ( my $record = $in->get_record() )
+{
+   if ( $first ) {
+      add_fields($fields, $record);
+      create_table($dbh, $table_name, $fields);
+      $first = 0;
+   }
+
+   add_row($record, $dbh, $table_name, $fields);
+}
+
+sub add_fields {
+   my $fields = shift;
+   my $record = shift;
+
+   return if ( scalar keys %$fields > 0 );
+
+   foreach my $key ( $record->keys() ) {
+      $fields->{$key} = 0;
+   }
+}
+
+sub add_row {
+   my $record = shift;
+   my $dbh    = shift;
+   my $name   = shift;
+   my $fields = shift;
+
+   my @keys = keys %$fields;
+
+   my $columns_string = join(',', @keys);
+   my $values = '';
+
+   foreach my $key (@keys) {
+      my $value = $record->get($key);
+      $value = substr($value, 0, 255) if ( ! $fields->{$key} );
+      $values .= "'$value',";
+   }
+
+   chop $values;
+
+   my $sql = "INSERT INTO $name ($columns_string) VALUES ($values)";
+   dbh_do($dbh, $sql);
+}
+
+sub create_table {
+   my $dbh    = shift;
+   my $name   = shift;
+   my $fields = shift;
+
+   my $sql = "CREATE TABLE $name ( id INTEGER PRIMARY KEY AUTOINCREMENT, ";
+
+   foreach my $name (keys %$fields) {
+      my $type = $fields->{$name} || 'VARCHAR(255)';
+      $sql .= " $name $type,";
+   }
+
+   chop $sql;
+   $sql .= " )";
+
+   eval {
+     dbh_do($dbh, $sql);
+   };
+}
+
+sub usage {
+   my $message = shift;
+
+   print <<USAGE;
+$0
+$message
+   Recs to DB will dump a stream of input records into a database you specify.
+   The record fields you want inserted should have the same keys as the column
+   names in the database, and the records should be key-value pairs.
+
+   This script will attempt to create the table, if it is not already present.
+
+   --drop   - Drop the table before running create / insert commands.
+   --table  - Name of the table to work with
+   --debug  - Print all the executed SQL
+   --fields - Can either be a name value pair or just a name.  Name value pairs
+              should be fieldName=SQL Type.  If any fields are specified, they 
+              will be the only fields put into the db.  May be specified
+              multiple times, may also be comma separated.  Type defaults to
+              VARCHAR(255)
+
+USAGE
+
+   Recs::DBHandle::usage();
+
+   print <<EXAMPLES;
+Examples:
+   # Just put all the records into the recs table
+   $0 --type sqlite --dbfile testDb --table recs
+
+   # Just put description, status, and user into the table, make the records
+   # the only thing in the DB
+   $0 --dbfile testDb --drop --fields status,description=TEXT --fields user
+
+EXAMPLES
+
+   exit 1;
+}
+
+sub add_field {
+   my $hash  = shift;
+   my $arg  = shift;
+
+   my @specs; 
+
+   push @specs, split(',', $arg);
+
+   foreach my $spec ( @specs ) {
+      my ($field,$sql_spec) = split('=', $spec);
+      $hash->{$field} = $sql_spec;
+   }
+}

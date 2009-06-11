@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+
+$| = 1;
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Recs::InputStream;
+use Recs::OutputStream;
+use Recs::Record;
+
+Getopt::Long::Configure("pass_through");
+GetOptions(
+   "help" => \&usage,
+);
+
+usage("You must provide key1") unless (@ARGV);
+
+my $key = shift;
+
+usage("You must provide key2") unless (@ARGV);
+
+my $key2 = shift;
+
+usage("You must provide dbfile") unless (@ARGV);
+
+my $dbfile = shift;
+
+my $db_stream = Recs::InputStream->new('FILE' => $dbfile);
+my %db;
+my $record;
+
+while($record = $db_stream->get_record())
+{
+   my $value = value_for_key($record, $key2);
+
+   $db{$value} = [] unless ( $db{$value} );
+   push @{$db{$value}}, $record;
+}
+
+# deallocate the db input stream
+$db_stream = undef;
+
+my $in  = Recs::InputStream->new_magic();
+my $out = Recs::OutputStream->new();
+
+while($record = $in->get_record())
+{
+   my $value = value_for_key($record, $key);
+
+   if(my $records = $db{$value})
+   {
+      foreach my $other_record (@$records)
+      {
+         $out->put_record(Recs::Record->new(%$record, %$other_record));
+      }
+   }
+}
+
+sub value_for_key
+{
+   my $record = shift;
+   my $key    = shift;
+
+   if ( exists $record->{$key} )
+   {
+      return $record->{$key};
+   }
+
+   return '';
+}
+
+sub usage
+{
+   my ($message) = @_;
+   if(defined($message))
+   {
+      print $message . "\n";
+   }
+   while(my $l = <DATA>)
+   {
+      print $l;
+   }
+   exit 1;
+}
+
+__DATA__
+Usage: recs-join <args> <key1> <key2> <dbfile> [<files>]
+   Record of input (or records from <files>) are joined against records in
+   <dbfile>, using field <key1> from input and field <key2> from <dbfile>.
+   Each record from input may match 0, 1, or more records from <dbfile>. Each
+   pair of matches will be combined to form a larger record, with fields from
+   the dbfile overwriting fields from the input stream.  If your non-dbfile
+   inputs do not match a dbfile record, they are discarded
+
+   For instance.  If you did:
+   recs-join type typeName dbfile fromfile
+
+   with a db file like:
+   { 'typeName': 'foo', 'hasSetting': 1 }
+   { 'typeName': 'bar', 'hasSetting': 0 }
+
+   and joined that with
+   { 'name': 'something', 'type': 'foo'}
+   { 'name': 'zap', 'type': 'bar'}
+   { 'name': 'blarg', 'type': 'hip'}
+
+   you would get
+   { 'name': 'something', 'type': 'foo', 'typeName': 'foo', 'hasSetting': 1}
+   { 'name': 'zap', 'type': 'bar', 'typeName': 'bar', 'hasSetting': 0}
+
+Arguments:
+   --help   Bail and output this help screen.
+
+Examples:
+   
+   Join type from STDIN and typeName from dbfile
+      cat recs | recs-join type typeName dbfile
+   
+   Join host name from a mapping file to machines to get IPs
+      recs-join host host hostIpMapping machines

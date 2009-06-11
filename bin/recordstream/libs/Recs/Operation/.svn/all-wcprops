@@ -1,0 +1,95 @@
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/!svn/ver/58/trunk/libs/Recs/Operation
+END
+frommultire.pm
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/41/trunk/libs/Recs/Operation/frommultire.pm
+END
+fromps.pm
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/52/trunk/libs/Recs/Operation/fromps.pm
+END
+tohtml.pm
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/57/trunk/libs/Recs/Operation/tohtml.pm
+END
+fromsplit.pm
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/56/trunk/libs/Recs/Operation/fromsplit.pm
+END
+chain.pm
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/58/trunk/libs/Recs/Operation/chain.pm
+END
+collate.pm
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/57/trunk/libs/Recs/Operation/collate.pm
+END
+Printer.pm
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/19/trunk/libs/Recs/Operation/Printer.pm
+END
+fromxml.pm
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/53/trunk/libs/Recs/Operation/fromxml.pm
+END
+eval.pm
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/46/trunk/libs/Recs/Operation/eval.pm
+END
+sort.pm
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/57/trunk/libs/Recs/Operation/sort.pm
+END
+totable.pm
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/57/trunk/libs/Recs/Operation/totable.pm
+END
+fromre.pm
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/41/trunk/libs/Recs/Operation/fromre.pm
+END
+xform.pm
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/40/trunk/libs/Recs/Operation/xform.pm
+END
+flatten.pm
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/42/trunk/libs/Recs/Operation/flatten.pm
+END
+grep.pm
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/50/trunk/libs/Recs/Operation/grep.pm
+END
