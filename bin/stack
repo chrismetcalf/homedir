@@ -1,0 +1,6 @@
+#!/bin/sh
+#!/bin/sh
+
+echo "Current contents of stack:"
+echo "--------------------------"
+gtac ~/.stack

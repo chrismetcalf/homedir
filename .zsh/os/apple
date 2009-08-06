@@ -5,3 +5,5 @@ export MANPATH=/opt/local/share/man:$MANPATH
 
 alias date='gdate'
 alias seq='gseq'
+alias chmod='gchmod'
+alias tac='gtac'

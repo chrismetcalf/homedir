@@ -1,0 +1,10 @@
+#!/bin/sh
+
+tail -n 1 ~/.stack
+
+# Pop off the stack
+ghead -n -1 ~/.stack > /tmp/stack
+mv /tmp/stack ~/.stack
+
+echo
+stack
