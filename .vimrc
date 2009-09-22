@@ -1,6 +1,4 @@
-" Vim Config File
-
-" Highly recommended to set tab keys to 4 spaces
+" Tab config
 set smarttab
 set shiftwidth=2
 set autoindent
@@ -67,9 +65,6 @@ set listchars=tab:>-,trail:-
 " Devel commands
 nnoremap <F5> :make<CR>
 
-"Automagically change directories to the directory of the current buffer
-"autocmd BufEnter * cd %:p:h
-
 " Automatically load HTML/XML script when needed
 au FileType html,xml,xsl,xhtml source ~/.vim/scripts/closetag.vim
 
@@ -90,11 +85,12 @@ nmap <silent> <C-Right> :wincmd l<CR>
 " Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
 
-" Lusty Explorer keybindings
+" Lusty Explorer/Juggler keybindings
 set wildignore=*.o,*.bak,.git
 nmap <silent> <C-b> :BufferExplorer<CR>
 nmap <silent> <C-f> :FilesystemExplorer<CR>
 nmap <silent> <C-r> :FilesystemExplorerFromHere<CR>
+nmap <silent> <C-t> :LustyJuggler<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
