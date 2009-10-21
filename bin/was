@@ -2,5 +2,6 @@
 
 TIMESTAMP=`date +"%Y-%m-%d %H:%M:%S"`
 echo "$* [$TIMESTAMP]" >> ~/.stack
+echo "$* [$TIMESTAMP]" >> ~/.stack-history
 
 stack

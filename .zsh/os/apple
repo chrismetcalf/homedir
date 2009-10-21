@@ -3,7 +3,11 @@ export PATH=/usr/local/bin:$PATH
 
 export MANPATH=/opt/local/share/man:$MANPATH
 
+# GNU versions of things
 alias date='gdate'
 alias seq='gseq'
 alias chmod='gchmod'
 alias tac='gtac'
+
+# Make less handle colors
+export LESS="-erX"

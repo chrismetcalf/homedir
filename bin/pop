@@ -6,5 +6,5 @@ tail -n 1 ~/.stack
 ghead -n -1 ~/.stack > /tmp/stack
 mv /tmp/stack ~/.stack
 
-echo
+echo "---"
 stack
