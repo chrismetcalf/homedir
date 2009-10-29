@@ -5,7 +5,7 @@
 set guioptions=cmR
 
 " set the X11 font to use. See 'man xlsfonts' on unix/linux
-set guifont=ProFontWindows\ 7
+set guifont=ProFontWindows\ 9
 
 " Hide the mouse pointer while typing
 set mousehide

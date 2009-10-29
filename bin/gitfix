@@ -7,7 +7,7 @@ cd $HOME
 echo "Setting up .ssh directory"
 if [[ ! -d .ssh ]]; then
   echo ".ssh doesn't exist yet, creating..."
-  mkdir .ssh 
+  mkdir .ssh
 fi
 dircombine '.*' .ssh $HOME/.homedir/.ssh
 
