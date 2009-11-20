@@ -13,6 +13,11 @@ set wrap
 set wrapmargin=2
 set display+=lastline
 
+" Formatting options - help formatoptions/fo-table
+set formatoptions=cn1
+"set textwidth=80
+set textwidth=0
+
 " Show matching parens
 set showmatch
 
@@ -26,7 +31,7 @@ set ignorecase
 set vb
 
 " Make command line two lines high
-set ch=3
+set ch=2
 
 " I like highlighting strings inside C comments
 let c_comment_strings=1
@@ -103,11 +108,4 @@ vnoremap <Down> gj
 vnoremap <Up> gk
 inoremap <Down> <C-o>gj
 inoremap <Up> <C-o>gk
-
-"Make backup files end in .bak instead of ~
-set backupext=.bak
-
-"Formatting options - help formatoptions/fo-table
-set formatoptions=cn1
-set textwidth=80
 
