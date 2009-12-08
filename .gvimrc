@@ -11,7 +11,5 @@ set guifont=ProFontWindows:h12.00
 set mousehide
 
 " Set nice colors
-let psc_style='warm'
 colorscheme twilight
-
 
