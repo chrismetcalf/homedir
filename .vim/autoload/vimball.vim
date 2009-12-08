@@ -1,0 +1,1 @@
+../stow/vimball-26/autoload/vimball.vim

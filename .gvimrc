@@ -5,13 +5,13 @@
 set guioptions=cmR
 
 " set the X11 font to use. See 'man xlsfonts' on unix/linux
-set guifont=ProFontWindows\ 9
+set guifont=ProFontWindows:h12.00
 
 " Hide the mouse pointer while typing
 set mousehide
 
 " Set nice colors
 let psc_style='warm'
-colorscheme ps_color
+colorscheme twilight
 
 

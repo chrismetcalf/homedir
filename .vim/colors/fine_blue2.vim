@@ -1,0 +1,1 @@
+../stow/colorsamplerpack-7.01/colors/fine_blue2.vim

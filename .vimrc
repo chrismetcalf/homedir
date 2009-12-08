@@ -89,7 +89,7 @@ nmap <silent> <C-Tab> :bprevious<CR>
 set wildignore=*.o,*.bak,.git
 nmap <silent> <C-b> :BufferExplorer<CR>
 nmap <silent> <C-f> :FilesystemExplorer<CR>
-nmap <silent> <C-r> :FilesystemExplorerFromHere<CR>
+nmap <silent> <D-t> :FilesystemExplorer<CR> # Cmd-T
 nmap <silent> <C-t> :LustyJuggler<CR>
 
 " Move one screen line at a time while wrapped

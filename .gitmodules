@@ -1,0 +1,6 @@
+[submodule ".vim/stow/nerdcommenter"]
+	path = .vim/stow/nerdcommenter
+	url = git://github.com/scrooloose/nerdcommenter.git
+[submodule ".vim/stow/nerdtree"]
+	path = .vim/stow/nerdtree
+	url = git://github.com/scrooloose/nerdtree.git

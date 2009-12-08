@@ -1,0 +1,2 @@
+supertab.vba: call delete('/Users/metcalf/.vim/doc/supertab.txt')|call delete('/Users/metcalf/.vim/plugin/supertab.vim')
+delimitMate.vba: call delete('/Users/metcalf/.vim/doc/delimitMate.txt')|call delete('/Users/metcalf/.vim/plugin/delimitMate.vim')

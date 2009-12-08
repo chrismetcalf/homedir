@@ -1,0 +1,1 @@
+../stow/vtreeexplorer-1.28/plugin/vtreeexplorer.vim

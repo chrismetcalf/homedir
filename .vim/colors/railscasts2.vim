@@ -1,0 +1,1 @@
+../stow/colorsamplerpack-7.01/colors/railscasts2.vim
