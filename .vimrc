@@ -39,9 +39,6 @@ let c_comment_strings=1
 " Switch on syntax highlighting.
 syntax on
 
-" Switch on search pattern highlighting.
-set hlsearch
-
 " Set nice colors
 colorscheme oceanblack
 
@@ -67,19 +64,16 @@ set incsearch
 set list
 set listchars=tab:>-,trail:-
 
-" Devel commands
-nnoremap <F5> :make<CR>
+"Make backup files end in .bak instead of ~
+set backupext=.bak
 
-" Automatically load HTML/XML script when needed
-au FileType html,xml,xsl,xhtml source ~/.vim/scripts/closetag.vim
+"Formatting options - help formatoptions/fo-table
+set formatoptions=cn1
+set textwidth=80
 
-" Markdown
-augroup mkd
-  autocmd BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
-augroup END
-
-" For arduino
-au FileType pde :set syntax=c
+"######################################
+" Keyboard Mappings
+"######################################
 
 " Mappings for window keys
 nmap <silent> <C-Up> :wincmd k<CR>
@@ -90,12 +84,14 @@ nmap <silent> <C-Right> :wincmd l<CR>
 " Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
 
-" Lusty Explorer/Juggler keybindings
-set wildignore=*.o,*.bak,.git
-nmap <silent> <C-b> :BufferExplorer<CR>
-nmap <silent> <C-f> :FilesystemExplorer<CR>
-nmap <silent> <D-t> :FilesystemExplorer<CR> # Cmd-T
-nmap <silent> <C-t> :LustyJuggler<CR>
+" FuzzyFinder Bindings
+nmap <silent> <C-b> :FufBuffer<CR>
+nmap <silent> <C-y> :FufFile<CR>
+nmap <silent> <C-t> :FufFile **/<CR>
+
+" NERDTree
+nmap <silent> <C-n> :NERDTreeToggle<CR>
+nmap <silent> <C-D-r> :NERDTreeFind<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -111,3 +107,18 @@ inoremap <Up> <C-o>gk
 
 " Source local configs
 source $HOME/.vimrc.local
+
+"######################################
+" Filetypes
+"######################################
+
+" Automatically load HTML/XML script when needed
+au FileType html,xml,xsl,xhtml source ~/.vim/scripts/closetag.vim
+
+" Markdown
+augroup mkd
+  autocmd BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
+augroup END
+
+" For arduino
+au FileType pde :set syntax=c
