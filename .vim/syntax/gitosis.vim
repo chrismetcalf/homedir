@@ -1,0 +1,1 @@
+../stow/gitosis/syntax/gitosis.vim

@@ -11,7 +11,7 @@ set guifont=ProFontWindows:h12.00
 set mousehide
 
 " Set nice colors
-colorscheme twilight
+colorscheme jellybeans
 
 " Source local config
 source $HOME/.gvimrc.local

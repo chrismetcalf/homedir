@@ -4,3 +4,6 @@
 [submodule ".vim/stow/nerdtree"]
 	path = .vim/stow/nerdtree
 	url = git://github.com/scrooloose/nerdtree.git
+[submodule ".vim/stow/gitosis"]
+	path = .vim/stow/gitosis
+	url = git://github.com/timcharper/gitosis.vim.git

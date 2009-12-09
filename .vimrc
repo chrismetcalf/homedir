@@ -112,9 +112,6 @@ source $HOME/.vimrc.local
 " Filetypes
 "######################################
 
-" Automatically load HTML/XML script when needed
-au FileType html,xml,xsl,xhtml source ~/.vim/scripts/closetag.vim
-
 " Markdown
 augroup mkd
   autocmd BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>

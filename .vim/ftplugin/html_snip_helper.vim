@@ -1,0 +1,1 @@
+../stow/snipMate-0.83/ftplugin/html_snip_helper.vim

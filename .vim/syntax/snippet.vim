@@ -1,0 +1,1 @@
+../stow/snipMate-0.83/syntax/snippet.vim
