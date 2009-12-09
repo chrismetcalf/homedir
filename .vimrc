@@ -109,3 +109,5 @@ vnoremap <Up> gk
 inoremap <Down> <C-o>gj
 inoremap <Up> <C-o>gk
 
+" Source local configs
+source $HOME/.vimrc.local

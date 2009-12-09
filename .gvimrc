@@ -13,3 +13,5 @@ set mousehide
 " Set nice colors
 colorscheme twilight
 
+" Source local config
+source $HOME/.gvimrc.local
