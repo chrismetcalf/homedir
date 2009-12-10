@@ -109,6 +109,13 @@ inoremap <Up> <C-o>gk
 source $HOME/.vimrc.local
 
 "######################################
+" snipMate
+"######################################
+
+" Author name
+let g:snips_author = "Chris Metcalf"
+
+"######################################
 " Filetypes
 "######################################
 

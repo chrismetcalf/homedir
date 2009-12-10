@@ -1,1 +1,0 @@
-../stow/lusty-juggler-1.1.2/plugin/lusty-juggler.vim

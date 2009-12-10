@@ -1,0 +1,1 @@
+../stow/vim-git/ftplugin/gitcommit.vim

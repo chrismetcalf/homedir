@@ -7,3 +7,12 @@
 [submodule ".vim/stow/gitosis"]
 	path = .vim/stow/gitosis
 	url = git://github.com/timcharper/gitosis.vim.git
+[submodule ".vim/stow/vim-git"]
+	path = .vim/stow/vim-git
+	url = git://github.com/tpope/vim-git.git
+[submodule ".vim/stow/vim-pastie"]
+	path = .vim/stow/vim-pastie
+	url = git://github.com/tpope/vim-pastie.git
+[submodule ".vim/stow/vim-fugitive"]
+	path = .vim/stow/vim-fugitive
+	url = git://github.com/tpope/vim-fugitive.git

@@ -1,1 +1,0 @@
-../stow/lusty-explorer-2.1.1/plugin/lusty-explorer.vim
