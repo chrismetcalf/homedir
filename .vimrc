@@ -106,7 +106,9 @@ inoremap <Down> <C-o>gj
 inoremap <Up> <C-o>gk
 
 " Source local configs
-source $HOME/.vimrc.local
+if filereadable("$HOME/.vimrc.local")
+  source $HOME/.vimrc.local
+fi
 
 "######################################
 " snipMate
