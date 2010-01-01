@@ -1,0 +1,5 @@
+# For MySQL
+export PATH=/usr/local/mysql/bin/:$PATH
+
+# Fixing some stuff
+alias ls='gls --color'
