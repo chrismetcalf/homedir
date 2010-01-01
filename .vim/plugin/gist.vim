@@ -1,1 +1,0 @@
-../stow/gist-3.1/plugin/gist.vim

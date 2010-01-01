@@ -1,1 +1,0 @@
-../stow/snipMate-0.83/plugin/snipMate.vim

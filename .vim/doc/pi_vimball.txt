@@ -1,1 +1,0 @@
-../stow/vimball-26/doc/pi_vimball.txt

@@ -1,1 +1,0 @@
-../stow/colorsamplerpack-7.01/colors/calmar256_dark.vim

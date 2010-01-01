@@ -1,1 +1,0 @@
-../stow/fuzzyfinder-3.5/autoload/fuf.vim

@@ -1,1 +1,0 @@
-../stow/vim-pastie/plugin/pastie.vim

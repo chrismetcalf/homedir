@@ -1,1 +1,0 @@
-../stow/vim-git/ftplugin/gitsendemail.vim

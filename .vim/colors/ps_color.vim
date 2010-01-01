@@ -1,1 +1,0 @@
-../stow/_colors/colors/ps_color.vim

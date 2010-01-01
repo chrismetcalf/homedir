@@ -1,1 +1,0 @@
-../stow/vim-git/syntax/gitcommit.vim

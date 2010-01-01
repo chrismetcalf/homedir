@@ -1,1 +1,0 @@
-../stow/colorsamplerpack-7.01/plugin/color_sample_pack.vim

@@ -1,1 +1,0 @@
-../stow/delimitMate-1.6/plugin/delimitMate.vim

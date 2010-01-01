@@ -1,1 +1,0 @@
-../stow/_colors/colors/twilight.vim

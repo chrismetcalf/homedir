@@ -1,1 +1,0 @@
-../stow/nerdtree/doc/NERD_tree.txt
