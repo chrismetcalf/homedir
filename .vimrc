@@ -97,7 +97,10 @@ nmap <silent> <C-t> :FufFile **/<CR>
 
 " NERDTree
 nmap <silent> <C-n> :NERDTreeToggle<CR>
-nmap <silent> <C-D-r> :NERDTreeFind<CR>
+nmap <silent> <C-S-r> :NERDTreeFind<CR>
+
+" Ack
+""nmap <si
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -134,3 +137,5 @@ augroup END
 
 " For arduino
 au FileType pde :set syntax=c
+
+au FileType java :set shiftwidth=4
