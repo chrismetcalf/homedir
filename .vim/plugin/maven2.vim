@@ -1,1 +1,0 @@
-../stow/maven-0.1/plugin/maven2.vim
