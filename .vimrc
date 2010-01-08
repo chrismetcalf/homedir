@@ -46,7 +46,7 @@ let c_comment_strings=1
 syntax on
 
 " Set nice colors
-colorscheme oceanblack
+colorscheme vividchalk
 
 " Indent stuff
 filetype plugin indent on
@@ -117,7 +117,7 @@ inoremap <Up> <C-o>gk
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
-fi
+end
 
 "######################################
 " snipMate
