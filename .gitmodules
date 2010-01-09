@@ -52,3 +52,6 @@
 [submodule ".vimbundles/blogit"]
 	path = .vimbundles/blogit
 	url = git@github.com:chrismetcalf/blogit.git
+[submodule ".vimbundles/gist-vim"]
+	path = .vimbundles/gist-vim
+	url = git@github.com:chrismetcalf/gist-vim.git
