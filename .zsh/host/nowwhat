@@ -3,3 +3,8 @@ export PATH=/usr/local/mysql/bin/:$PATH
 
 # Fixing some stuff
 alias ls='gls --color'
+
+# Screen scaling
+alias scale-screen='defaults write -g AppleDisplayScaleFactor'
+alias reset-scale='defaults write -g AppleDisplayScaleFactor 1.0'
+
