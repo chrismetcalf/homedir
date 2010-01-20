@@ -49,6 +49,6 @@
 [submodule ".vimbundles/snipmate"]
 	path = .vimbundles/snipmate
 	url = git://github.com/msanders/snipmate.vim.git
-[submodule ".vimbundles/vimpress"]
-	path = .vimbundles/vimpress
-	url = git@github.com:chrismetcalf/Vimpress.git
+[submodule ".vimbundles/blogit"]
+	path = .vimbundles/blogit
+	url = git@github.com:chrismetcalf/blogit.git
