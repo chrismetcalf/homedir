@@ -107,17 +107,22 @@ nnoremap j gj
 nnoremap k gk
 vnoremap j gj
 vnoremap k gk
-nnoremap <Down> gj
-nnoremap <Up> gk
-vnoremap <Down> gj
-vnoremap <Up> gk
-inoremap <Down> <C-o>gj
-inoremap <Up> <C-o>gk
+"nnoremap <Down> gj
+"nnoremap <Up> gk
+"vnoremap <Down> gj
+"vnoremap <Up> gk
+"inoremap <Down> <C-o>gj
+"inoremap <Up> <C-o>gk
 
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
 end
+
+" Gist
+let g:gist_open_browser_after_post = 1
+let g:gist_detect_filetype = 1
+
 
 "######################################
 " snipMate
