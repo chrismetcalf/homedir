@@ -55,3 +55,6 @@
 [submodule ".vimbundles/gist-vim"]
 	path = .vimbundles/gist-vim
 	url = git@github.com:chrismetcalf/gist-vim.git
+[submodule "bin/growlme.git"]
+	path = bin/growlme.git
+	url = git://github.com/robey/growlme.git
