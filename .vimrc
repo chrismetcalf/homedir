@@ -7,6 +7,7 @@ end
 " Tab config
 set smarttab
 set shiftwidth=2
+set tabstop=2
 set autoindent
 set expandtab
 
@@ -48,9 +49,6 @@ syntax on
 " Set nice colors
 colorscheme vividchalk
 
-" Indent stuff
-filetype plugin indent on
-
 "Shows the current editing mode
 set showmode
 
@@ -66,81 +64,84 @@ set hlsearch
 "Show search while typing
 set incsearch
 
-"Show tabs as >-
+"#### Show tabs as >-
 set list
 set listchars=tab:>-,trail:-
 
-"Make backup files end in .bak instead of ~
+"#### Make backup files end in .bak instead of ~
 set backupext=.bak
 
-"Formatting options - help formatoptions/fo-table
+"#### Formatting options - help formatoptions/fo-table
 set formatoptions=cn1
 set textwidth=80
 
-"######################################
-" Keyboard Mappings
-"######################################
+" Allow the creation of hidden buffers
+set hidden
 
-" Mappings for window keys
+"#### Mappings for window keys
 nmap <silent> <C-Up> :wincmd k<CR>
 nmap <silent> <C-Down> :wincmd j<CR>
 nmap <silent> <C-Left> :wincmd h<CR>
 nmap <silent> <C-Right> :wincmd l<CR>
 
-" Toggle through buffers
+"#### Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
 
-" FuzzyFinder Bindings
+"#### FuzzyFinder Bindings
 nmap <silent> <C-b> :FufBuffer<CR>
 nmap <silent> <C-y> :FufFile<CR>
 nmap <silent> <C-t> :FufFile **/<CR>
 
-" NERDTree
+"#### NERDTree
 nmap <silent> <C-n> :NERDTreeToggle<CR>
 nmap <silent> <C-S-r> :NERDTreeFind<CR>
 
-" Ack
-""nmap <si
-
-" Move one screen line at a time while wrapped
+"#### Move one screen line at a time while wrapped
 nnoremap j gj
 nnoremap k gk
 vnoremap j gj
 vnoremap k gk
-"nnoremap <Down> gj
-"nnoremap <Up> gk
-"vnoremap <Down> gj
-"vnoremap <Up> gk
-"inoremap <Down> <C-o>gj
-"inoremap <Up> <C-o>gk
 
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
 end
 
-" Gist
+"#### Gist
 let g:gist_open_browser_after_post = 1
 let g:gist_detect_filetype = 1
 
-
-"######################################
-" snipMate
-"######################################
-
+"#### snipMate
 " Author name
 let g:snips_author = "Chris Metcalf"
 
-"######################################
-" Filetypes
-"######################################
+"#### AutoCmds
+if has("autocmd")
+  filetype plugin indent on
 
-" Markdown
-augroup mkd
-  autocmd BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
-augroup END
+  autocmd BufNewFile,BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
+  autocmd BufNewFile,BufRead *.rss,*.atom setfiletype xml
 
-" For arduino
-au FileType pde :set syntax=c
+  au FileType pde :set syntax=c
+  au FileType java :set shiftwidth=4
+endif
 
-au FileType java :set shiftwidth=4
+"#### Strip trailing whitespace and delete blanks
+function! <SID>StripTrailingWhitespaces()
+  let _s=@/
+  let l = line(".")
+  let c = col(".")
+  %s/\s\+$//e
+  let @/=_s
+  call cursor(l, c)
+endfunction
+command! StripTrail call <SID>StripTrailingWhitespaces()
+
+command! DeleteBlank :g/^$/d
+
+" Resource vimrc
+function! <SID>ReloadVimrc()
+  :source ~/.vimrc
+  :source ~/.gvimrc
+endfunction
+command! Reload call <SID>ReloadVimrc()

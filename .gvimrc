@@ -10,6 +10,9 @@ set guifont=ProFontWindows:h12.00
 " Hide the mouse pointer while typing
 set mousehide
 
+" Use nicer charecters for invisibles in gvim
+set listchars=tab:▸\ ,trail:-
+
 " Set nice colors
 colorscheme jellybeans
 
