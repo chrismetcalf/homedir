@@ -58,3 +58,6 @@
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
+[submodule ".vimbundles/vim-json"]
+	path = .vimbundles/vim-json
+	url = git@github.com:chrismetcalf/vim-json.git
