@@ -5,7 +5,7 @@
 	<key>Auditory Feedback</key>
 	<true/>
 	<key>Characters Saved</key>
-	<integer>95606</integer>
+	<integer>98772</integer>
 	<key>Client Mode</key>
 	<integer>0</integer>
 	<key>Cross Platform Images</key>
@@ -17,13 +17,13 @@
 	<key>IconNameStem</key>
 	<string>TEStatusItem</string>
 	<key>Last Version</key>
-	<string>2.7.1</string>
+	<string>2.8.1</string>
 	<key>Remote Snippets</key>
 	<array/>
 	<key>Restore Pasteboard</key>
 	<true/>
 	<key>Snippet Count</key>
-	<integer>5023</integer>
+	<integer>5216</integer>
 	<key>Snippet Menu Item Width</key>
 	<integer>370</integer>
 	<key>Snippets</key>
@@ -522,7 +522,7 @@ Chris
 	<key>applaststatus</key>
 	<integer>5</integer>
 	<key>applastupdated</key>
-	<date>2009-10-21T23:53:40Z</date>
+	<date>2010-03-31T05:28:36Z</date>
 	<key>checkforupdates</key>
 	<false/>
 	<key>checkfrequency</key>

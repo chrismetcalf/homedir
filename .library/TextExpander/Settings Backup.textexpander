@@ -5,7 +5,7 @@
 	<key>Auditory Feedback</key>
 	<true/>
 	<key>Characters Saved</key>
-	<integer>86661</integer>
+	<integer>98772</integer>
 	<key>Client Mode</key>
 	<integer>0</integer>
 	<key>Cross Platform Images</key>
@@ -23,7 +23,7 @@
 	<key>Restore Pasteboard</key>
 	<true/>
 	<key>Snippet Count</key>
-	<integer>4586</integer>
+	<integer>5216</integer>
 	<key>Snippet Menu Item Width</key>
 	<integer>370</integer>
 	<key>Snippets</key>
@@ -522,7 +522,7 @@ Chris
 	<key>applaststatus</key>
 	<integer>5</integer>
 	<key>applastupdated</key>
-	<date>2009-10-21T23:53:40Z</date>
+	<date>2010-03-31T05:28:36Z</date>
 	<key>checkforupdates</key>
 	<false/>
 	<key>checkfrequency</key>
@@ -542,7 +542,6 @@ Chris
 			<string>Text Markup</string>
 			<key>snippetUUIDs</key>
 			<array>
-				<string>208F9B56-5537-45F2-B5E7-4DE8086FA51B</string>
 				<string>2D29BBAC-27DA-465A-978E-B058788AAFB1</string>
 				<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
 				<string>630F98F1-1454-459F-A403-CA3201454A36</string>
@@ -566,13 +565,14 @@ Chris
 			<key>snippetUUIDs</key>
 			<array>
 				<string>BBB9236E-4F5E-495E-9CF7-0CC1F65B4F8B</string>
+				<string>D25882BF-8F9D-4736-ACD3-6064B7B6C80A</string>
 				<string>B17A2982-259E-4543-AC3C-5684CA195A67</string>
 				<string>B31237D5-E319-4ECD-87E3-D3F32912C81B</string>
 				<string>1EFF6F6C-3E7E-42E8-BA5E-1F1B29ECEE1B</string>
 				<string>31F38026-0994-45CE-90E4-7E7C96CF7615</string>
 				<string>CB091384-95A3-4D36-A4AA-8325AB80285C</string>
 				<string>A5A2AA35-FE39-43D6-B77E-3481C872F52F</string>
-				<string>D25882BF-8F9D-4736-ACD3-6064B7B6C80A</string>
+				<string>208F9B56-5537-45F2-B5E7-4DE8086FA51B</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>1</integer>
@@ -592,16 +592,13 @@ Chris
 			<string>TextExpander Snippets</string>
 			<key>snippetUUIDs</key>
 			<array>
-				<string>F8AEEC1C-1AFE-440A-9007-8AC8197FC3D4</string>
 				<string>D0F6F868-A3AD-489C-9E64-066E7EB30A1E</string>
+				<string>F8AEEC1C-1AFE-440A-9007-8AC8197FC3D4</string>
 				<string>F9F873CA-095D-4590-B064-AD57192338DA</string>
-				<string>6D23392C-8D39-479C-9277-BF08A688429A</string>
 				<string>1E4E340E-A785-430C-A9FE-7C8EC88927A2</string>
 				<string>E5FE2F3A-B5D5-4242-8FA3-8B73C8705C15</string>
-				<string>C689A5BF-80B3-49C4-A818-B34086931DF3</string>
+				<string>6D23392C-8D39-479C-9277-BF08A688429A</string>
 				<string>F8D32B95-2A8E-4BE5-8A4B-193CC5FD15F3</string>
-				<string>CDBA7EB2-9E11-4A53-859D-81810EC7E4F8</string>
-				<string>9F584F7E-FFDC-478B-925D-8E0D44A6D6AF</string>
 				<string>77496B73-D4EA-4423-81A1-67CC2AA65B6D</string>
 				<string>7C60A387-592A-43F3-8006-1366B20EFBA6</string>
 			</array>
@@ -620,20 +617,15 @@ Chris
 			<key>expanderExceptionsMode</key>
 			<integer>0</integer>
 			<key>name</key>
-			<string>Work Shortcuts</string>
+			<string>Signatures</string>
 			<key>snippetUUIDs</key>
-			<array>
-				<string>4B7C4631-19C8-4502-94E5-055CDDE6FAB8</string>
-				<string>024D316C-F3A7-4B33-8518-5C9E121532D0</string>
-				<string>9F6643EE-9FA4-4555-A059-8754767C9AC6</string>
-				<string>9813A99D-C978-4190-974A-88AF309944E3</string>
-			</array>
+			<array/>
 			<key>syncWithDotMac</key>
-			<integer>1</integer>
+			<integer>0</integer>
 			<key>updateFrequency</key>
 			<integer>0</integer>
 			<key>uuidString</key>
-			<string>D05459EB-4D21-476B-AEB3-7F7FA3FC12C0</string>
+			<string>A6E60550-733A-4092-922A-16A0C5302CED</string>
 			<key>writable</key>
 			<integer>1</integer>
 		</dict>
@@ -648,15 +640,17 @@ Chris
 			<string>Git Shortcuts</string>
 			<key>snippetUUIDs</key>
 			<array>
+				<string>9F6643EE-9FA4-4555-A059-8754767C9AC6</string>
+				<string>2804982B-209F-47E0-8F8B-969BC8673A69</string>
 				<string>D6399030-1D95-4AD2-8822-A0FAFC0C5644</string>
+				<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
 				<string>99D243C3-4E17-41D5-B11F-8C5F04AF206D</string>
 				<string>E5B15002-9484-4D82-8BDA-B2B1CA9D68AE</string>
-				<string>00088480-1093-468F-A934-C207ECF464E2</string>
-				<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
 				<string>D1D535EE-6570-47B5-A5CE-14CC96A974C6</string>
-				<string>2804982B-209F-47E0-8F8B-969BC8673A69</string>
+				<string>00088480-1093-468F-A934-C207ECF464E2</string>
 				<string>B7857FDA-1C2F-4E21-BB42-7252F9BE7559</string>
-				<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
+				<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
+				<string>9813A99D-C978-4190-974A-88AF309944E3</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>1</integer>
@@ -673,10 +667,11 @@ Chris
 			<key>expanderExceptionsMode</key>
 			<integer>0</integer>
 			<key>name</key>
-			<string>General</string>
+			<string>Contact Info</string>
 			<key>snippetUUIDs</key>
 			<array>
 				<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
+				<string>44F6C5A3-41E1-46ED-BB99-DAEE5A4F361C</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>0</integer>
@@ -687,66 +682,19 @@ Chris
 			<key>writable</key>
 			<integer>1</integer>
 		</dict>
-		<dict>
-			<key>expandAfterMode</key>
-			<integer>0</integer>
-			<key>expanderExceptionsMode</key>
-			<integer>0</integer>
-			<key>name</key>
-			<string>(Untitled)</string>
-			<key>snippetUUIDs</key>
-			<array/>
-			<key>syncWithDotMac</key>
-			<integer>0</integer>
-			<key>updateFrequency</key>
-			<integer>0</integer>
-			<key>uuidString</key>
-			<string>626FAFFA-A884-4C5C-8808-68E1F7E2B153</string>
-			<key>writable</key>
-			<integer>1</integer>
-		</dict>
 	</array>
 	<key>lastSynced</key>
-	<date>2009-10-22T00:23:07Z</date>
+	<date>2009-10-22T01:13:12Z</date>
 	<key>outlineState</key>
 	<array>
-		<string>86E8F126-B942-4A12-B27C-6721A6BA5575</string>
+		<string>C9078E61-7BD4-4F1B-B6AB-A215D56FB005</string>
+		<string>E76780C2-9039-40E3-B611-A9E7A0E95FDE</string>
+		<string>02FD70D4-E6C5-4B5E-AA44-7B0B6A548289</string>
 	</array>
 	<key>serialnumber</key>
 	<string>TEXTEX1001-51HH-EF7G-306A-HRDE-F40A</string>
 	<key>snippetsTE2</key>
 	<array>
-		<dict>
-			<key>abbreviation</key>
-			<string>`privacy-victim</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2009-09-01T18:25:49Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-09-29T22:33:56Z</date>
-			<key>modificationDate</key>
-			<date>2009-09-01T18:26:02Z</date>
-			<key>plainText</key>
-			<string>
-It appears that the data you found belonged to a Socrata user had a dataset that they'd mistakenly marked as "Public". Since the dataset was publicly accessible, Google indexed its contents and that's why it appeared in search results when you entered your name.
-
-I've gone ahead and marked their datasets private and sent them a notice alerting them to the breach. Within a week or two, Google should re-index that page and your private information will be removed from their search indexes. For more information on Google's privacy policies, see this entry in their FAQ:
-
-http://www.google.com/intl/en/privacy_faq.html#toc-remove
-
-I apologize for this issue and sincerely hope that you haven't been adversely affected by it. Please feel free to let me know if there's anything else I can do to help.</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>1</integer>
-			<key>uuidString</key>
-			<string>208F9B56-5537-45F2-B5E7-4DE8086FA51B</string>
-		</dict>
 		<dict>
 			<key>abbreviation</key>
 			<string>`repro</string>
@@ -781,7 +729,7 @@ I apologize for this issue and sincerely hope that you haven't been adversely af
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-09-29T22:34:28Z</date>
+			<date>2010-01-20T18:09:16Z</date>
 			<key>modificationDate</key>
 			<date>2009-09-08T17:55:51Z</date>
 			<key>plainText</key>
@@ -797,7 +745,7 @@ http://www.socrata.com
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>10</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
 		</dict>
@@ -812,6 +760,8 @@ http://www.socrata.com
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2009-11-06T22:08:13Z</date>
 			<key>modificationDate</key>
 			<date>2009-10-05T22:33:35Z</date>
 			<key>plainText</key>
@@ -824,7 +774,7 @@ chris.metcalf (at) socrata.com</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>630F98F1-1454-459F-A403-CA3201454A36</string>
 		</dict>
@@ -851,6 +801,28 @@ It's most likely that that variety of nested table will be supported via a "join
 			<integer>0</integer>
 			<key>uuidString</key>
 			<string>BBB9236E-4F5E-495E-9CF7-0CC1F65B4F8B</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string></string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-10-05T22:33:14Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>modificationDate</key>
+			<date>2009-10-05T22:33:14Z</date>
+			<key>plainText</key>
+			<string></string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>D25882BF-8F9D-4736-ACD3-6064B7B6C80A</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1107,25 +1079,64 @@ If you have any questions about this, or if there's anything else I can help wit
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string></string>
+			<string>`privacy-victim</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-10-05T22:33:14Z</date>
+			<date>2009-09-01T18:25:49Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2009-09-29T22:33:56Z</date>
 			<key>modificationDate</key>
-			<date>2009-10-05T22:33:14Z</date>
+			<date>2009-09-01T18:26:02Z</date>
 			<key>plainText</key>
-			<string></string>
+			<string>
+It appears that the data you found belonged to a Socrata user had a dataset that they'd mistakenly marked as "Public". Since the dataset was publicly accessible, Google indexed its contents and that's why it appeared in search results when you entered your name.
+
+I've gone ahead and marked their datasets private and sent them a notice alerting them to the breach. Within a week or two, Google should re-index that page and your private information will be removed from their search indexes. For more information on Google's privacy policies, see this entry in their FAQ:
+
+http://www.google.com/intl/en/privacy_faq.html#toc-remove
+
+I apologize for this issue and sincerely hope that you haven't been adversely affected by it. Please feel free to let me know if there's anything else I can do to help.</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
-			<string>D25882BF-8F9D-4736-ACD3-6064B7B6C80A</string>
+			<string>208F9B56-5537-45F2-B5E7-4DE8086FA51B</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`longsig</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2008-06-18T17:16:19Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2009-12-30T21:59:49Z</date>
+			<key>modificationDate</key>
+			<date>2009-05-28T22:17:16Z</date>
+			<key>plainText</key>
+			<string>Chris Metcalf
+Technical Program Manager
+
+chris.metcalf@socrata.com
+(206) 340-8008 x204
+http://www.socrata.com
+</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>1</integer>
+			<key>uuidString</key>
+			<string>D0F6F868-A3AD-489C-9E64-066E7EB30A1E</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1151,36 +1162,6 @@ If you have any questions about this, or if there's anything else I can help wit
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>`longsig</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-06-18T17:16:19Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-08-20T16:14:51Z</date>
-			<key>modificationDate</key>
-			<date>2009-05-28T22:17:16Z</date>
-			<key>plainText</key>
-			<string>Chris Metcalf
-Technical Program Manager
-
-chris.metcalf@socrata.com
-(206) 340-8008 x204
-http://www.socrata.com
-</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>1</integer>
-			<key>uuidString</key>
-			<string>D0F6F868-A3AD-489C-9E64-066E7EB30A1E</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
 			<string>dchris</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1191,7 +1172,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-09-29T20:45:51Z</date>
+			<date>2010-01-20T17:31:14Z</date>
 			<key>modificationDate</key>
 			<date>2008-08-29T04:39:44Z</date>
 			<key>plainText</key>
@@ -1199,34 +1180,9 @@ http://www.socrata.com
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>18</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>F9F873CA-095D-4590-B064-AD57192338DA</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>tchris</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-05-27T20:40:39Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-10-21T23:58:32Z</date>
-			<key>modificationDate</key>
-			<date>2008-08-29T04:39:44Z</date>
-			<key>plainText</key>
-			<string>Thanks,
-Chris</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>73</integer>
-			<key>uuidString</key>
-			<string>6D23392C-8D39-479C-9277-BF08A688429A</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1240,7 +1196,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-08-20T18:52:22Z</date>
+			<date>2010-01-06T02:20:01Z</date>
 			<key>modificationDate</key>
 			<date>2008-12-04T00:42:22Z</date>
 			<key>plainText</key>
@@ -1248,7 +1204,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>1E4E340E-A785-430C-A9FE-7C8EC88927A2</string>
 		</dict>
@@ -1331,300 +1287,28 @@ Chris</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>wwbr</string>
+			<string>tchris</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2008-05-27T20:40:25Z</date>
+			<date>2008-05-27T20:40:39Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2010-01-20T18:33:43Z</date>
 			<key>modificationDate</key>
 			<date>2008-08-29T04:39:44Z</date>
 			<key>plainText</key>
-			<string>With best regards,
-
-￼</string>
-			<key>richText</key>
-			<data>
-			BAt0eXBlZHN0cmVhbYED6IQBQISEhA1OU1RleHRTdG9yYWdlAISE
-			GU5TTXV0YWJsZUF0dHJpYnV0ZWRTdHJpbmcAhIQSTlNBdHRyaWJ1
-			dGVkU3RyaW5nAISECE5TT2JqZWN0AIWShISED05TTXV0YWJsZVN0
-			cmluZwGEhAhOU1N0cmluZwGWhAErF1dpdGggYmVzdCByZWdhcmRz
-			LAoK77+8hoQCaUkBE5KEhIQMTlNEaWN0aW9uYXJ5AJaEAWkDkoSZ
-			mQdOU0NvbG9yhpKEhIQHTlNDb2xvcgCWhAFjBoQDQEBAhJmZBlN5
-			c3RlbYaEmZkQY29udHJvbFRleHRDb2xvcoaEnp4DhAJmZgABhoaS
-			hJmZBk5TRm9udIaShISEBk5TRm9udB6WnCSEBVszNmNdBgAAABoA
-			AAD+/wBMAHUAYwBpAGQAYQBHAHIAYQBuAGQAZQAAhAFmDZ4AngGe
-			AJ4AhpKEmZkQTlNQYXJhZ3JhcGhTdHlsZYaShISEF05TTXV0YWJs
-			ZVBhcmFncmFwaFN0eWxlAISEEE5TUGFyYWdyYXBoU3R5bGUAloQE
-			Q0NAUwAAhQCGhpoCAZKEm5wCkqKShKScJKIGAAAAGgAAAP7/AEwA
-			dQBjAGkAZABhAEcAcgBhAG4AZABlAACjCJ4AngGeAJ4AhpKlkoSo
-			pgQAhISEB05TQXJyYXkAlpwMkoSEhAlOU1RleHRUYWIAloQCQ2YA
-			HIaShK+pADiGkoSvqQBUhpKEr6kAcIaShK+pAIEAjIaShK+pAIEA
-			qIaShK+pAIEAxIaShK+pAIEA4IaShK+pAIEA/IaShK+pAIEBGIaS
-			hK+pAIEBNIaShK+pAIEBUIaGAIaGmgMBkoSbnAGShJmZDE5TQXR0
-			YWNobWVudIaShISEEE5TVGV4dEF0dGFjaG1lbnQAloQCY0AAhISE
-			DU5TRmlsZVdyYXBwZXIulpKEhIQNTlNNdXRhYmxlRGF0YQCEhAZO
-			U0RhdGEAlpyBJgiEB1s5NzM2Y11ydGZkAAAAAAMAAAAEAAAAAgAA
-			AC4uEwAAAF9fQFByZWZlcnJlZE5hbWVAX18XAAAAX19AVVRGOFBy
-			ZWZlcnJlZE5hbWVAX18BAAAALk8lAAAbAAAAGwAAACYAAAABAAAA
-			AAAAgKwVAACTDwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-			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
-			AAABAAAAhoaGhoY=
-			</data>
+			<string>Thanks,
+Chris</string>
 			<key>snippetType</key>
-			<integer>1</integer>
-			<key>useCount</key>
 			<integer>0</integer>
+			<key>useCount</key>
+			<integer>2</integer>
 			<key>uuidString</key>
-			<string>C689A5BF-80B3-49C4-A818-B34086931DF3</string>
+			<string>6D23392C-8D39-479C-9277-BF08A688429A</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1650,61 +1334,6 @@ Chris</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>@csintro</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-06-04T20:10:38Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-01-14T02:37:09Z</date>
-			<key>modificationDate</key>
-			<date>2008-08-29T04:39:44Z</date>
-			<key>plainText</key>
-			<string>My name is Chris Metcalf and I'm a Technical Program Manager at blist. Hopefully I'll be able to help you.</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>1</integer>
-			<key>uuidString</key>
-			<string>CDBA7EB2-9E11-4A53-859D-81810EC7E4F8</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>@rally</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-06-18T01:20:24Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>modificationDate</key>
-			<date>2008-08-29T04:39:44Z</date>
-			<key>plainText</key>
-			<string> I've created a new Rally account for you:
-
-Login: mathew.johnson@blist.com
-Password: 1amjohnson
-
-You can log in via https://trial.rallydev.com/. If you want to change your password or edit your profile, you can do so through "Setup" -&gt; "Profile" -&gt; "Edit Profile".
-
-Thanks,
-Chris
-</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>0</integer>
-			<key>uuidString</key>
-			<string>9F584F7E-FFDC-478B-925D-8E0D44A6D6AF</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
 			<string>ttime</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1714,6 +1343,8 @@ Chris
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2010-01-06T13:57:01Z</date>
 			<key>modificationDate</key>
 			<date>2008-09-17T16:57:34Z</date>
 			<key>plainText</key>
@@ -1721,7 +1352,7 @@ Chris
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>77496B73-D4EA-4423-81A1-67CC2AA65B6D</string>
 		</dict>
@@ -1737,7 +1368,7 @@ Chris
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-08-20T16:19:36Z</date>
+			<date>2010-01-07T22:47:03Z</date>
 			<key>modificationDate</key>
 			<date>2009-05-13T20:02:01Z</date>
 			<key>plainText</key>
@@ -1751,50 +1382,6 @@ Chris
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>`cstrike</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-11-03T18:47:00Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>modificationDate</key>
-			<date>2008-11-03T18:47:27Z</date>
-			<key>plainText</key>
-			<string>&lt;strike&gt;%clipboard&lt;/strike&gt;</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>0</integer>
-			<key>uuidString</key>
-			<string>4B7C4631-19C8-4502-94E5-055CDDE6FAB8</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`strike</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-11-03T18:47:36Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>modificationDate</key>
-			<date>2008-11-03T18:47:53Z</date>
-			<key>plainText</key>
-			<string>&lt;strike&gt;%|&lt;/strike&gt;</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>0</integer>
-			<key>uuidString</key>
-			<string>024D316C-F3A7-4B33-8518-5C9E121532D0</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
 			<string>`cheader</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1805,7 +1392,7 @@ Chris
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-03-31T02:14:45Z</date>
+			<date>2009-10-22T01:37:26Z</date>
 			<key>modificationDate</key>
 			<date>2009-02-03T02:52:15Z</date>
 			<key>plainText</key>
@@ -1818,33 +1405,31 @@ Chris
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>5</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>9F6643EE-9FA4-4555-A059-8754767C9AC6</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>`csubject</string>
+			<string>`qanotest</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-02-24T04:17:18Z</date>
+			<date>2009-01-30T22:26:15Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
-			<string>Release candidate subject</string>
-			<key>lastUsed</key>
-			<date>2009-09-30T01:19:57Z</date>
+			<string></string>
 			<key>modificationDate</key>
-			<date>2009-02-24T04:18:00Z</date>
+			<date>2009-01-30T22:26:29Z</date>
 			<key>plainText</key>
-			<string>Manifest for the %Y/%m/%d release candidate</string>
+			<string>QA: Nothing to test.</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>6</integer>
+			<integer>0</integer>
 			<key>uuidString</key>
-			<string>9813A99D-C978-4190-974A-88AF309944E3</string>
+			<string>2804982B-209F-47E0-8F8B-969BC8673A69</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1872,6 +1457,30 @@ Chris
 		</dict>
 		<dict>
 			<key>abbreviation</key>
+			<string>`rbclint</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-06-23T20:55:18Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-01-06T02:53:49Z</date>
+			<key>modificationDate</key>
+			<date>2009-06-23T20:56:15Z</date>
+			<key>plainText</key>
+			<string>Reviewed-by: Clint Tseng &lt;clint.tseng@socrata.com&gt;</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>8</integer>
+			<key>uuidString</key>
+			<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
 			<string>`rbjeff</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1882,7 +1491,7 @@ Chris
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-06-11T00:26:55Z</date>
+			<date>2010-01-05T00:07:01Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:05Z</date>
 			<key>plainText</key>
@@ -1890,7 +1499,7 @@ Chris
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>4</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>99D243C3-4E17-41D5-B11F-8C5F04AF206D</string>
 		</dict>
@@ -1906,7 +1515,7 @@ Chris
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-06-23T01:40:21Z</date>
+			<date>2009-12-30T22:39:00Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:55:57Z</date>
 			<key>plainText</key>
@@ -1914,57 +1523,9 @@ Chris
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>4</integer>
-			<key>uuidString</key>
-			<string>E5B15002-9484-4D82-8BDA-B2B1CA9D68AE</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`rbpaul</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-10-21T20:09:13Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-09-28T22:15:27Z</date>
-			<key>modificationDate</key>
-			<date>2009-06-23T20:55:53Z</date>
-			<key>plainText</key>
-			<string>Reviewed-by: Paul Paradise &lt;paul.paradise@socrata.com&gt;</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>12</integer>
-			<key>uuidString</key>
-			<string>00088480-1093-468F-A934-C207ECF464E2</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`rbsam</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-10-21T20:09:26Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-09-23T16:58:16Z</date>
-			<key>modificationDate</key>
-			<date>2009-06-23T20:55:49Z</date>
-			<key>plainText</key>
-			<string>Reviewed-by: Sam Gibson &lt;sam.gibson@socrata.com&gt;</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
 			<integer>1</integer>
 			<key>uuidString</key>
-			<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
+			<string>E5B15002-9484-4D82-8BDA-B2B1CA9D68AE</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1992,25 +1553,27 @@ Chris
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>`qanotest</string>
+			<string>`rbpaul</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-01-30T22:26:15Z</date>
+			<date>2008-10-21T20:09:13Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2010-01-08T23:26:20Z</date>
 			<key>modificationDate</key>
-			<date>2009-01-30T22:26:29Z</date>
+			<date>2009-06-23T20:55:53Z</date>
 			<key>plainText</key>
-			<string>QA: Nothing to test.</string>
+			<string>Reviewed-by: Paul Paradise &lt;paul.paradise@socrata.com&gt;</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>10</integer>
 			<key>uuidString</key>
-			<string>2804982B-209F-47E0-8F8B-969BC8673A69</string>
+			<string>00088480-1093-468F-A934-C207ECF464E2</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -2038,27 +1601,51 @@ Chris
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>`rbclint</string>
+			<string>`rbsam</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-06-23T20:55:18Z</date>
+			<date>2008-10-21T20:09:26Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-09-26T00:22:35Z</date>
+			<date>2010-01-05T00:08:24Z</date>
 			<key>modificationDate</key>
-			<date>2009-06-23T20:56:15Z</date>
+			<date>2009-06-23T20:55:49Z</date>
 			<key>plainText</key>
-			<string>Reviewed-by: Clint Tseng &lt;clint.tseng@socrata.com&gt;</string>
+			<string>Reviewed-by: Sam Gibson &lt;sam.gibson@socrata.com&gt;</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>7</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
-			<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
+			<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`csubject</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-02-24T04:17:18Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string>Release candidate subject</string>
+			<key>lastUsed</key>
+			<date>2010-01-20T04:23:51Z</date>
+			<key>modificationDate</key>
+			<date>2009-02-24T04:18:00Z</date>
+			<key>plainText</key>
+			<string>Manifest for the %Y/%m/%d release candidate</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>1</integer>
+			<key>uuidString</key>
+			<string>9813A99D-C978-4190-974A-88AF309944E3</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -2071,6 +1658,8 @@ Chris
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2010-01-04T19:45:27Z</date>
 			<key>modificationDate</key>
 			<date>2009-10-19T17:26:42Z</date>
 			<key>plainText</key>
@@ -2078,9 +1667,31 @@ Chris
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`cphone</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-10-22T01:13:33Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>modificationDate</key>
+			<date>2009-10-22T01:13:46Z</date>
+			<key>plainText</key>
+			<string>(734) 276-1100</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>44F6C5A3-41E1-46ED-BB99-DAEE5A4F361C</string>
 		</dict>
 	</array>
 	<key>username</key>
