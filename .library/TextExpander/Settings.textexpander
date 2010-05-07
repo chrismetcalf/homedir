@@ -5,7 +5,7 @@
 	<key>Auditory Feedback</key>
 	<true/>
 	<key>Characters Saved</key>
-	<integer>98772</integer>
+	<integer>110094</integer>
 	<key>Client Mode</key>
 	<integer>0</integer>
 	<key>Cross Platform Images</key>
@@ -23,7 +23,7 @@
 	<key>Restore Pasteboard</key>
 	<true/>
 	<key>Snippet Count</key>
-	<integer>5216</integer>
+	<integer>5743</integer>
 	<key>Snippet Menu Item Width</key>
 	<integer>370</integer>
 	<key>Snippets</key>
@@ -601,6 +601,7 @@ Chris
 				<string>F8D32B95-2A8E-4BE5-8A4B-193CC5FD15F3</string>
 				<string>77496B73-D4EA-4423-81A1-67CC2AA65B6D</string>
 				<string>7C60A387-592A-43F3-8006-1366B20EFBA6</string>
+				<string>C1933328-03FC-4A4A-9729-2936BFDDF439</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>0</integer>
@@ -641,16 +642,15 @@ Chris
 			<key>snippetUUIDs</key>
 			<array>
 				<string>9F6643EE-9FA4-4555-A059-8754767C9AC6</string>
+				<string>9813A99D-C978-4190-974A-88AF309944E3</string>
 				<string>2804982B-209F-47E0-8F8B-969BC8673A69</string>
+				<string>19244B6C-36CF-47F5-8D35-F607A3F78F66</string>
 				<string>D6399030-1D95-4AD2-8822-A0FAFC0C5644</string>
 				<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
 				<string>99D243C3-4E17-41D5-B11F-8C5F04AF206D</string>
-				<string>E5B15002-9484-4D82-8BDA-B2B1CA9D68AE</string>
-				<string>D1D535EE-6570-47B5-A5CE-14CC96A974C6</string>
 				<string>00088480-1093-468F-A934-C207ECF464E2</string>
-				<string>B7857FDA-1C2F-4E21-BB42-7252F9BE7559</string>
+				<string>C01642EB-7D2A-454D-8FDD-81B5C350D1CB</string>
 				<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
-				<string>9813A99D-C978-4190-974A-88AF309944E3</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>1</integer>
@@ -684,11 +684,12 @@ Chris
 		</dict>
 	</array>
 	<key>lastSynced</key>
-	<date>2009-10-22T01:13:12Z</date>
+	<date>2010-04-09T00:51:16Z</date>
 	<key>outlineState</key>
 	<array>
 		<string>C9078E61-7BD4-4F1B-B6AB-A215D56FB005</string>
 		<string>E76780C2-9039-40E3-B611-A9E7A0E95FDE</string>
+		<string>7EB5D785-007B-482A-85A9-7FCBBC440546</string>
 		<string>02FD70D4-E6C5-4B5E-AA44-7B0B6A548289</string>
 	</array>
 	<key>serialnumber</key>
@@ -729,7 +730,7 @@ Chris
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-20T18:09:16Z</date>
+			<date>2010-04-22T18:55:15Z</date>
 			<key>modificationDate</key>
 			<date>2009-09-08T17:55:51Z</date>
 			<key>plainText</key>
@@ -745,7 +746,7 @@ http://www.socrata.com
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>1</integer>
+			<integer>27</integer>
 			<key>uuidString</key>
 			<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
 		</dict>
@@ -761,7 +762,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-11-06T22:08:13Z</date>
+			<date>2010-04-12T20:53:54Z</date>
 			<key>modificationDate</key>
 			<date>2009-10-05T22:33:35Z</date>
 			<key>plainText</key>
@@ -774,7 +775,7 @@ chris.metcalf (at) socrata.com</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>6</integer>
 			<key>uuidString</key>
 			<string>630F98F1-1454-459F-A403-CA3201454A36</string>
 		</dict>
@@ -1089,7 +1090,7 @@ If you have any questions about this, or if there's anything else I can help wit
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-09-29T22:33:56Z</date>
+			<date>2010-04-12T22:23:12Z</date>
 			<key>modificationDate</key>
 			<date>2009-09-01T18:26:02Z</date>
 			<key>plainText</key>
@@ -1120,7 +1121,7 @@ I apologize for this issue and sincerely hope that you haven't been adversely af
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-12-30T21:59:49Z</date>
+			<date>2010-04-08T00:43:20Z</date>
 			<key>modificationDate</key>
 			<date>2009-05-28T22:17:16Z</date>
 			<key>plainText</key>
@@ -1172,7 +1173,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-20T17:31:14Z</date>
+			<date>2010-04-22T23:19:30Z</date>
 			<key>modificationDate</key>
 			<date>2008-08-29T04:39:44Z</date>
 			<key>plainText</key>
@@ -1180,7 +1181,7 @@ http://www.socrata.com
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>1</integer>
+			<integer>56</integer>
 			<key>uuidString</key>
 			<string>F9F873CA-095D-4590-B064-AD57192338DA</string>
 		</dict>
@@ -1196,7 +1197,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-06T02:20:01Z</date>
+			<date>2010-04-06T18:27:56Z</date>
 			<key>modificationDate</key>
 			<date>2008-12-04T00:42:22Z</date>
 			<key>plainText</key>
@@ -1204,7 +1205,7 @@ http://www.socrata.com
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>1E4E340E-A785-430C-A9FE-7C8EC88927A2</string>
 		</dict>
@@ -1297,7 +1298,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-20T18:33:43Z</date>
+			<date>2010-04-22T23:36:16Z</date>
 			<key>modificationDate</key>
 			<date>2008-08-29T04:39:44Z</date>
 			<key>plainText</key>
@@ -1306,7 +1307,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>105</integer>
 			<key>uuidString</key>
 			<string>6D23392C-8D39-479C-9277-BF08A688429A</string>
 		</dict>
@@ -1382,6 +1383,30 @@ Chris</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
+			<string>fdate</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-04-15T21:34:53Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-04-19T23:57:38Z</date>
+			<key>modificationDate</key>
+			<date>2010-04-15T21:35:03Z</date>
+			<key>plainText</key>
+			<string>%Y-%m-%d</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>5</integer>
+			<key>uuidString</key>
+			<string>C1933328-03FC-4A4A-9729-2936BFDDF439</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
 			<string>`cheader</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1411,6 +1436,30 @@ Chris</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
+			<string>`csubject</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-02-24T04:17:18Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string>Release candidate subject</string>
+			<key>lastUsed</key>
+			<date>2010-04-22T01:28:24Z</date>
+			<key>modificationDate</key>
+			<date>2009-02-24T04:18:00Z</date>
+			<key>plainText</key>
+			<string>Manifest for the %Y/%m/%d release candidate</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>6</integer>
+			<key>uuidString</key>
+			<string>9813A99D-C978-4190-974A-88AF309944E3</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
 			<string>`qanotest</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1433,6 +1482,30 @@ Chris</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
+			<string>`rbaiden</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-04-09T00:50:32Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-04-21T22:12:55Z</date>
+			<key>modificationDate</key>
+			<date>2010-04-09T00:50:51Z</date>
+			<key>plainText</key>
+			<string>Reviewed-by: Aiden Scandella &lt;aiden.scandella@socrata.com&gt;</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>2</integer>
+			<key>uuidString</key>
+			<string>19244B6C-36CF-47F5-8D35-F607A3F78F66</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
 			<string>`rbchris</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
@@ -1443,7 +1516,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-09-29T03:13:03Z</date>
+			<date>2010-04-22T00:40:54Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:09Z</date>
 			<key>plainText</key>
@@ -1451,7 +1524,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>3</integer>
 			<key>uuidString</key>
 			<string>D6399030-1D95-4AD2-8822-A0FAFC0C5644</string>
 		</dict>
@@ -1467,7 +1540,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-06T02:53:49Z</date>
+			<date>2010-04-20T20:04:32Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:15Z</date>
 			<key>plainText</key>
@@ -1475,7 +1548,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>8</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
 		</dict>
@@ -1491,7 +1564,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-05T00:07:01Z</date>
+			<date>2010-04-07T00:21:57Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:05Z</date>
 			<key>plainText</key>
@@ -1499,57 +1572,9 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>1</integer>
+			<integer>3</integer>
 			<key>uuidString</key>
 			<string>99D243C3-4E17-41D5-B11F-8C5F04AF206D</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`rbkostub</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-10-21T20:08:59Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-12-30T22:39:00Z</date>
-			<key>modificationDate</key>
-			<date>2009-06-23T20:55:57Z</date>
-			<key>plainText</key>
-			<string>Reviewed-by: Kostub Deshmukh &lt;kostub.deshmukh@socrata.com&gt;</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>1</integer>
-			<key>uuidString</key>
-			<string>E5B15002-9484-4D82-8BDA-B2B1CA9D68AE</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`rblincoln</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2008-11-25T21:21:51Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2009-01-14T00:35:15Z</date>
-			<key>modificationDate</key>
-			<date>2009-06-23T20:55:45Z</date>
-			<key>plainText</key>
-			<string>Reviewed-by: Lincoln Ritter &lt;lincoln.ritter@socrata.com&gt;</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>1</integer>
-			<key>uuidString</key>
-			<string>D1D535EE-6570-47B5-A5CE-14CC96A974C6</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1563,7 +1588,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-08T23:26:20Z</date>
+			<date>2010-04-16T22:02:56Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:55:53Z</date>
 			<key>plainText</key>
@@ -1571,33 +1596,33 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>10</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>00088480-1093-468F-A934-C207ECF464E2</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>`rbpete</string>
+			<string>`rbrobert</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-05-01T22:42:18Z</date>
+			<date>2010-04-09T00:50:55Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2009-08-17T22:23:39Z</date>
+			<date>2010-04-19T21:43:17Z</date>
 			<key>modificationDate</key>
-			<date>2009-06-23T20:55:38Z</date>
+			<date>2010-04-09T00:51:08Z</date>
 			<key>plainText</key>
-			<string>Reviewed-by: Pete Stuart &lt;pete.stuart@socrata.com&gt;</string>
+			<string>Reviewed-by: Robert Macomber &lt;robert.macomber@socrata.com&gt;</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
-			<string>B7857FDA-1C2F-4E21-BB42-7252F9BE7559</string>
+			<string>C01642EB-7D2A-454D-8FDD-81B5C350D1CB</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1611,7 +1636,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-05T00:08:24Z</date>
+			<date>2010-04-14T23:16:35Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:55:49Z</date>
 			<key>plainText</key>
@@ -1619,33 +1644,9 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`csubject</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2009-02-24T04:17:18Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string>Release candidate subject</string>
-			<key>lastUsed</key>
-			<date>2010-01-20T04:23:51Z</date>
-			<key>modificationDate</key>
-			<date>2009-02-24T04:18:00Z</date>
-			<key>plainText</key>
-			<string>Manifest for the %Y/%m/%d release candidate</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>1</integer>
-			<key>uuidString</key>
-			<string>9813A99D-C978-4190-974A-88AF309944E3</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1659,7 +1660,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-01-04T19:45:27Z</date>
+			<date>2010-04-14T18:01:57Z</date>
 			<key>modificationDate</key>
 			<date>2009-10-19T17:26:42Z</date>
 			<key>plainText</key>
@@ -1667,7 +1668,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>3</integer>
 			<key>uuidString</key>
 			<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
 		</dict>
@@ -1682,6 +1683,8 @@ Chris</string>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2010-04-22T01:32:33Z</date>
 			<key>modificationDate</key>
 			<date>2009-10-22T01:13:46Z</date>
 			<key>plainText</key>
@@ -1689,7 +1692,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>5</integer>
 			<key>uuidString</key>
 			<string>44F6C5A3-41E1-46ED-BB99-DAEE5A4F361C</string>
 		</dict>
