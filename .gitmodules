@@ -1,5 +1,4 @@
 [submodule ".vimbundles/vim-rails"]
-[submodule ".vimbundles/vim-rails"]
 	path = .vimbundles/vim-rails
 	url = git://github.com/tpope/vim-rails.git
 [submodule ".vimbundles/vim-cucumber"]
@@ -56,17 +55,9 @@
 [submodule ".vimbundles/gist-vim"]
 	path = .vimbundles/gist-vim
 	url = git@github.com:chrismetcalf/gist-vim.git
-<<<<<<< HEAD
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
-=======
-[submodule ".vimbundles/vim-markdown"]
-	path = .vimbundles/vim-markdown
-	url = git@github.com:chrismetcalf/vim-markdown.git
->>>>>>> Adding markdown
-	path = .vimbundles/vim-rails
-	url = git://github.com/tpope/vim-rails.git
 [submodule ".vimbundles/vim-cucumber"]
 	path = .vimbundles/vim-cucumber
 	url = git://github.com/tpope/vim-cucumber.git
@@ -126,7 +117,7 @@
 	url = git://github.com/robey/growlme.git
 [submodule ".vimbundles/vim-json"]
 	path = .vimbundles/vim-json
-	url = git@github.com:chrismetcalf/vim-json.git
+  url = git@github.com:chrismetcalf/vim-json.git
 [submodule ".vimbundles/vim-markdown"]
 	path = .vimbundles/vim-markdown
 	url = git@github.com:chrismetcalf/vim-markdown.git
