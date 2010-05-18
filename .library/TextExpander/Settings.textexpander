@@ -5,7 +5,7 @@
 	<key>Auditory Feedback</key>
 	<true/>
 	<key>Characters Saved</key>
-	<integer>110094</integer>
+	<integer>116940</integer>
 	<key>Client Mode</key>
 	<integer>0</integer>
 	<key>Cross Platform Images</key>
@@ -23,7 +23,7 @@
 	<key>Restore Pasteboard</key>
 	<true/>
 	<key>Snippet Count</key>
-	<integer>5743</integer>
+	<integer>6159</integer>
 	<key>Snippet Menu Item Width</key>
 	<integer>370</integer>
 	<key>Snippets</key>
@@ -545,6 +545,7 @@ Chris
 				<string>2D29BBAC-27DA-465A-978E-B058788AAFB1</string>
 				<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
 				<string>630F98F1-1454-459F-A403-CA3201454A36</string>
+				<string>59135714-94F0-4CBB-9F7B-DD8C501107B0</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>0</integer>
@@ -778,6 +779,30 @@ chris.metcalf (at) socrata.com</string>
 			<integer>6</integer>
 			<key>uuidString</key>
 			<string>630F98F1-1454-459F-A403-CA3201454A36</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`screennames</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-05-17T22:38:48Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>modificationDate</key>
+			<date>2010-05-17T22:39:40Z</date>
+			<key>plainText</key>
+			<string>AIM: UMSailorChris
+GTalk: chrismetcalf@gmail.com
+MSN: UMSailorChris@hotmail.com</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>59135714-94F0-4CBB-9F7B-DD8C501107B0</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
