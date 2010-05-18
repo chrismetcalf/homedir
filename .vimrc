@@ -102,14 +102,20 @@ nnoremap k gk
 vnoremap j gj
 vnoremap k gk
 
+"#### Force me to use the hjkl keys for navigation.
+"vnoremap <Left>     <NOP>
+"vnoremap <Right>    <NOP>
+"vnoremap <Up>       <NOP>
+"vnoremap <Down>     <NOP>
+
 "#### Quick exit out of insert mode
 inoremap kj         <Esc>
 
 "#### Force me to use normal mode for navigation. We'll see how long this lasts
-inoremap <Left>     <NOP>
-inoremap <Right>    <NOP>
-inoremap <Up>       <NOP>
-inoremap <Down>     <NOP>
+"inoremap <Left>     <NOP>
+"inoremap <Right>    <NOP>
+"inoremap <Up>       <NOP>
+"inoremap <Down>     <NOP>
 
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
