@@ -98,7 +98,7 @@ nmap <silent> <C-l> :wincmd l<CR>
 nmap <silent> <C-Tab> :bprevious<CR>
 
 "#### NERDTree
-nmap <silent> <C-n> :NERDTreeToggle<CR>
+nmap <leader>n :NERDTreeToggle<CR>
 " ,p to show current file in the tree
 nmap <leader>p :NERDTreeFind<CR>
 
@@ -128,7 +128,6 @@ nmap <Leader>r :ConqueSplit
 nmap <leader>y :YRShow<cr>
 let g:yankring_replace_n_pkey = '<leader>['
 let g:yankring_replace_n_nkey = '<leader>]'
-
 
 "#### Move one screen line at a time while wrapped
 nnoremap j gj
