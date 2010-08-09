@@ -136,3 +136,6 @@
 [submodule ".vimbundles/space"]
 	path = .vimbundles/space
 	url = http://github.com/scrooloose/vim-space.git
+[submodule ".vimbundles/vim-conque"]
+	path = .vimbundles/vim-conque
+	url = git@github.com:chrismetcalf/vim-conque.git
