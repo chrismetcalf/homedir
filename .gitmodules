@@ -136,3 +136,6 @@
 [submodule ".vimbundles/vim-conque"]
 	path = .vimbundles/vim-conque
 	url = git@github.com:chrismetcalf/vim-conque.git
+[submodule ".vimbundles/vim-markdown"]
+	path = .vimbundles/vim-markdown
+	url = http://github.com/plasticboy/vim-markdown.git
