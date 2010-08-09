@@ -4,6 +4,9 @@ if exists('g:loaded_pathogen')
   call pathogen#runtime_prepend_subdirectories(expand('~/.vimbundles'))
 end
 
+" Commands start with ,
+let mapleader = ","
+
 " Tab config
 set smarttab
 set shiftwidth=2
@@ -42,6 +45,9 @@ set ch=2
 
 " I like highlighting strings inside C comments
 let c_comment_strings=1
+
+" Tab-completion options
+set completeopt=menuone,preview
 
 " Switch on syntax highlighting.
 syntax on
@@ -83,18 +89,46 @@ nmap <silent> <C-Up> :wincmd k<CR>
 nmap <silent> <C-Down> :wincmd j<CR>
 nmap <silent> <C-Left> :wincmd h<CR>
 nmap <silent> <C-Right> :wincmd l<CR>
+nmap <silent> <C-k> :wincmd k<CR>
+nmap <silent> <C-j> :wincmd j<CR>
+nmap <silent> <C-h> :wincmd h<CR>
+nmap <silent> <C-l> :wincmd l<CR>
 
 "#### Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
 
-"#### FuzzyFinder Bindings
-nmap <silent> <C-b> :FufBuffer<CR>
-nmap <silent> <C-y> :FufFile<CR>
-nmap <silent> <C-t> :FufFile **/<CR>
-
 "#### NERDTree
 nmap <silent> <C-n> :NERDTreeToggle<CR>
-nmap <silent> <C-S-r> :NERDTreeFind<CR>
+" ,p to show current file in the tree
+nmap <leader>p :NERDTreeFind<CR>
+
+" ,/ to invert comment on the current line/selection
+nmap <leader>/ :call NERDComment(0, "invert")<cr>
+vmap <leader>/ :call NERDComment(0, "invert")<cr>
+
+" ,t to show tags window
+let Tlist_Show_Menu=1
+nmap <leader>t :TlistToggle<CR>
+
+"#### FuzzyFinder Bindings
+" ,f to fast finding files using fuzzy finder.
+nmap <leader>f :FufFile **/<CR>
+nmap <leader>b :FufBuffer<CR>
+nmap <leader>y :FufFile<CR>
+nmap <leader>t :FufFile **/<CR>
+
+" ,sh to open vimshell window
+nmap <Leader>sh :ConqueSplit zsh<cr>
+set shell=/bin/zsh
+
+" ,r to open vimshell window
+nmap <Leader>r :ConqueSplit 
+
+" map ,y to show the yankring
+nmap <leader>y :YRShow<cr>
+let g:yankring_replace_n_pkey = '<leader>['
+let g:yankring_replace_n_nkey = '<leader>]'
+
 
 "#### Move one screen line at a time while wrapped
 nnoremap j gj
@@ -102,20 +136,17 @@ nnoremap k gk
 vnoremap j gj
 vnoremap k gk
 
-"#### Force me to use the hjkl keys for navigation.
-"vnoremap <Left>     <NOP>
-"vnoremap <Right>    <NOP>
-"vnoremap <Up>       <NOP>
-"vnoremap <Down>     <NOP>
-
 "#### Quick exit out of insert mode
-inoremap kj         <Esc>
+inoremap jj         <Esc>
 
-"#### Force me to use normal mode for navigation. We'll see how long this lasts
-"inoremap <Left>     <NOP>
-"inoremap <Right>    <NOP>
-"inoremap <Up>       <NOP>
-"inoremap <Down>     <NOP>
+" Ctrl-N to disable search match highlight
+nmap <silent> <C-N> :silent noh<CR>
+
+" Ctrl-E to switch between 2 last buffers
+nmap <C-E> :b#<CR>
+
+"Ignore these files when completing names and in Explorer
+set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
 
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
