@@ -5,7 +5,7 @@
 	<key>Auditory Feedback</key>
 	<true/>
 	<key>Characters Saved</key>
-	<integer>110094</integer>
+	<integer>142317</integer>
 	<key>Client Mode</key>
 	<integer>0</integer>
 	<key>Cross Platform Images</key>
@@ -23,7 +23,7 @@
 	<key>Restore Pasteboard</key>
 	<true/>
 	<key>Snippet Count</key>
-	<integer>5743</integer>
+	<integer>7520</integer>
 	<key>Snippet Menu Item Width</key>
 	<integer>370</integer>
 	<key>Snippets</key>
@@ -522,9 +522,9 @@ Chris
 	<key>applaststatus</key>
 	<integer>5</integer>
 	<key>applastupdated</key>
-	<date>2010-03-31T05:28:36Z</date>
+	<date>2010-07-30T18:20:26Z</date>
 	<key>checkforupdates</key>
-	<false/>
+	<true/>
 	<key>checkfrequency</key>
 	<integer>7</integer>
 	<key>defaultSound</key>
@@ -541,17 +541,93 @@ Chris
 			<key>name</key>
 			<string>Text Markup</string>
 			<key>snippetUUIDs</key>
-			<array>
-				<string>2D29BBAC-27DA-465A-978E-B058788AAFB1</string>
-				<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
-				<string>630F98F1-1454-459F-A403-CA3201454A36</string>
-			</array>
+			<array/>
 			<key>syncWithDotMac</key>
 			<integer>0</integer>
 			<key>updateFrequency</key>
 			<integer>0</integer>
 			<key>uuidString</key>
 			<string>C9078E61-7BD4-4F1B-B6AB-A215D56FB005</string>
+			<key>writable</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>expandAfterMode</key>
+			<integer>0</integer>
+			<key>expanderExceptionsMode</key>
+			<integer>0</integer>
+			<key>name</key>
+			<string>Text Blurbs</string>
+			<key>snippetUUIDs</key>
+			<array>
+				<string>BEF4CC5A-4B4E-4840-81C5-D20BCCC8DBD1</string>
+			</array>
+			<key>syncWithDotMac</key>
+			<integer>0</integer>
+			<key>updateFrequency</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>EDBE321A-B510-44B7-BA88-08762E525333</string>
+			<key>writable</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>expandAfterMode</key>
+			<integer>0</integer>
+			<key>expanderExceptionsMode</key>
+			<integer>0</integer>
+			<key>name</key>
+			<string>Email &amp; Bugs</string>
+			<key>snippetUUIDs</key>
+			<array>
+				<string>2D29BBAC-27DA-465A-978E-B058788AAFB1</string>
+			</array>
+			<key>syncWithDotMac</key>
+			<integer>0</integer>
+			<key>updateFrequency</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>4299F41A-5382-4037-9CCB-42CF52D387AA</string>
+			<key>writable</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>expandAfterMode</key>
+			<integer>0</integer>
+			<key>expanderExceptionsMode</key>
+			<integer>0</integer>
+			<key>name</key>
+			<string>Commonly Mispelled</string>
+			<key>snippetUUIDs</key>
+			<array>
+				<string>F896544D-94E2-4614-82D2-693AFBBAAB66</string>
+			</array>
+			<key>syncWithDotMac</key>
+			<integer>0</integer>
+			<key>updateFrequency</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>5A3178A9-3479-48F5-913C-52BCE3975658</string>
+			<key>writable</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>expandAfterMode</key>
+			<integer>0</integer>
+			<key>expanderExceptionsMode</key>
+			<integer>0</integer>
+			<key>name</key>
+			<string>ASCII Art</string>
+			<key>snippetUUIDs</key>
+			<array>
+				<string>95654D12-43D8-48F5-88AE-FAA507E3A5D8</string>
+			</array>
+			<key>syncWithDotMac</key>
+			<integer>0</integer>
+			<key>updateFrequency</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>99A501E4-B5CC-428B-88B0-8EB51BFD94FE</string>
 			<key>writable</key>
 			<integer>1</integer>
 		</dict>
@@ -620,7 +696,11 @@ Chris
 			<key>name</key>
 			<string>Signatures</string>
 			<key>snippetUUIDs</key>
-			<array/>
+			<array>
+				<string>59135714-94F0-4CBB-9F7B-DD8C501107B0</string>
+				<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
+				<string>630F98F1-1454-459F-A403-CA3201454A36</string>
+			</array>
 			<key>syncWithDotMac</key>
 			<integer>0</integer>
 			<key>updateFrequency</key>
@@ -670,8 +750,10 @@ Chris
 			<string>Contact Info</string>
 			<key>snippetUUIDs</key>
 			<array>
-				<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
 				<string>44F6C5A3-41E1-46ED-BB99-DAEE5A4F361C</string>
+				<string>A1871736-EB5C-40B5-86D5-ABF031D4E5CA</string>
+				<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
+				<string>23FAE960-C95E-4D85-B05C-9E0A33A5A624</string>
 			</array>
 			<key>syncWithDotMac</key>
 			<integer>0</integer>
@@ -687,8 +769,7 @@ Chris
 	<date>2010-04-09T00:51:16Z</date>
 	<key>outlineState</key>
 	<array>
-		<string>C9078E61-7BD4-4F1B-B6AB-A215D56FB005</string>
-		<string>E76780C2-9039-40E3-B611-A9E7A0E95FDE</string>
+		<string>EDBE321A-B510-44B7-BA88-08762E525333</string>
 		<string>7EB5D785-007B-482A-85A9-7FCBBC440546</string>
 		<string>02FD70D4-E6C5-4B5E-AA44-7B0B6A548289</string>
 	</array>
@@ -696,6 +777,28 @@ Chris
 	<string>TEXTEX1001-51HH-EF7G-306A-HRDE-F40A</string>
 	<key>snippetsTE2</key>
 	<array>
+		<dict>
+			<key>abbreviation</key>
+			<string></string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-07-19T21:13:23Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string>Socrata "Blurb"</string>
+			<key>modificationDate</key>
+			<date>2010-07-19T21:13:42Z</date>
+			<key>plainText</key>
+			<string>Socrata, Inc. (Socrata), based in Seattle, Washington, is the world leader in social data discovery, a category of Web solutions that enable federal, state, and local governments to achieve new levels of transparency, collaboration and participation while lowering the costs of serving online data. Socrata focuses on improving the discoverability and comprehensibility of data. Socrata develops and operates the Social Data Platform, a turnkey, cloud-based data discovery solution and the Social Data Player, which allows organizations to embed data interactively in their own Web sites and Web pages. Socrata develops and maintains the Socrata Open Data API, an open, standards-based, non-proprietary application programming interface for accessing data. Socrata is a private company with venture financing from Frazier Technology Ventures and Morgenthaler Ventures. To learn more about Socrata, visit www.socrata.com.  </string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>BEF4CC5A-4B4E-4840-81C5-D20BCCC8DBD1</string>
+		</dict>
 		<dict>
 			<key>abbreviation</key>
 			<string>`repro</string>
@@ -720,64 +823,72 @@ Chris
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>tlongsig</string>
+			<string>definately</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-06-08T17:59:15Z</date>
+			<date>2010-07-14T16:52:59Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
-			<key>lastUsed</key>
-			<date>2010-04-22T18:55:15Z</date>
 			<key>modificationDate</key>
-			<date>2009-09-08T17:55:51Z</date>
+			<date>2010-07-14T16:53:13Z</date>
 			<key>plainText</key>
-			<string>Thanks,
-
-Chris Metcalf
-Technical Program Manager
-
-chris.metcalf@socrata.com
-(206) 340-8008 x204
-http://www.socrata.com
-</string>
+			<string>definitely</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>27</integer>
+			<integer>0</integer>
 			<key>uuidString</key>
-			<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
+			<string>F896544D-94E2-4614-82D2-693AFBBAAB66</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
-			<string>twebsig</string>
+			<string>`facepalm</string>
 			<key>abbreviationMode</key>
 			<integer>0</integer>
 			<key>creationDate</key>
-			<date>2009-10-05T22:33:05Z</date>
+			<date>2010-07-14T15:56:32Z</date>
 			<key>flags</key>
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-12T20:53:54Z</date>
+			<date>2010-07-14T15:56:51Z</date>
 			<key>modificationDate</key>
-			<date>2009-10-05T22:33:35Z</date>
+			<date>2010-07-14T15:56:43Z</date>
 			<key>plainText</key>
-			<string>
-Thanks,
-
-Chris Metcalf
-Technical Program Manager
-chris.metcalf (at) socrata.com</string>
+			<string>............................................________
+....................................,.-‘”...................``~.,
+.............................,.-”...................................“-.,
+.........................,/...............................................”:,
+.....................,?......................................................\,
+.................../...........................................................,}
+................./......................................................,:`^`..}
+.............../...................................................,:”........./
+..............?.....__.........................................:`.........../
+............./__.(.....“~-,_..............................,:`........../
+.........../(_....”~,_........“~,_....................,:`........_/
+..........{.._$;_......”=,_.......“-,_.......,.-~-,},.~”;/....}
+...........((.....*~_.......”=-._......“;,,./`..../”............../
+...,,,___.\`~,......“~.,....................`.....}............../
+............(....`=-,,.......`........................(......;_,,-”
+............/.`~,......`-...............................\....../\
+.............\`~.*-,.....................................|,./.....\,__
+,,_..........}.&gt;-._\...................................|..............`=~-,
+.....`=~-,_\_......`\,.................................\
+...................`=~-,,.\,...............................\
+................................`:,,...........................`\..............__
+.....................................`=-,...................,%`&gt;--==``
+........................................_\..........._,-%.......`\
+...................................,&lt;`.._|_,-&amp;``................`\</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>6</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
-			<string>630F98F1-1454-459F-A403-CA3201454A36</string>
+			<string>95654D12-43D8-48F5-88AE-FAA507E3A5D8</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1061,6 +1172,8 @@ http://www.socrata.com
 			<integer>0</integer>
 			<key>label</key>
 			<string></string>
+			<key>lastUsed</key>
+			<date>2010-05-18T21:55:51Z</date>
 			<key>modificationDate</key>
 			<date>2009-09-01T18:28:30Z</date>
 			<key>plainText</key>
@@ -1074,7 +1187,7 @@ If you have any questions about this, or if there's anything else I can help wit
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>0</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>A5A2AA35-FE39-43D6-B77E-3481C872F52F</string>
 		</dict>
@@ -1173,7 +1286,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-22T23:19:30Z</date>
+			<date>2010-07-22T22:04:51Z</date>
 			<key>modificationDate</key>
 			<date>2008-08-29T04:39:44Z</date>
 			<key>plainText</key>
@@ -1181,7 +1294,7 @@ http://www.socrata.com
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>56</integer>
+			<integer>131</integer>
 			<key>uuidString</key>
 			<string>F9F873CA-095D-4590-B064-AD57192338DA</string>
 		</dict>
@@ -1298,7 +1411,7 @@ http://www.socrata.com
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-22T23:36:16Z</date>
+			<date>2010-07-22T22:14:03Z</date>
 			<key>modificationDate</key>
 			<date>2008-08-29T04:39:44Z</date>
 			<key>plainText</key>
@@ -1307,7 +1420,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>105</integer>
+			<integer>269</integer>
 			<key>uuidString</key>
 			<string>6D23392C-8D39-479C-9277-BF08A688429A</string>
 		</dict>
@@ -1393,7 +1506,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-19T23:57:38Z</date>
+			<date>2010-06-21T05:23:56Z</date>
 			<key>modificationDate</key>
 			<date>2010-04-15T21:35:03Z</date>
 			<key>plainText</key>
@@ -1401,9 +1514,98 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>5</integer>
+			<integer>15</integer>
 			<key>uuidString</key>
 			<string>C1933328-03FC-4A4A-9729-2936BFDDF439</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`screennames</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-05-17T22:38:48Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-05-17T22:39:48Z</date>
+			<key>modificationDate</key>
+			<date>2010-05-17T22:39:40Z</date>
+			<key>plainText</key>
+			<string>AIM: UMSailorChris
+GTalk: chrismetcalf@gmail.com
+MSN: UMSailorChris@hotmail.com</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>1</integer>
+			<key>uuidString</key>
+			<string>59135714-94F0-4CBB-9F7B-DD8C501107B0</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>tlongsig</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-06-08T17:59:15Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-06-22T15:45:28Z</date>
+			<key>modificationDate</key>
+			<date>2010-07-07T22:49:09Z</date>
+			<key>plainText</key>
+			<string>Thanks,
+
+Chris Metcalf
+Technical Program Manager / 
+    Developer Evangelist
+
+chris.metcalf@socrata.com
+(206) 340-8008 x204 (office)
+(734) 276-1100 (cell)
+http://www.socrata.com
+</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>28</integer>
+			<key>uuidString</key>
+			<string>BF432A29-907C-4290-86DA-BA744CAF49F0</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>twebsig</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-10-05T22:33:05Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-06-10T21:32:37Z</date>
+			<key>modificationDate</key>
+			<date>2009-10-05T22:33:35Z</date>
+			<key>plainText</key>
+			<string>
+Thanks,
+
+Chris Metcalf
+Technical Program Manager
+chris.metcalf (at) socrata.com</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>1</integer>
+			<key>uuidString</key>
+			<string>630F98F1-1454-459F-A403-CA3201454A36</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1446,7 +1648,7 @@ Chris</string>
 			<key>label</key>
 			<string>Release candidate subject</string>
 			<key>lastUsed</key>
-			<date>2010-04-22T01:28:24Z</date>
+			<date>2010-06-21T06:00:10Z</date>
 			<key>modificationDate</key>
 			<date>2009-02-24T04:18:00Z</date>
 			<key>plainText</key>
@@ -1454,7 +1656,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>6</integer>
+			<integer>11</integer>
 			<key>uuidString</key>
 			<string>9813A99D-C978-4190-974A-88AF309944E3</string>
 		</dict>
@@ -1492,7 +1694,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-21T22:12:55Z</date>
+			<date>2010-05-17T23:17:35Z</date>
 			<key>modificationDate</key>
 			<date>2010-04-09T00:50:51Z</date>
 			<key>plainText</key>
@@ -1500,7 +1702,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>19244B6C-36CF-47F5-8D35-F607A3F78F66</string>
 		</dict>
@@ -1516,7 +1718,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-22T00:40:54Z</date>
+			<date>2010-06-17T01:40:47Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:09Z</date>
 			<key>plainText</key>
@@ -1540,7 +1742,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-20T20:04:32Z</date>
+			<date>2010-06-22T18:17:41Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:15Z</date>
 			<key>plainText</key>
@@ -1548,7 +1750,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>4</integer>
 			<key>uuidString</key>
 			<string>AD1D95E4-BB2E-4678-9432-5BB007AFECC2</string>
 		</dict>
@@ -1564,7 +1766,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-07T00:21:57Z</date>
+			<date>2010-07-22T21:41:43Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:56:05Z</date>
 			<key>plainText</key>
@@ -1572,7 +1774,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>3</integer>
+			<integer>2</integer>
 			<key>uuidString</key>
 			<string>99D243C3-4E17-41D5-B11F-8C5F04AF206D</string>
 		</dict>
@@ -1588,7 +1790,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-16T22:02:56Z</date>
+			<date>2010-06-08T00:44:49Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:55:53Z</date>
 			<key>plainText</key>
@@ -1596,7 +1798,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>3</integer>
 			<key>uuidString</key>
 			<string>00088480-1093-468F-A934-C207ECF464E2</string>
 		</dict>
@@ -1612,7 +1814,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-19T21:43:17Z</date>
+			<date>2010-06-18T21:50:02Z</date>
 			<key>modificationDate</key>
 			<date>2010-04-09T00:51:08Z</date>
 			<key>plainText</key>
@@ -1620,7 +1822,7 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>C01642EB-7D2A-454D-8FDD-81B5C350D1CB</string>
 		</dict>
@@ -1636,7 +1838,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-14T23:16:35Z</date>
+			<date>2010-05-14T00:00:22Z</date>
 			<key>modificationDate</key>
 			<date>2009-06-23T20:55:49Z</date>
 			<key>plainText</key>
@@ -1644,33 +1846,9 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>2</integer>
+			<integer>1</integer>
 			<key>uuidString</key>
 			<string>10115CF9-4206-415B-BAAB-A56316BB4588</string>
-		</dict>
-		<dict>
-			<key>abbreviation</key>
-			<string>`wphone</string>
-			<key>abbreviationMode</key>
-			<integer>0</integer>
-			<key>creationDate</key>
-			<date>2009-10-19T17:26:27Z</date>
-			<key>flags</key>
-			<integer>0</integer>
-			<key>label</key>
-			<string></string>
-			<key>lastUsed</key>
-			<date>2010-04-14T18:01:57Z</date>
-			<key>modificationDate</key>
-			<date>2009-10-19T17:26:42Z</date>
-			<key>plainText</key>
-			<string>(206) 340-8008 x204</string>
-			<key>snippetType</key>
-			<integer>0</integer>
-			<key>useCount</key>
-			<integer>3</integer>
-			<key>uuidString</key>
-			<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
 		</dict>
 		<dict>
 			<key>abbreviation</key>
@@ -1684,7 +1862,7 @@ Chris</string>
 			<key>label</key>
 			<string></string>
 			<key>lastUsed</key>
-			<date>2010-04-22T01:32:33Z</date>
+			<date>2010-05-24T06:13:34Z</date>
 			<key>modificationDate</key>
 			<date>2009-10-22T01:13:46Z</date>
 			<key>plainText</key>
@@ -1692,9 +1870,82 @@ Chris</string>
 			<key>snippetType</key>
 			<integer>0</integer>
 			<key>useCount</key>
-			<integer>5</integer>
+			<integer>6</integer>
 			<key>uuidString</key>
 			<string>44F6C5A3-41E1-46ED-BB99-DAEE5A4F361C</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`haddr</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-07-22T19:56:24Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>modificationDate</key>
+			<date>2010-07-22T19:56:38Z</date>
+			<key>plainText</key>
+			<string>Christopher Metcalf
+750 N 104th Street
+Seattle, WA 98133</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>A1871736-EB5C-40B5-86D5-ABF031D4E5CA</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string>`wphone</string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2009-10-19T17:26:27Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>lastUsed</key>
+			<date>2010-06-17T22:09:48Z</date>
+			<key>modificationDate</key>
+			<date>2009-10-19T17:26:42Z</date>
+			<key>plainText</key>
+			<string>(206) 340-8008 x204</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>2</integer>
+			<key>uuidString</key>
+			<string>891A57D9-5078-427A-8046-FFBE15C838BE</string>
+		</dict>
+		<dict>
+			<key>abbreviation</key>
+			<string></string>
+			<key>abbreviationMode</key>
+			<integer>0</integer>
+			<key>creationDate</key>
+			<date>2010-07-22T19:56:44Z</date>
+			<key>flags</key>
+			<integer>0</integer>
+			<key>label</key>
+			<string></string>
+			<key>modificationDate</key>
+			<date>2010-07-22T19:57:12Z</date>
+			<key>plainText</key>
+			<string>Christopher Metcalf
+Socrata, Inc.
+101 Yesler Way, Suite 502
+Seattle, WA 98104</string>
+			<key>snippetType</key>
+			<integer>0</integer>
+			<key>useCount</key>
+			<integer>0</integer>
+			<key>uuidString</key>
+			<string>23FAE960-C95E-4D85-B05C-9E0A33A5A624</string>
 		</dict>
 	</array>
 	<key>username</key>
