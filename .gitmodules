@@ -40,18 +40,12 @@
 [submodule ".vimbundles/vim-fugitive"]
 	path = .vimbundles/vim-fugitive
 	url = git://github.com/tpope/vim-fugitive.git
-[submodule ".vimbundles/vim-pastie"]
-	path = .vimbundles/vim-pastie
-	url = git://github.com/tpope/vim-pastie.git
 [submodule ".vimbundles/gitosis"]
 	path = .vimbundles/gitosis
 	url = git://github.com/timcharper/gitosis.vim.git
 [submodule ".vimbundles/snipmate"]
 	path = .vimbundles/snipmate
 	url = git://github.com/msanders/snipmate.vim.git
-[submodule ".vimbundles/blogit"]
-	path = .vimbundles/blogit
-	url = git@github.com:chrismetcalf/blogit.git
 [submodule ".vimbundles/gist-vim"]
 	path = .vimbundles/gist-vim
 	url = git@github.com:chrismetcalf/gist-vim.git
