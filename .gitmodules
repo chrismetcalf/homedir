@@ -127,3 +127,12 @@
 [submodule ".vimbundles/vim-taglist"]
 	path = .vimbundles/vim-taglist
 	url = git@github.com:chrismetcalf/vim-taglist.git
+[submodule ".vimbundles/vim-yankring"]
+	path = .vimbundles/vim-yankring
+	url = git@github.com:chrismetcalf/vim-yankring.git
+[submodule ".vimbundles/syntastic"]
+	path = .vimbundles/syntastic
+	url = http://github.com/scrooloose/syntastic.git
+[submodule ".vimbundles/space"]
+	path = .vimbundles/space
+	url = http://github.com/scrooloose/vim-space.git
