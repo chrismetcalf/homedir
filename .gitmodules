@@ -124,3 +124,6 @@
 [submodule ".vimbundles/vim-autocomplpop"]
 	path = .vimbundles/vim-autocomplpop
 	url = git@github.com:chrismetcalf/vim-autocomplpop.git
+[submodule ".vimbundles/vim-taglist"]
+	path = .vimbundles/vim-taglist
+	url = git@github.com:chrismetcalf/vim-taglist.git
