@@ -31,9 +31,6 @@
 [submodule ".vimbundles/nerdcommenter"]
 	path = .vimbundles/nerdcommenter
 	url = git://github.com/scrooloose/nerdcommenter.git
-[submodule ".vimbundles/ack"]
-	path = .vimbundles/ack
-	url = git://github.com/mileszs/ack.vim.git
 [submodule ".vimbundles/vim-git"]
 	path = .vimbundles/vim-git
 	url = git://github.com/tpope/vim-git.git
@@ -84,7 +81,7 @@
 	url = git://github.com/scrooloose/nerdcommenter.git
 [submodule ".vimbundles/ack"]
 	path = .vimbundles/ack
-	url = git://github.com/mileszs/ack.vim.git
+	url = http://github.com/mileszs/ack.vim.git
 [submodule ".vimbundles/vim-git"]
 	path = .vimbundles/vim-git
 	url = git://github.com/tpope/vim-git.git
