@@ -82,3 +82,6 @@
 [submodule ".vimbundles/vim-markdown"]
 	path = .vimbundles/vim-markdown
 	url = http://github.com/plasticboy/vim-markdown.git
+[submodule ".vimbundles/vim-ragtag"]
+	path = .vimbundles/vim-ragtag
+	url = http://github.com/tpope/vim-ragtag.git
