@@ -160,6 +160,9 @@ let g:gist_detect_filetype = 1
 " Author name
 let g:snips_author = "Chris Metcalf"
 
+"#### Delimitmate
+au FileType gitcommit let b:delimitMate_autoclose = 0
+
 "#### AutoCmds
 if has("autocmd")
   filetype plugin indent on
