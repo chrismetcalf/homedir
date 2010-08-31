@@ -144,9 +144,6 @@ nmap <silent> <C-N> :silent noh<CR>
 " Ctrl-E to switch between 2 last buffers
 nmap <C-E> :b#<CR>
 
-" Change first word in a line
-map ^cw
-
 " Duplicate the line below
 vmap D y'>p
 
