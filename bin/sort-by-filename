@@ -1,0 +1,97 @@
+#!/usr/bin/env ruby
+#
+# == Synopsis
+#
+# sort-by-filename: sorts files by, well, filename
+#
+# == Usage
+#
+# sort-by-filename [OPTION] ... FROM-DIR TO-DIR
+#
+# -h, --help:
+#    show help
+#
+# --verbose:
+#    be loud and proud
+#
+# FROM-DIR: The directory to copy from.
+# TO-DIR: The directory to copy to.
+
+require 'getoptlong'
+require 'logger'
+require 'rdoc/usage'
+require 'ftools'
+
+opts = GetoptLong.new(
+  [ '--help',     '-h', GetoptLong::NO_ARGUMENT ],
+  [ '--verbose',  '-v', GetoptLong::NO_ARGUMENT ],
+  [ '--copy',     '-c', GetoptLong::NO_ARGUMENT ],
+  [ '--log-file', '-l', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--pattern',  '-p', GetoptLong::REQUIRED_ARGUMENT ]
+)
+
+log = Logger.new(STDOUT)
+log.level = Logger::WARN
+
+pattern = / - ([^-]+) -/
+copy = false
+
+opts.each do |opt, arg|
+  case opt
+  when '--help'
+    RDoc::usage
+
+  when '--verbose'
+    log.level = Logger::DEBUG
+
+  when '--log-file'
+    log = Logger.new(arg)
+
+  when '--pattern'
+    pattern = Regex.new(arg)
+
+  when '--copy'
+    copy = true
+
+  end
+end
+
+if ARGV.length != 2
+  log.fatal "Missing FROM-DIR or TO-DIR"
+  exit 0
+end
+
+from_dir = ARGV.shift
+to_dir = ARGV.shift
+
+if !File.directory? from_dir
+  log.fatal "Source directory \"#{from_dir}\" does not exist!"
+  exit 0
+end
+
+if !File.directory? to_dir
+  log.fatal "Destination directory \"#{to_dir}\" does not exist!"
+  exit 0
+end
+
+# Loop through our files
+Dir.new(from_dir).entries.each do |file|
+  matches = pattern.match(file)
+
+  if !matches.nil?
+    if !File.directory? to_dir + "/" + matches[1]
+      log.debug "Creating directory for \"#{matches[1]}\""
+      File.makedirs to_dir + "/" + matches[1]
+    end
+
+    if copy
+      log.debug "Copying \"#{file}\" to \"#{to_dir}/#{matches[1]}\""
+      File.copy(from_dir + "/" + file, to_dir + "/" + matches[1])
+    else
+      log.debug "Moving \"#{file}\" to \"#{to_dir}/#{matches[1]}\""
+      File.move(from_dir + "/" + file, to_dir + "/" + matches[1])
+    end
+  else
+    log.info "No match for \"#{file}\""
+  end
+end
