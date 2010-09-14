@@ -76,6 +76,8 @@ end
 
 # Loop through our files
 Dir.new(from_dir).entries.each do |file|
+  next if file == '..' || file == '.'
+
   matches = pattern.match(file)
 
   if !matches.nil?
