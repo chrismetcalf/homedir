@@ -121,3 +121,6 @@
 [submodule ".vimbundles/vim-markdown"]
 	path = .vimbundles/vim-markdown
 	url = git@github.com:chrismetcalf/vim-markdown.git
+[submodule "bin/timetrap.git"]
+	path = bin/timetrap.git
+	url = git@github.com:chrismetcalf/timetrap.git
