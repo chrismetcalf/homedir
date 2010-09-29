@@ -1,3 +1,6 @@
+" Yeah, bye vim
+set nocompatible
+
 " Load Pathogen first
 runtime! autoload/pathogen.vim
 if exists('g:loaded_pathogen')
@@ -36,6 +39,10 @@ set matchtime=1
 
 " The opposite is set noignorecase
 set ignorecase
+set smartcase
+
+" Global replace by default
+set gdefault
 
 " You may want to turn off the beep sounds (if you want quite) with visual bell
 set vb
@@ -58,8 +65,8 @@ colorscheme vividchalk
 "Shows the current editing mode
 set showmode
 
-"Show line numbers
-set number
+"Show relative line numbers
+set relativenumber
 
 "Show the ruler
 set ruler
@@ -70,34 +77,37 @@ set hlsearch
 "Show search while typing
 set incsearch
 
-"#### Show tabs as >-
+" Show tabs as >-
 set list
 set listchars=tab:>-,trail:-
 
-"#### Make backup files end in .bak instead of ~
+" Make backup files end in .bak instead of ~
 set backupext=.bak
 
-"#### Formatting options - help formatoptions/fo-table
+" Use undo files
+set undofile
+
+
+" Formatting options - help formatoptions/fo-table
 set formatoptions=cn1
 set textwidth=80
 
 " Allow the creation of hidden buffers
 set hidden
 
-"#### Mappings for window keys
-nmap <silent> <C-Up> :wincmd k<CR>
-nmap <silent> <C-Down> :wincmd j<CR>
-nmap <silent> <C-Left> :wincmd h<CR>
-nmap <silent> <C-Right> :wincmd l<CR>
+" Mappings for window keys
 nmap <silent> <C-k> :wincmd k<CR>
 nmap <silent> <C-j> :wincmd j<CR>
 nmap <silent> <C-h> :wincmd h<CR>
 nmap <silent> <C-l> :wincmd l<CR>
 
-"#### Toggle through buffers
+" Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
 
-"#### NERDTree
+" Quick search clear
+nnoremap <leader><space> :noh<cr>
+
+" NERDTree
 nmap <leader>n :NERDTreeToggle<CR>
 " ,p to show current file in the tree
 nmap <leader>p :NERDTreeFind<CR>
@@ -110,7 +120,17 @@ vmap <leader>/ :call NERDComment(0, "invert")<cr>
 let Tlist_Show_Menu=1
 nmap <leader>t :TlistToggle<CR>
 
-"#### FuzzyFinder Bindings
+" Quick Ack
+nnoremap <leader>a :Ack
+
+" Fold at tag
+nnoremap <leader>ft Vatzf
+
+" Reselect just pasted
+nnoremap <leader>v V`]
+
+
+" FuzzyFinder Bindings
 " ,f to fast finding files using fuzzy finder.
 nmap <leader>f :FufFile **/<CR>
 nmap <leader>b :FufBuffer<CR>
@@ -129,23 +149,32 @@ nmap <leader>y :YRShow<cr>
 let g:yankring_replace_n_pkey = '<leader>['
 let g:yankring_replace_n_nkey = '<leader>]'
 
-"#### Move one screen line at a time while wrapped
+" Learn the hard way
+nnoremap <up> <nop>
+nnoremap <down> <nop>
+nnoremap <left> <nop>
+nnoremap <right> <nop>
+inoremap <up> <nop>
+inoremap <down> <nop>
+inoremap <left> <nop>
+inoremap <right> <nop>
+
+" Move one screen line at a time while wrapped
 nnoremap j gj
 nnoremap k gk
 vnoremap j gj
 vnoremap k gk
 
-"#### Quick exit out of insert mode
+" Quick exit out of insert mode
 inoremap jj         <Esc>
-
-" Ctrl-N to disable search match highlight
-nmap <silent> <C-N> :silent noh<CR>
-
-" Ctrl-E to switch between 2 last buffers
-nmap <C-E> :b#<CR>
 
 " Duplicate the line below
 vmap D y'>p
+
+" Disable help, since its annoying as hell
+inoremap <F1> <ESC>
+nnoremap <F1> <ESC>
+vnoremap <F1> <ESC>
 
 "Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
@@ -155,29 +184,33 @@ if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
 end
 
-"#### Gist
+" Gist
 let g:gist_open_browser_after_post = 1
 let g:gist_detect_filetype = 1
 
-"#### snipMate
+" snipMate
 " Author name
 let g:snips_author = "Chris Metcalf"
 
-"#### Delimitmate
-au FileType gitcommit let b:delimitMate_autoclose = 0
-
-"#### AutoCmds
+" AutoCmds
 if has("autocmd")
   filetype plugin indent on
 
   autocmd BufNewFile,BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
   autocmd BufNewFile,BufRead *.rss,*.atom setfiletype xml
+  autocmd BufNewFile,BufRead *.ru setfiletype ruby
 
   au FileType pde :set syntax=c
   au FileType java :set shiftwidth=4
+
+  " Delimitmate
+  au FileType gitcommit let b:delimitMate_autoclose = 0
+
+  " Auto save on focus lost
+  au FocusLost * :wa
 endif
 
-"#### Strip trailing whitespace and delete blanks
+" Strip trailing whitespace and delete blanks
 function! <SID>StripTrailingWhitespaces()
   let _s=@/
   let l = line(".")
