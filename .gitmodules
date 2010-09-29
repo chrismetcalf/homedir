@@ -124,3 +124,6 @@
 [submodule "bin/timetrap.git"]
 	path = bin/timetrap.git
 	url = git@github.com:chrismetcalf/timetrap.git
+[submodule ".vimbundles/vim-scratch"]
+	path = .vimbundles/vim-scratch
+	url = git@github.com:chrismetcalf/vim-scratch.git
