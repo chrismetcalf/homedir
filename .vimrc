@@ -17,7 +17,7 @@ set tabstop=2
 set autoindent
 set expandtab
 
-" Wrap while searching for strings....
+" Wrap while searching for strings
 set wrapscan
 
 " Wrap at whitespace instead of the middle of a word.
@@ -28,8 +28,7 @@ set display+=lastline
 
 " Formatting options - help formatoptions/fo-table
 set formatoptions=cn1
-"set textwidth=80
-set textwidth=0
+set textwidth=80
 
 " Show matching parens
 set showmatch
@@ -65,8 +64,8 @@ colorscheme vividchalk
 "Shows the current editing mode
 set showmode
 
-"Show relative line numbers
-set relativenumber
+" Set line numbers
+set number
 
 "Show the ruler
 set ruler
@@ -84,10 +83,6 @@ set listchars=tab:>-,trail:-
 " Make backup files end in .bak instead of ~
 set backupext=.bak
 
-" Use undo files
-set undofile
-
-
 " Formatting options - help formatoptions/fo-table
 set formatoptions=cn1
 set textwidth=80
@@ -103,6 +98,12 @@ nmap <silent> <C-l> :wincmd l<CR>
 
 " Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
+
+" Scratch file
+nmap <leader>s :Sscratch<cr>
+
+" Rainbows
+nmap <leader>R :RainbowParenthesesToggle<CR>
 
 " Quick search clear
 nnoremap <leader><space> :noh<cr>
@@ -129,20 +130,12 @@ nnoremap <leader>ft Vatzf
 " Reselect just pasted
 nnoremap <leader>v V`]
 
-
 " FuzzyFinder Bindings
 " ,f to fast finding files using fuzzy finder.
 nmap <leader>f :FufFile **/<CR>
 nmap <leader>b :FufBuffer<CR>
 nmap <leader>y :FufFile<CR>
 nmap <leader>t :FufFile **/<CR>
-
-" ,sh to open vimshell window
-nmap <Leader>sh :ConqueSplit zsh<cr>
-set shell=/bin/zsh
-
-" ,r to open vimshell window
-nmap <Leader>r :ConqueSplit 
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
@@ -176,6 +169,9 @@ inoremap <F1> <ESC>
 nnoremap <F1> <ESC>
 vnoremap <F1> <ESC>
 
+" Sudo to write
+cmap w!! w !sudo tee % >/dev/null
+
 "Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
 
@@ -196,7 +192,7 @@ let g:snips_author = "Chris Metcalf"
 if has("autocmd")
   filetype plugin indent on
 
-  autocmd BufNewFile,BufRead *.mkd  set ai formatoptions=tcroqn2 comments=n:>
+  autocmd BufNewFile,BufRead *.mkd,*.txt setfiletype mkd
   autocmd BufNewFile,BufRead *.rss,*.atom setfiletype xml
   autocmd BufNewFile,BufRead *.ru setfiletype ruby
 
