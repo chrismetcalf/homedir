@@ -7,9 +7,6 @@ if exists('g:loaded_pathogen')
   call pathogen#runtime_prepend_subdirectories(expand('~/.vimbundles'))
 end
 
-" Commands start with ,
-let mapleader = ","
-
 " Tab config
 set smarttab
 set shiftwidth=2
@@ -90,6 +87,79 @@ set textwidth=80
 " Allow the creation of hidden buffers
 set hidden
 
+" Save up to 500 lines of history
+set history=500
+
+" Menus Gone Wild!
+set wildmenu
+
+""""""""""""""""""""""""""""""""""""""""""
+" Plugin Config
+""""""""""""""""""""""""""""""""""""""""""
+
+" Gist
+let g:gist_open_browser_after_post = 1
+let g:gist_detect_filetype = 1
+let g:gist_clip_command = 'pbcopy'
+let g:github_user = "chrismetcalf"
+
+" snipMate
+" Author name
+let g:snips_author = "Chris Metcalf"
+
+""""""""""""""""""""""""""""""""""""""""""
+" Functions
+""""""""""""""""""""""""""""""""""""""""""
+
+" Strip trailing whitespace and delete blanks
+function! <SID>StripTrailingWhitespaces()
+  let _s=@/
+  let l = line(".")
+  let c = col(".")
+  %s/\s\+$//e
+  let @/=_s
+  call cursor(l, c)
+endfunction
+command! StripTrail call <SID>StripTrailingWhitespaces()
+
+command! DeleteBlank :g/^$/d
+
+""""""""""""""""""""""""""""""""""""""""""
+" Filetype-Specific Config
+""""""""""""""""""""""""""""""""""""""""""
+
+" AutoCmds
+if has("autocmd")
+  filetype plugin indent on
+
+  " Set relevant filetypes
+  au BufNewFile,BufRead *.mkd,*.txt setfiletype mkd
+  au BufNewFile,BufRead *.rss,*.atom setfiletype xml
+  au BufNewFile,BufRead Gemfile,Rakefile,*.ru setfiletype ruby
+  au BufNewFile,BufRead *.json setfiletype javascript
+
+  " Syntax options
+  au FileType pde :set syntax=c
+  au FileType java :set shiftwidth=4
+
+  " Delimitmate
+  au FileType gitcommit let b:delimitMate_autoclose = 0
+
+  " Auto save on focus lost
+  au FocusLost * :wa
+
+  " Autoload vimrc and gvimrc
+  au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
+  au! BufWritePost .gvimrc source ~/.gvimrc
+endif
+
+""""""""""""""""""""""""""""""""""""""""""
+" Key Mappings
+""""""""""""""""""""""""""""""""""""""""""
+
+" Commands start with ,
+let mapleader = ","
+
 " Mappings for window keys
 nmap <silent> <C-k> :wincmd k<CR>
 nmap <silent> <C-j> :wincmd j<CR>
@@ -134,23 +204,11 @@ nnoremap <leader>v V`]
 " ,f to fast finding files using fuzzy finder.
 nmap <leader>f :FufFile **/<CR>
 nmap <leader>b :FufBuffer<CR>
-nmap <leader>y :FufFile<CR>
-nmap <leader>t :FufFile **/<CR>
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
 let g:yankring_replace_n_pkey = '<leader>['
 let g:yankring_replace_n_nkey = '<leader>]'
-
-" Learn the hard way
-nnoremap <up> <nop>
-nnoremap <down> <nop>
-nnoremap <left> <nop>
-nnoremap <right> <nop>
-inoremap <up> <nop>
-inoremap <down> <nop>
-inoremap <left> <nop>
-inoremap <right> <nop>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -169,10 +227,22 @@ inoremap <F1> <ESC>
 nnoremap <F1> <ESC>
 vnoremap <F1> <ESC>
 
+" Pressing ,ss will toggle and untoggle spell checking
+map <leader>ss :setlocal spell!<cr>
+
+" Shortcuts using <leader>
+map <leader>sn ]s
+map <leader>sp [s
+map <leader>sa zg
+map <leader>s? z=
+
+" Quick save
+nmap <leader>w :w<cr>
+
 " Sudo to write
 cmap w!! w !sudo tee % >/dev/null
 
-"Ignore these files when completing names and in Explorer
+" Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
 
 " Source local configs
@@ -180,48 +250,3 @@ if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
 end
 
-" Gist
-let g:gist_open_browser_after_post = 1
-let g:gist_detect_filetype = 1
-
-" snipMate
-" Author name
-let g:snips_author = "Chris Metcalf"
-
-" AutoCmds
-if has("autocmd")
-  filetype plugin indent on
-
-  autocmd BufNewFile,BufRead *.mkd,*.txt setfiletype mkd
-  autocmd BufNewFile,BufRead *.rss,*.atom setfiletype xml
-  autocmd BufNewFile,BufRead *.ru setfiletype ruby
-
-  au FileType pde :set syntax=c
-  au FileType java :set shiftwidth=4
-
-  " Delimitmate
-  au FileType gitcommit let b:delimitMate_autoclose = 0
-
-  " Auto save on focus lost
-  au FocusLost * :wa
-endif
-
-" Strip trailing whitespace and delete blanks
-function! <SID>StripTrailingWhitespaces()
-  let _s=@/
-  let l = line(".")
-  let c = col(".")
-  %s/\s\+$//e
-  let @/=_s
-  call cursor(l, c)
-endfunction
-command! StripTrail call <SID>StripTrailingWhitespaces()
-
-command! DeleteBlank :g/^$/d
-
-" Resource vimrc
-function! <SID>ReloadVimrc()
-  :source ~/.vimrc
-  :source ~/.gvimrc
-endfunction
-command! Reload call <SID>ReloadVimrc()
