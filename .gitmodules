@@ -82,3 +82,6 @@
 [submodule ".vimbundles/vim-ragtag"]
 	path = .vimbundles/vim-ragtag
 	url = http://github.com/tpope/vim-ragtag.git
+[submodule "bin/recordstream"]
+	path = bin/recordstream
+	url = git@github.com:chrismetcalf/RecordStream.git
