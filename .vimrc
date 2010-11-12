@@ -245,6 +245,17 @@ cmap w!! w !sudo tee % >/dev/null
 " Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
 
+" Don't store ~ and .swp files in the same directory.
+if filewritable($HOME) && ! filewritable($HOME . "/.vimbackup")
+ silent call mkdir($HOME . "/.vimbackup", "p", 0700)
+endif
+if filewritable($HOME) && ! filewritable($HOME . "/.vimswap")
+ silent call mkdir($HOME . "/.vimswap", "p", 0700)
+endif
+set backupdir=./.backup,~/.vimbackup,$TEMP,$TMP
+set directory=./.backup,~/.vimswap,$TEMP,$TMP
+
+
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
