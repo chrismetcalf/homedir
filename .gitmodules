@@ -85,3 +85,6 @@
 [submodule "bin/recordstream"]
 	path = bin/recordstream
 	url = git@github.com:chrismetcalf/RecordStream.git
+[submodule ".vimbundles/supertab"]
+	path = .vimbundles/supertab
+	url = https://github.com/ervandew/supertab.git
