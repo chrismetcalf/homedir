@@ -165,6 +165,10 @@ nmap <silent> <C-k> :wincmd k<CR>
 nmap <silent> <C-j> :wincmd j<CR>
 nmap <silent> <C-h> :wincmd h<CR>
 nmap <silent> <C-l> :wincmd l<CR>
+nmap <silent> <C-down> :wincmd k<CR>
+nmap <silent> <C-up> :wincmd j<CR>
+nmap <silent> <C-left> :wincmd h<CR>
+nmap <silent> <C-right> :wincmd l<CR>
 
 " Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
