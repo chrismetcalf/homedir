@@ -3,6 +3,9 @@ export PATH=/usr/local/bin:$PATH
 
 export MANPATH=/opt/local/share/man:$MANPATH
 
+# mivm aliases
+alias mvimdiff='mvim -d'
+
 # GNU versions of things
 alias date='gdate'
 alias seq='gseq'
