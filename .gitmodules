@@ -88,3 +88,9 @@
 [submodule ".vimbundles/supertab"]
 	path = .vimbundles/supertab
 	url = https://github.com/ervandew/supertab.git
+[submodule ".vimbundles/vim-indent-guides"]
+	path = .vimbundles/vim-indent-guides
+	url = https://github.com/nathanaelkane/vim-indent-guides.git
+[submodule ".vimbundles/tabular"]
+	path = .vimbundles/tabular
+	url = https://github.com/godlygeek/tabular.git
