@@ -28,7 +28,7 @@ function lprompt {
     git_branch='$(get_git_prompt_info '%b')'
     git_state='$(get_git_prompt_info '%s')'
 
-    PROMPT="${fg_green}%n${fg_no_color}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_color}${fg_purple}$git_branch${fg_red}$git_state${fg_no_color}%#> "
+    PROMPT="${fg_green}%n${fg_no_color}@${fg_cyan}%m ${fg_red}%30<...<%~%<< ${fg_no_color}${fg_purple}$git_branch${fg_red}$git_state${fg_no_color}%(?..[${fg_light_red}%?${fg_no_color}] )%#> "
 }
 
 if [ $UID -eq 0 ]; then
