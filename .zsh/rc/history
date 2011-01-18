@@ -12,11 +12,11 @@ if [[ ! -d ~/.zsh-history ]]; then
 fi
 
 if [[ $USER != "root" ]] ; then
-  HISTFILE=~/.zsh-history/$(hostname)
+  HISTFILE=~/.zsh-history/$(hostname -s)
 else
   echo "Running as root; using alternate history"      
   mkdir -p ~root/.zsh-history
-  HISTFILE=~root/.zsh-history/$(hostname).root
+  HISTFILE=~root/.zsh-history/$(hostname -s).root
 fi
 
 
