@@ -18,3 +18,4 @@ colorscheme jellybeans
 
 " Source local config
 source $HOME/.gvimrc.local
+
