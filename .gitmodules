@@ -94,3 +94,6 @@
 [submodule ".vimbundles/tabular"]
 	path = .vimbundles/tabular
 	url = https://github.com/godlygeek/tabular.git
+[submodule ".vimbundles/vim-arduino"]
+	path = .vimbundles/vim-arduino
+	url = git@github.com:chrismetcalf/vim-arduino.git
