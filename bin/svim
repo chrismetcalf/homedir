@@ -1,0 +1,11 @@
+#!/bin/sh
+SPACE="SERVER$(spacefinder | sed 's/Current Space ID: //')"
+
+mvim --serverlist | grep $SPACE
+if [ $? -eq 1 ]
+then
+  mvim --servername $SPACE $*
+else
+  mvim --servername $SPACE --remote $*
+fi
+
