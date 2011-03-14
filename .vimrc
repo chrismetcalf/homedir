@@ -194,12 +194,8 @@ nmap <leader>p :NERDTreeFind<CR>
 nmap <leader>/ :call NERDComment(0, "invert")<cr>
 vmap <leader>/ :call NERDComment(0, "invert")<cr>
 
-" ,t to show tags window
-let Tlist_Show_Menu=1
-nmap <leader>t :TlistToggle<CR>
-
 " Quick Ack
-nnoremap <leader>a :Ack
+nnoremap <leader>a :Ack 
 
 " Fold at tag
 nnoremap <leader>ft Vatzf
@@ -209,8 +205,14 @@ nnoremap <leader>v V`]
 
 " FuzzyFinder Bindings
 " ,f to fast finding files using fuzzy finder.
-nmap <leader>f :FufFile **/<CR>
-nmap <leader>b :FufBuffer<CR>
+"nmap <leader>f :FufFile **/<CR>
+"nmap <leader>b :FufBuffer<CR>
+
+" Command-T
+nmap <leader>t :CommandT<CR>
+
+" MiniBufExplorer
+nmap <leader>b :MiniBufExplorer<CR>
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
@@ -228,6 +230,9 @@ inoremap jj         <Esc>
 
 " Duplicate the line below
 vmap D y'>p
+
+" Reverse the selected lines
+vnoremap <leader>r !tac<CR>
 
 " Disable help, since its annoying as hell
 inoremap <F1> <ESC>
@@ -261,7 +266,6 @@ if filewritable($HOME) && ! filewritable($HOME . "/.vimswap")
 endif
 set backupdir=./.backup,~/.vimbackup,$TEMP,$TMP
 set directory=./.backup,~/.vimswap,$TEMP,$TMP
-
 
 " Source local configs
 if filereadable("$HOME/.vimrc.local")

@@ -97,3 +97,12 @@
 [submodule ".vimbundles/vim-arduino"]
 	path = .vimbundles/vim-arduino
 	url = git@github.com:chrismetcalf/vim-arduino.git
+[submodule ".vimbundles/vim-extradite"]
+	path = .vimbundles/vim-extradite
+	url = https://github.com/int3/vim-extradite.git
+[submodule ".vimbundles/Command-T"]
+	path = .vimbundles/Command-T
+	url = git@github.com:chrismetcalf/Command-T.git
+[submodule ".vimbundles/minibufexpl.vim"]
+	path = .vimbundles/minibufexpl.vim
+	url = https://github.com/fholgado/minibufexpl.vim.git
