@@ -50,7 +50,10 @@ set ch=2
 let c_comment_strings=1
 
 " Tab-completion options
-set completeopt=menuone,preview
+set completeopt=menuone,longest
+"inoremap <expr> <CR> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>"
+"inoremap <expr> <C-n> pumvisible() ? '<C-n>' : '<C-n><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>'
+"inoremap <expr> <M-,> pumvisible() ? '<C-n>' : '<C-x><C-o><C-n><C-p><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>'
 
 " Switch on syntax highlighting.
 syntax on
@@ -203,11 +206,6 @@ nnoremap <leader>ft Vatzf
 " Reselect just pasted
 nnoremap <leader>v V`]
 
-" FuzzyFinder Bindings
-" ,f to fast finding files using fuzzy finder.
-"nmap <leader>f :FufFile **/<CR>
-"nmap <leader>b :FufBuffer<CR>
-
 " Command-T
 nmap <leader>t :CommandT<CR>
 
@@ -247,6 +245,18 @@ map <leader>sn ]s
 map <leader>sp [s
 map <leader>sa zg
 map <leader>s? z=
+
+" Quick filetype setting shortcuts 
+"nnoremap <leader>fr set filetype=ruby
+
+" Quick Ruby Run
+if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
+  " Shifted
+  au FileType ruby nmap <leader>r :RunRuby<CR> <C-w>w
+
+  " Close output buffer
+  au FileType ruby-runner nmap <leader>r ZZ
+endif
 
 " Quick save
 nmap <leader>w :w<cr>
