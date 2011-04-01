@@ -258,8 +258,10 @@ if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   au FileType ruby-runner nmap <leader>r ZZ
 endif
 
-" Quick save
-nmap <leader>w :w<cr>
+" EasyMotion 
+let g:EasyMotion_do_mapping=0
+highlight link EasyMotionTarget ErrorMsg
+let g:EasyMotion_keys = 'abcdefghijklmnopqrstuvwxyz'
 
 " Sudo to write
 cmap w!! w !sudo tee % >/dev/null
