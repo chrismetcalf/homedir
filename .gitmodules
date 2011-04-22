@@ -103,9 +103,6 @@
 [submodule ".vimbundles/Command-T"]
 	path = .vimbundles/Command-T
 	url = git@github.com:chrismetcalf/Command-T.git
-[submodule ".vimbundles/minibufexpl.vim"]
-	path = .vimbundles/minibufexpl.vim
-	url = https://github.com/fholgado/minibufexpl.vim.git
 [submodule ".vimbundles/vim-ruby-runner"]
 	path = .vimbundles/vim-ruby-runner
 	url = https://github.com/henrik/vim-ruby-runner.git
