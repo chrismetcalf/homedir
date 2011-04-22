@@ -149,7 +149,7 @@ if has("autocmd")
   au FileType gitcommit let b:delimitMate_autoclose = 0
 
   " Auto save on focus lost
-  au FocusLost * :wa
+  "au FocusLost * :wa
 
   " Autoload vimrc and gvimrc
   au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
@@ -158,6 +158,22 @@ if has("autocmd")
   " Arduino!
   autocmd! BufNewFile,BufRead *.pde setlocal ft=arduino
 endif
+
+
+" HTML Escaping
+function! <SID>HtmlEscape()
+  silent '<,'>s/&/\&amp;/eg
+  silent '<,'>s/</\&lt;/eg
+  silent '<,'>s/>/\&gt;/eg
+endfunction
+command! HtmlEscape call <SID>HtmlEscape()
+
+function! <SID>HtmlUnEscape()
+  silent '<,'>s/&lt;/</eg
+  silent '<,'>s/&gt;/>/eg
+  silent '<,'>s/&amp;/\&/eg
+endfunction
+command! HtmlUnEscape call <SID>HtmlUnEscape()
 
 """"""""""""""""""""""""""""""""""""""""""
 " Key Mappings
@@ -207,10 +223,9 @@ nnoremap <leader>ft Vatzf
 nnoremap <leader>v V`]
 
 " Command-T
+let g:CommandTMatchWindowAtTop = 1
 nmap <leader>t :CommandT<CR>
-
-" MiniBufExplorer
-nmap <leader>b :MiniBufExplorer<CR>
+nmap <leader>b :CommandTBuffer<CR>
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
@@ -245,9 +260,6 @@ map <leader>sn ]s
 map <leader>sp [s
 map <leader>sa zg
 map <leader>s? z=
-
-" Quick filetype setting shortcuts 
-"nnoremap <leader>fr set filetype=ruby
 
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
