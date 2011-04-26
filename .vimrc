@@ -58,8 +58,11 @@ set completeopt=menuone,longest
 " Switch on syntax highlighting.
 syntax on
 
+" Use nicer charecters for invisibles in gvim
+set listchars=tab:▸\ ,trail:-
+
 " Set nice colors
-colorscheme vividchalk
+colorscheme jellybeans
 
 "Shows the current editing mode
 set showmode
