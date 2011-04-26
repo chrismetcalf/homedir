@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Pause iTunes
+osascript -e 'tell application "iTunes"' -e "play" -e "end tell"
+
+# Mute audio
+osascript -e "set Volume 0"
+
