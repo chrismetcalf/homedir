@@ -2,16 +2,13 @@
 " gvim config file
 "
 " Get rid of "chrome" 
-set guioptions=cmR
+set guioptions=cR
 
 " set the X11 font to use. See 'man xlsfonts' on unix/linux
 set guifont=Anonymous\ Pro:h12
 
 " Hide the mouse pointer while typing
 set mousehide
-
-" Source local config
-source $HOME/.gvimrc.local
 
 " Awesome statusbar setup from http://www.reddit.com/r/vim/comments/gexi6/a_smarter_statusline_code_in_comments/
 hi StatColor guibg=#95e454 guifg=black ctermbg=lightgreen ctermfg=black
@@ -54,4 +51,7 @@ endfunction
 
 au InsertEnter * call InsertStatuslineColor(v:insertmode)
 au InsertLeave * hi StatColor guibg=#95e454 guifg=black ctermbg=lightgreen ctermfg=black
+
+" Source local config
+source $HOME/.gvimrc.local
 
