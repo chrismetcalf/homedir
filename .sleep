@@ -1,8 +1,10 @@
 #!/bin/sh
 
 # Pause iTunes
-osascript -e 'tell application "iTunes"' -e "play" -e "end tell"
+osascript -e 'tell application "iTunes"' -e "pause" -e "end tell"
 
 # Mute audio
 osascript -e "set Volume 0"
 
+# Turn off Caffeine
+osascript -e 'tell application "Caffeine"' -e "turn off" -e "end tell"
