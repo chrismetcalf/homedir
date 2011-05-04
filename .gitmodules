@@ -112,3 +112,9 @@
 [submodule ".vimbundles/gitv"]
 	path = .vimbundles/gitv
 	url = https://github.com/gregsexton/gitv.git
+[submodule ".vimbundles/scala-vim-support"]
+	path = .vimbundles/scala-vim-support
+	url = git@github.com:chrismetcalf/scala-vim-support.git
+[submodule ".vimbundles/scala-vim-snippets"]
+	path = .vimbundles/scala-vim-snippets
+	url = git@github.com:chrismetcalf/scala-vim-snippets.git
