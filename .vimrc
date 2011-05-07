@@ -46,6 +46,9 @@ set vb
 " Make command line two lines high
 set ch=2
 
+" Allow deleting previously entered charecters in insert mode
+set backspace=indent,eol,start
+
 " I like highlighting strings inside C comments
 let c_comment_strings=1
 
@@ -55,7 +58,7 @@ set completeopt=menuone,longest
 syntax on
 
 " Use nicer charecters for invisibles in gvim
-set listchars=tab:▸\ ,trail:-
+"set listchars=tab:>-\ ,trail:-
 
 " Set nice colors
 colorscheme jellybeans
@@ -174,7 +177,7 @@ function! <SID>HtmlUnEscape()
 endfunction
 command! HtmlUnEscape call <SID>HtmlUnEscape()
 
-command PreviewHTML :!open %<CR>
+command! PreviewHTML :!open %<CR>
 """"""""""""""""""""""""""""""""""""""""""
 " Key Mappings
 """"""""""""""""""""""""""""""""""""""""""
