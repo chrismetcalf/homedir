@@ -10,6 +10,9 @@ set guifont=Anonymous\ Pro:h12
 " Hide the mouse pointer while typing
 set mousehide
 
+" Sane shortcut keys OSX
+source $HOME/.vim/macmap.vim
+
 " Awesome statusbar setup from http://www.reddit.com/r/vim/comments/gexi6/a_smarter_statusline_code_in_comments/
 hi StatColor guibg=#95e454 guifg=black ctermbg=lightgreen ctermfg=black
 hi Modified guibg=orange guifg=black ctermbg=lightred ctermfg=black
