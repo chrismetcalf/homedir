@@ -118,3 +118,6 @@
 [submodule ".vimbundles/scala-vim-snippets"]
 	path = .vimbundles/scala-vim-snippets
 	url = git@github.com:chrismetcalf/scala-vim-snippets.git
+[submodule ".vimbundles/vim-css-color"]
+	path = .vimbundles/vim-css-color
+	url = https://github.com/skammer/vim-css-color.git
