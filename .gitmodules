@@ -121,3 +121,6 @@
 [submodule ".vimbundles/vim-css-color"]
 	path = .vimbundles/vim-css-color
 	url = https://github.com/skammer/vim-css-color.git
+[submodule ".vimbundles/vim-colorx"]
+	path = .vimbundles/vim-colorx
+	url = git@github.com:chrismetcalf/vim-colorx.git

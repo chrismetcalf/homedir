@@ -2,7 +2,7 @@
 " gvim config file
 "
 " Get rid of "chrome" 
-set guioptions=cR
+set guioptions=cmR
 
 " set the X11 font to use. See 'man xlsfonts' on unix/linux
 set guifont=Anonymous\ Pro:h12
