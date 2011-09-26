@@ -124,3 +124,9 @@
 [submodule ".vimbundles/vim-colorx"]
 	path = .vimbundles/vim-colorx
 	url = git@github.com:chrismetcalf/vim-colorx.git
+[submodule ".vimbundles/vim-idlefingers"]
+	path = .vimbundles/vim-idlefingers
+	url = https://github.com/shinzui/vim-idleFingers.git
+[submodule ".vimbundles/gundo.vim"]
+	path = .vimbundles/gundo.vim
+	url = https://github.com/sjl/gundo.vim.git

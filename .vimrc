@@ -18,14 +18,14 @@ set expandtab
 set wrapscan
 
 " Wrap at whitespace instead of the middle of a word.
-set linebreak
-set wrap
-set wrapmargin=2
-set display+=lastline
+"set linebreak
+"set wrap
+"set wrapmargin=2
+"set display+=lastline
 
 " Formatting options - help formatoptions/fo-table
 set formatoptions=cn1
-set textwidth=80
+"set textwidth=80
 
 " Show matching parens
 set showmatch
@@ -61,7 +61,7 @@ syntax on
 "set listchars=tab:>-\ ,trail:-
 
 " Set nice colors
-colorscheme jellybeans
+colorscheme idleFingers
 
 "Shows the current editing mode
 set showmode
@@ -85,10 +85,6 @@ set listchars=tab:>-,trail:-
 " Make backup files end in .bak instead of ~
 set backupext=.bak
 
-" Formatting options - help formatoptions/fo-table
-set formatoptions=cn1
-set textwidth=80
-
 " Allow the creation of hidden buffers
 set hidden
 
@@ -104,6 +100,7 @@ set wildmenu
 
 " Gist
 let g:gist_open_browser_after_post = 1
+let g:gist_show_privates = 1
 let g:gist_detect_filetype = 1
 let g:gist_clip_command = 'pbcopy'
 let g:github_user = "chrismetcalf"
@@ -218,6 +215,8 @@ vmap <leader>/ :call NERDComment(0, "invert")<cr>
 " Quick Ack
 nnoremap <leader>a :Ack 
 
+nnoremap <leader>m :make<CR>
+
 " Fold at tag
 nnoremap <leader>ft Vatzf
 
@@ -225,6 +224,8 @@ nnoremap <leader>ft Vatzf
 nnoremap <leader>v V`]
 
 " Command-T
+let g:CommandTMaxFiles = 20000
+let g:CommandTMaxDepth = 20
 let g:CommandTMatchWindowAtTop = 1
 nmap <leader>t :CommandT<CR>
 nmap <leader>b :CommandTBuffer<CR>
