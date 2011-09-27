@@ -130,3 +130,6 @@
 [submodule ".vimbundles/gundo.vim"]
 	path = .vimbundles/gundo.vim
 	url = https://github.com/sjl/gundo.vim.git
+[submodule ".vimbundles/vim-matchit"]
+	path = .vimbundles/vim-matchit
+	url = https://github.com/mirell/vim-matchit.git
