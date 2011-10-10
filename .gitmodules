@@ -133,3 +133,6 @@
 [submodule ".vimbundles/vim-matchit"]
 	path = .vimbundles/vim-matchit
 	url = https://github.com/mirell/vim-matchit.git
+[submodule "bin/dropbox-uploader"]
+	path = bin/dropbox-uploader
+	url = git@github.com:chrismetcalf/Dropbox-Uploader.git
