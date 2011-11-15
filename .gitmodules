@@ -136,3 +136,6 @@
 [submodule "bin/dropbox-uploader"]
 	path = bin/dropbox-uploader
 	url = git@github.com:chrismetcalf/Dropbox-Uploader.git
+[submodule ".vimbundles/vimroom.git"]
+	path = .vimbundles/vimroom.git
+	url = https://github.com/mikewest/vimroom.git
