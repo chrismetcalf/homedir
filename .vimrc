@@ -18,14 +18,13 @@ set expandtab
 set wrapscan
 
 " Wrap at whitespace instead of the middle of a word.
-"set linebreak
-"set wrap
-"set wrapmargin=2
-"set display+=lastline
+set linebreak
+set wrap
+set wrapmargin=2
+set display+=lastline
 
 " Formatting options - help formatoptions/fo-table
 set formatoptions=cn1
-"set textwidth=80
 
 " Show matching parens
 set showmatch
@@ -54,14 +53,11 @@ let c_comment_strings=1
 
 " Tab-completion options
 set completeopt=menuone,longest
-"inoremap <expr> <CR> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>" "inoremap <expr> <C-n> pumvisible() ? '<C-n>' : '<C-n><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>' "inoremap <expr> <M-,> pumvisible() ? '<C-n>' : '<C-x><C-o><C-n><C-p><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>' " Switch on syntax highlighting.
+inoremap <expr> <CR> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>" "inoremap <expr> <C-n> pumvisible() ? '<C-n>' : '<C-n><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>' "inoremap <expr> <M-,> pumvisible() ? '<C-n>' : '<C-x><C-o><C-n><C-p><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>' " Switch on syntax highlighting.
 syntax on
 
-" Use nicer charecters for invisibles in gvim
-"set listchars=tab:>-\ ,trail:-
-
 " Set nice colors
-colorscheme idleFingers
+colorscheme jellybeans
 
 "Shows the current editing mode
 set showmode
@@ -158,7 +154,6 @@ if has("autocmd")
   autocmd! BufNewFile,BufRead *.pde setlocal ft=arduino
 endif
 
-
 " HTML Escaping
 function! <SID>HtmlEscape()
   silent '<,'>s/&/\&amp;/eg
@@ -215,6 +210,7 @@ vmap <leader>/ :call NERDComment(0, "invert")<cr>
 " Quick Ack
 nnoremap <leader>a :Ack 
 
+" Build
 nnoremap <leader>m :make<CR>
 
 " Fold at tag
@@ -234,6 +230,9 @@ nmap <leader>b :CommandTBuffer<CR>
 nmap <leader>y :YRShow<cr>
 let g:yankring_replace_n_pkey = '<leader>['
 let g:yankring_replace_n_nkey = '<leader>]'
+
+" Show Gundo window
+nnoremap <leader>g :GundoToggle<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -264,6 +263,10 @@ map <leader>sp [s
 map <leader>sa zg
 map <leader>s? z=
 
+" VimRoom
+map <leader>vr <Plug>VimroomToggle
+let g:vimroom_width = 100
+
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   " Shifted
@@ -273,7 +276,7 @@ if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   au FileType ruby-runner nmap <leader>r ZZ
 endif
 
-" EasyMotion 
+" EasyMotion
 let g:EasyMotion_do_mapping=0
 highlight link EasyMotionTarget ErrorMsg
 let g:EasyMotion_keys = 'abcdefghijklmnopqrstuvwxyz'
