@@ -8,7 +8,7 @@ do
 done &
 
 while true; do
-    /usr/local/bin/dwm 2> ~/.dwm.log
+    DISPLAY=:0.0 /usr/local/bin/dwm 2>> ~/.dwm.log
 done
 
 
