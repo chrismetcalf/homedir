@@ -4,3 +4,6 @@ XTerm*background: black
 UXTerm*foreground: white
 UXTerm*background: black
 
+urxvt*foreground:white
+urxvt*background:black
+urxvt*depth: 32
