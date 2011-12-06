@@ -53,7 +53,6 @@ let c_comment_strings=1
 
 " Tab-completion options
 set completeopt=menuone,longest
-inoremap <expr> <CR> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>" "inoremap <expr> <C-n> pumvisible() ? '<C-n>' : '<C-n><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>' "inoremap <expr> <M-,> pumvisible() ? '<C-n>' : '<C-x><C-o><C-n><C-p><C-r>=pumvisible() ? "\<lt>Down>" : ""<CR>' " Switch on syntax highlighting.
 syntax on
 
 " Set nice colors
