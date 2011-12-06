@@ -1,0 +1,13 @@
+Config { font = "-*-terminus-*-*-*-*-12-*-*-*-*-*-*-u"
+       , bgColor = "#000000"
+       , fgColor = "#C9A34E"
+       , borderColor = "#555555"
+       , position = Top 
+       , lowerOnStart = True
+       , commands = [ 
+                      Run StdinReader
+                    ]
+       , sepChar = "%"
+       , alignSep = "}{"
+       , template = " %StdinReader% }{ <fc=#429942>|</fc> %date%"
+       }
