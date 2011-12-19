@@ -104,6 +104,12 @@ let g:github_user = "chrismetcalf"
 " Author name
 let g:snips_author = "Chris Metcalf"
 
+" DelimitMate
+let b:delimitMate_autoclose = 0
+
+" NERDComment
+let NERDDefaultNesting = 1
+
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
 """"""""""""""""""""""""""""""""""""""""""
@@ -138,12 +144,10 @@ if has("autocmd")
   " Syntax options
   au FileType pde :set syntax=c
   au FileType java :set shiftwidth=4
+  au FileType java,javascript,scala,ruby,c,c++ :RainbowParenthesesToggle
 
   " Delimitmate
   au FileType gitcommit let b:delimitMate_autoclose = 0
-
-  " Auto save on focus lost
-  "au FocusLost * :wa
 
   " Autoload vimrc and gvimrc
   au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
@@ -199,18 +203,18 @@ nnoremap <leader><space> :noh<cr>
 
 " NERDTree
 nmap <leader>n :NERDTreeToggle<CR>
-" ,p to show current file in the tree
 nmap <leader>p :NERDTreeFind<CR>
 
 " ,/ to invert comment on the current line/selection
 nmap <leader>/ :call NERDComment(0, "invert")<cr>
 vmap <leader>/ :call NERDComment(0, "invert")<cr>
 
+" Color Pickers
+nnoremap <leader>c :ColorHEX
+
 " Quick Ack
 nnoremap <leader>a :Ack 
 
-" Build
-nnoremap <leader>m :make<CR>
 
 " Fold at tag
 nnoremap <leader>ft Vatzf
@@ -240,7 +244,7 @@ vnoremap j gj
 vnoremap k gk
 
 " Quick exit out of insert mode
-inoremap jj         <Esc>
+inoremap jj <Esc>
 
 " Duplicate the line below
 vmap D y'>p
