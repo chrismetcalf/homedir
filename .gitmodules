@@ -142,3 +142,6 @@
 [submodule "bin/spark.git"]
 	path = bin/spark.git
 	url = https://github.com/holman/spark.git
+[submodule "bin/bug.git"]
+	path = bin/bug.git
+	url = https://github.com/saraid/bug.git
