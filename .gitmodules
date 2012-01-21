@@ -145,3 +145,6 @@
 [submodule "bin/bug.git"]
 	path = bin/bug.git
 	url = https://github.com/saraid/bug.git
+[submodule ".vimbundles/vim-powerline.git"]
+	path = .vimbundles/vim-powerline.git
+	url = https://github.com/Lokaltog/vim-powerline.git
