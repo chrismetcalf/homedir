@@ -58,6 +58,9 @@ syntax on
 " Set nice colors
 colorscheme jellybeans
 
+" Always show the status line
+set laststatus=2
+
 "Shows the current editing mode
 set showmode
 
@@ -109,6 +112,9 @@ let b:delimitMate_autoclose = 0
 
 " NERDComment
 let NERDDefaultNesting = 1
+
+" Powerline config
+let Powerline_symbols = "unicode"
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
