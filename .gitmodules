@@ -154,3 +154,6 @@
 [submodule ".vimbundles/vim-r-plugin.git"]
 	path = .vimbundles/vim-r-plugin.git
 	url = https://github.com/jcfaria/Vim-R-plugin.git
+[submodule "bin/csvkit.git"]
+	path = bin/csvkit.git
+	url = https://github.com/onyxfish/csvkit.git
