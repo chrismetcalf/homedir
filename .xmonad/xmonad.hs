@@ -89,7 +89,7 @@ tabTheme1 = defaultTheme { decoHeight = 16
                          }
 
 -- workspaces
-workspaces' = ["1-irc", "2-util09", "3-hacks", "4", "5", "6", "7", "8", "9"]
+workspaces' = ["1-irc", "2-util09", "3-db", "4", "5", "6", "7", "8", "9-personal"]
 
 -- layouts
 layoutHook' = tile ||| mtile ||| tab ||| full
@@ -118,14 +118,15 @@ keys' conf@(XConfig {XMonad.modMask = modMask}) = M.fromList $
     -- launching and killing programs
     [ ((modMask,               xK_Return), spawn $ XMonad.terminal conf) 
     , ((modMask,               xK_p     ), spawn "dmenu_run") 
+    , ((modMask,               xK_x     ), spawn "/usr/local/bin/urxvtc") 
     , ((modMask .|. shiftMask, xK_c     ), kill)
 
     -- grid
     , ((modMask,               xK_g     ), goToSelected myGSConfig)
 
     -- layouts
-    , ((modMask,               xK_space ), sendMessage NextLayout)
-    , ((modMask .|. shiftMask, xK_space ), setLayout $ XMonad.layoutHook conf)
+    , ((modMask,               xK_v     ), sendMessage NextLayout)
+    , ((modMask .|. shiftMask, xK_v     ), setLayout $ XMonad.layoutHook conf)
 
     -- floating layer stuff
     , ((modMask,               xK_t     ), withFocused $ windows . W.sink)
@@ -156,7 +157,7 @@ keys' conf@(XConfig {XMonad.modMask = modMask}) = M.fromList $
 
     -- quit, or restart
     , ((modMask,               xK_q     ), io (exitWith ExitSuccess))
-    , ((modMask .|. shiftMask, xK_q     ), spawn "xmonad --recompile; xmonad --restart")
+    , ((modMask .|. shiftMask, xK_q     ), spawn "/Users/metcalf/.cabal/bin/xmonad --recompile; /Users/metcalf/.cabal/bin/xmonad --restart")
     ]
     ++
     -- mod-[1..9] %! Switch to workspace N
