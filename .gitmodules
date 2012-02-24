@@ -157,3 +157,6 @@
 [submodule "bin/csvkit.git"]
 	path = bin/csvkit.git
 	url = https://github.com/onyxfish/csvkit.git
+[submodule ".oh-my-zsh"]
+	path = .oh-my-zsh
+	url = https://github.com/robbyrussell/oh-my-zsh.git
