@@ -160,3 +160,6 @@
 [submodule ".oh-my-zsh"]
 	path = .oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
+[submodule ".vimbundles/xterm-color-table.vim.git"]
+	path = .vimbundles/xterm-color-table.vim.git
+	url = https://github.com/guns/xterm-color-table.vim.git
