@@ -163,3 +163,6 @@
 [submodule ".vimbundles/xterm-color-table.vim.git"]
 	path = .vimbundles/xterm-color-table.vim.git
 	url = https://github.com/guns/xterm-color-table.vim.git
+[submodule ".vimbundles/webapi-vim.git"]
+	path = .vimbundles/webapi-vim.git
+	url = https://github.com/mattn/webapi-vim.git
