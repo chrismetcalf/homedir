@@ -92,6 +92,9 @@ set history=500
 " Menus Gone Wild!
 set wildmenu
 
+" Use system clipboard
+set clipboard=unnamed
+
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
 """"""""""""""""""""""""""""""""""""""""""
@@ -114,7 +117,7 @@ let b:delimitMate_autoclose = 0
 let NERDDefaultNesting = 1
 
 " Powerline config
-let Powerline_symbols = "unicode"
+let Powerline_symbols = "compatible"
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
@@ -134,68 +137,71 @@ command! StripTrail call <SID>StripTrailingWhitespaces()
 command! DeleteBlank :g/^$/d
 
 function! HtmlEntities()
-  silent %s/À/\&Agrave;/eg
-  silent %s/Á/\&Aacute;/eg
-  silent %s/Â/\&Acirc;/eg
-  silent %s/Ã/\&Atilde;/eg
-  silent %s/Ä/\&Auml;/eg
-  silent %s/Å/\&Aring;/eg
-  silent %s/Æ/\&AElig;/eg
-  silent %s/Ç/\&Ccedil;/eg
-  silent %s/È/\&Egrave;/eg
-  silent %s/É/\&Eacute;/eg
-  silent %s/Ê/\&Ecirc;/eg
-  silent %s/Ë/\&Euml;/eg
-  silent %s/Ì/\&Igrave;/eg
-  silent %s/Í/\&Iacute;/eg
-  silent %s/Î/\&Icirc;/eg
-  silent %s/Ï/\&Iuml;/eg
-  silent %s/Ð/\&ETH;/eg
-  silent %s/Ñ/\&Ntilde;/eg
-  silent %s/Ò/\&Ograve;/eg
-  silent %s/Ó/\&Oacute;/eg
-  silent %s/Ô/\&Ocirc;/eg
-  silent %s/Õ/\&Otilde;/eg
-  silent %s/Ö/\&Ouml;/eg
-  silent %s/Ø/\&Oslash;/eg
-  silent %s/Ù/\&Ugrave;/eg
-  silent %s/Ú/\&Uacute;/eg
-  silent %s/Û/\&Ucirc;/eg
-  silent %s/Ü/\&Uuml;/eg
-  silent %s/Ý/\&Yacute;/eg
-  silent %s/Þ/\&THORN;/eg
-  silent %s/ß/\&szlig;/eg
-  silent %s/à/\&agrave;/eg
-  silent %s/á/\&aacute;/eg
-  silent %s/â/\&acirc;/eg
-  silent %s/ã/\&atilde;/eg
-  silent %s/ä/\&auml;/eg
-  silent %s/å/\&aring;/eg
-  silent %s/æ/\&aelig;/eg
-  silent %s/ç/\&ccedil;/eg
-  silent %s/è/\&egrave;/eg
-  silent %s/é/\&eacute;/eg
-  silent %s/ê/\&ecirc;/eg
-  silent %s/ë/\&euml;/eg
-  silent %s/ì/\&igrave;/eg
-  silent %s/í/\&iacute;/eg
-  silent %s/î/\&icirc;/eg
-  silent %s/ï/\&iuml;/eg
-  silent %s/ð/\&eth;/eg
-  silent %s/ñ/\&ntilde;/eg
-  silent %s/ò/\&ograve;/eg
-  silent %s/ó/\&oacute;/eg
-  silent %s/ô/\&ocirc;/eg
-  silent %s/õ/\&otilde;/eg
-  silent %s/ö/\&ouml;/eg
-  silent %s/ø/\&oslash;/eg
-  silent %s/ù/\&ugrave;/eg
-  silent %s/ú/\&uacute;/eg
-  silent %s/û/\&ucirc;/eg
-  silent %s/ü/\&uuml;/eg
-  silent %s/ý/\&yacute;/eg
-  silent %s/þ/\&thorn;/eg
-  silent %s/ÿ/\&yuml;/eg
+  silent %s/À/\&Agrave;/e
+  silent %s/Á/\&Aacute;/e
+  silent %s/Â/\&Acirc;/e
+  silent %s/Ã/\&Atilde;/e
+  silent %s/Ä/\&Auml;/e
+  silent %s/Å/\&Aring;/e
+  silent %s/Æ/\&AElig;/e
+  silent %s/Ç/\&Ccedil;/e
+  silent %s/È/\&Egrave;/e
+  silent %s/É/\&Eacute;/e
+  silent %s/Ê/\&Ecirc;/e
+  silent %s/Ë/\&Euml;/e
+  silent %s/Ì/\&Igrave;/e
+  silent %s/Í/\&Iacute;/e
+  silent %s/Î/\&Icirc;/e
+  silent %s/Ï/\&Iuml;/e
+  silent %s/Ð/\&ETH;/e
+  silent %s/Ñ/\&Ntilde;/e
+  silent %s/Ò/\&Ograve;/e
+  silent %s/Ó/\&Oacute;/e
+  silent %s/Ô/\&Ocirc;/e
+  silent %s/Õ/\&Otilde;/e
+  silent %s/Ö/\&Ouml;/e
+  silent %s/Ø/\&Oslash;/e
+  silent %s/Ù/\&Ugrave;/e
+  silent %s/Ú/\&Uacute;/e
+  silent %s/Û/\&Ucirc;/e
+  silent %s/Ü/\&Uuml;/e
+  silent %s/Ý/\&Yacute;/e
+  silent %s/Þ/\&THORN;/e
+  silent %s/ß/\&szlig;/e
+  silent %s/à/\&agrave;/e
+  silent %s/á/\&aacute;/e
+  silent %s/â/\&acirc;/e
+  silent %s/ã/\&atilde;/e
+  silent %s/ä/\&auml;/e
+  silent %s/å/\&aring;/e
+  silent %s/æ/\&aelig;/e
+  silent %s/ç/\&ccedil;/e
+  silent %s/è/\&egrave;/e
+  silent %s/é/\&eacute;/e
+  silent %s/ê/\&ecirc;/e
+  silent %s/ë/\&euml;/e
+  silent %s/ì/\&igrave;/e
+  silent %s/í/\&iacute;/e
+  silent %s/î/\&icirc;/e
+  silent %s/ï/\&iuml;/e
+  silent %s/ð/\&eth;/e
+  silent %s/ñ/\&ntilde;/e
+  silent %s/ò/\&ograve;/e
+  silent %s/ó/\&oacute;/e
+  silent %s/ô/\&ocirc;/e
+  silent %s/õ/\&otilde;/e
+  silent %s/ö/\&ouml;/e
+  silent %s/ø/\&oslash;/e
+  silent %s/ù/\&ugrave;/e
+  silent %s/ú/\&uacute;/e
+  silent %s/û/\&ucirc;/e
+  silent %s/ü/\&uuml;/e
+  silent %s/ý/\&yacute;/e
+  silent %s/þ/\&thorn;/e
+  silent %s/ÿ/\&yuml;/e
+  silent %s/“/"/e
+  silent %s/”/"/e
+  silent %s/’/'/e
 endfunction
 command! HtmlEntities :call HtmlEntities()
 
@@ -343,7 +349,8 @@ map <leader>s? z=
 
 " VimRoom
 map <leader>vr <Plug>VimroomToggle
-let g:vimroom_width = 100
+let g:vimroom_width = 120
+let g:vimroom_background = "black"
 
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
