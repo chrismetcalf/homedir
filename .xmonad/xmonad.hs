@@ -89,7 +89,7 @@ tabTheme1 = defaultTheme { decoHeight = 16
                          }
 
 -- workspaces
-workspaces' = ["1-irc", "2-util09", "3-db", "4", "5", "6", "7", "8", "9-personal"]
+workspaces' = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 
 -- layouts
 layoutHook' = tile ||| mtile ||| tab ||| full
