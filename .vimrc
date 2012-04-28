@@ -115,6 +115,8 @@ let b:delimitMate_autoclose = 0
 
 " NERDComment
 let NERDDefaultNesting = 1
+let NERDSpaceDelims = 1
+let NERDRemoveExtraSpaces = 1
 
 " Powerline config
 let Powerline_symbols = "compatible"
@@ -288,7 +290,7 @@ nmap <leader>/ :call NERDComment(0, "invert")<cr>
 vmap <leader>/ :call NERDComment(0, "invert")<cr>
 
 " Color Pickers
-nnoremap <leader>c :ColorHEX
+nnoremap <leader>c :ColorHEX<CR>
 
 " Quick Ack
 nnoremap <leader>a :Ack 
@@ -312,8 +314,7 @@ nmap <leader>b :CommandTBuffer<CR>
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
-let g:yankring_replace_n_pkey = '<leader>['
-let g:yankring_replace_n_nkey = '<leader>]'
+nmap <leader>ys :YRSearch<cr>
 
 " Show Gundo window
 nnoremap <leader>g :GundoToggle<CR>
@@ -360,11 +361,6 @@ if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   " Close output buffer
   au FileType ruby-runner nmap <leader>r ZZ
 endif
-
-" EasyMotion
-let g:EasyMotion_do_mapping=0
-highlight link EasyMotionTarget ErrorMsg
-let g:EasyMotion_keys = 'abcdefghijklmnopqrstuvwxyz'
 
 " Sudo to write
 cmap w!! w !sudo tee % >/dev/null
