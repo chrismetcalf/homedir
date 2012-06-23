@@ -1,2 +1,4 @@
 known
 *.swp
+.weechat/*.log
+.weechat/logs/*
