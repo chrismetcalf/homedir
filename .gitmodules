@@ -166,3 +166,12 @@
 [submodule ".vimbundles/webapi-vim.git"]
 	path = .vimbundles/webapi-vim.git
 	url = https://github.com/mattn/webapi-vim.git
+[submodule ".vimbundles/vim-eunich.git"]
+	path = .vimbundles/vim-eunich.git
+	url = https://github.com/tpope/vim-eunuch
+[submodule ".vimbundles/vim-commentary.git"]
+	path = .vimbundles/vim-commentary.git
+	url = https://github.com/tpope/vim-commentary.git
+[submodule ".vimbundles/vim-rake.git"]
+	path = .vimbundles/vim-rake.git
+	url = https://github.com/tpope/vim-rake.git
