@@ -55,9 +55,6 @@ let c_comment_strings=1
 set completeopt=menuone,longest
 syntax on
 
-" Set nice colors
-colorscheme badwolf
-
 " Always show the status line
 set laststatus=2
 
@@ -94,6 +91,10 @@ set wildmenu
 
 " Use system clipboard
 set clipboard=unnamed
+
+" Set nice colors
+set t_Co=256
+colorscheme badwolf
 
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
