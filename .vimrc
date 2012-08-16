@@ -349,6 +349,13 @@ map <leader>sp [s
 map <leader>sa zg
 map <leader>s? z=
 
+" Tab skips
+map <leader>] :tabn<CR>
+map <leader>[ :tabp<CR>
+
+" Show syntax details
+map <leader>sy :call SyntaxAttr()<CR>
+
 " VimRoom
 map <leader>vr <Plug>VimroomToggle
 let g:vimroom_width = 120
