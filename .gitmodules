@@ -175,3 +175,6 @@
 [submodule ".vimbundles/vim-rake.git"]
 	path = .vimbundles/vim-rake.git
 	url = https://github.com/tpope/vim-rake.git
+[submodule ".vimbundles/SyntaxAttr.vim.git"]
+	path = .vimbundles/SyntaxAttr.vim.git
+	url = git://github.com/vim-scripts/SyntaxAttr.vim.git
