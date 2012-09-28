@@ -16,21 +16,18 @@
 [submodule ".vimbundles/vim-surround"]
 	path = .vimbundles/vim-surround
 	url = git://github.com/tpope/vim-surround.git
-[submodule ".vimbundles/vim-unimpaired"]
-	path = .vimbundles/vim-unimpaired
-	url = git://github.com/tpope/vim-unimpaired.git
-[submodule ".vimbundles/vim-abolish"]
-	path = .vimbundles/vim-abolish
-	url = git://github.com/tpope/vim-abolish.git
+; [submodule ".vimbundles/vim-abolish"]
+; 	path = .vimbundles/vim-abolish
+; 	url = git://github.com/tpope/vim-abolish.git
 [submodule ".vimbundles/vim-repeat"]
 	path = .vimbundles/vim-repeat
 	url = git://github.com/tpope/vim-repeat.git
-[submodule ".vimbundles/nerdtree"]
-	path = .vimbundles/nerdtree
-	url = git://github.com/scrooloose/nerdtree.git
-[submodule ".vimbundles/nerdcommenter"]
-	path = .vimbundles/nerdcommenter
-	url = git://github.com/scrooloose/nerdcommenter.git
+; [submodule ".vimbundles/nerdtree"]
+; 	path = .vimbundles/nerdtree
+; 	url = git://github.com/scrooloose/nerdtree.git
+; [submodule ".vimbundles/nerdcommenter"]
+; 	path = .vimbundles/nerdcommenter
+; 	url = git://github.com/scrooloose/nerdcommenter.git
 [submodule ".vimbundles/ack"]
 	path = .vimbundles/ack
 	url = git://github.com/mileszs/ack.vim.git
@@ -88,18 +85,18 @@
 [submodule ".vimbundles/supertab"]
 	path = .vimbundles/supertab
 	url = https://github.com/ervandew/supertab.git
-[submodule ".vimbundles/vim-indent-guides"]
-	path = .vimbundles/vim-indent-guides
-	url = https://github.com/nathanaelkane/vim-indent-guides.git
+; [submodule ".vimbundles/vim-indent-guides"]
+; 	path = .vimbundles/vim-indent-guides
+; 	url = https://github.com/nathanaelkane/vim-indent-guides.git
 [submodule ".vimbundles/tabular"]
 	path = .vimbundles/tabular
 	url = https://github.com/godlygeek/tabular.git
-[submodule ".vimbundles/vim-arduino"]
-	path = .vimbundles/vim-arduino
-	url = git@github.com:chrismetcalf/vim-arduino.git
-[submodule ".vimbundles/vim-extradite"]
-	path = .vimbundles/vim-extradite
-	url = https://github.com/int3/vim-extradite.git
+; [submodule ".vimbundles/vim-arduino"]
+; 	path = .vimbundles/vim-arduino
+; 	url = git@github.com:chrismetcalf/vim-arduino.git
+; [submodule ".vimbundles/vim-extradite"]
+; 	path = .vimbundles/vim-extradite
+; 	url = https://github.com/int3/vim-extradite.git
 [submodule ".vimbundles/Command-T"]
 	path = .vimbundles/Command-T
 	url = git@github.com:chrismetcalf/Command-T.git
@@ -130,15 +127,15 @@
 [submodule ".vimbundles/gundo.vim"]
 	path = .vimbundles/gundo.vim
 	url = https://github.com/sjl/gundo.vim.git
-[submodule ".vimbundles/vim-matchit"]
-	path = .vimbundles/vim-matchit
-	url = https://github.com/mirell/vim-matchit.git
+; [submodule ".vimbundles/vim-matchit"]
+; 	path = .vimbundles/vim-matchit
+; 	url = https://github.com/mirell/vim-matchit.git
 [submodule "bin/dropbox-uploader"]
 	path = bin/dropbox-uploader
 	url = git@github.com:chrismetcalf/Dropbox-Uploader.git
-[submodule ".vimbundles/vimroom.git"]
-	path = .vimbundles/vimroom.git
-	url = https://github.com/mikewest/vimroom.git
+; [submodule ".vimbundles/vimroom.git"]
+; 	path = .vimbundles/vimroom.git
+; 	url = https://github.com/mikewest/vimroom.git
 [submodule "bin/spark.git"]
 	path = bin/spark.git
 	url = https://github.com/holman/spark.git
@@ -178,3 +175,12 @@
 [submodule ".vimbundles/SyntaxAttr.vim.git"]
 	path = .vimbundles/SyntaxAttr.vim.git
 	url = git://github.com/vim-scripts/SyntaxAttr.vim.git
+[submodule ".vimbundles/vim-jade.git"]
+	path = .vimbundles/vim-jade.git
+	url = git://github.com/digitaltoad/vim-jade.git
+[submodule ".vimbundles/syntastic.git"]
+	path = .vimbundles/syntastic.git
+	url = git://github.com/scrooloose/syntastic.git
+[submodule ".tomorrow-theme.git"]
+	path = .tomorrow-theme.git
+	url = git://github.com/chriskempson/tomorrow-theme.git
