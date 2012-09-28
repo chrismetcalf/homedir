@@ -2,3 +2,4 @@ known
 *.swp
 .weechat/*.log
 .weechat/logs/*
+.vimbundles/__spell/.netrwhist
