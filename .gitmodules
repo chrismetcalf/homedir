@@ -1,6 +1,6 @@
-[submodule ".vimbundles/vim-rails"]
-	path = .vimbundles/vim-rails
-	url = git://github.com/tpope/vim-rails.git
+; [submodule ".vimbundles/vim-rails"]
+; 	path = .vimbundles/vim-rails
+; 	url = git://github.com/tpope/vim-rails.git
 [submodule ".vimbundles/vim-cucumber"]
 	path = .vimbundles/vim-cucumber
 	url = git://github.com/tpope/vim-cucumber.git
@@ -46,9 +46,6 @@
 [submodule ".vimbundles/snipmate"]
 	path = .vimbundles/snipmate
 	url = git://github.com/msanders/snipmate.vim.git
-[submodule ".vimbundles/blogit"]
-	path = .vimbundles/blogit
-	url = git@github.com:chrismetcalf/blogit.git
 [submodule ".vimbundles/gist-vim"]
 	path = .vimbundles/gist-vim
 	url = git@github.com:chrismetcalf/gist-vim.git
@@ -64,9 +61,9 @@
 [submodule ".vimbundles/vim-scratch"]
 	path = .vimbundles/vim-scratch
 	url = git@github.com:chrismetcalf/vim-scratch.git
-[submodule ".vimbundles/vim-rainbow"]
-	path = .vimbundles/vim-rainbow
-	url = git@github.com:chrismetcalf/vim-rainbow.git
+; [submodule ".vimbundles/vim-rainbow"]
+; 	path = .vimbundles/vim-rainbow
+; 	url = git@github.com:chrismetcalf/vim-rainbow.git
 [submodule ".vimbundles/vim-yankring"]
 	path = .vimbundles/vim-yankring
 	url = git@github.com:chrismetcalf/vim-yankring.git
@@ -82,9 +79,6 @@
 [submodule "bin/recordstream"]
 	path = bin/recordstream
 	url = git@github.com:chrismetcalf/RecordStream.git
-[submodule ".vimbundles/supertab"]
-	path = .vimbundles/supertab
-	url = https://github.com/ervandew/supertab.git
 ; [submodule ".vimbundles/vim-indent-guides"]
 ; 	path = .vimbundles/vim-indent-guides
 ; 	url = https://github.com/nathanaelkane/vim-indent-guides.git
@@ -115,9 +109,9 @@
 [submodule ".vimbundles/scala-vim-snippets"]
 	path = .vimbundles/scala-vim-snippets
 	url = git@github.com:chrismetcalf/scala-vim-snippets.git
-[submodule ".vimbundles/vim-css-color"]
-	path = .vimbundles/vim-css-color
-	url = https://github.com/skammer/vim-css-color.git
+; [submodule ".vimbundles/vim-css-color"]
+; 	path = .vimbundles/vim-css-color
+; 	url = https://github.com/skammer/vim-css-color.git
 [submodule ".vimbundles/vim-colorx"]
 	path = .vimbundles/vim-colorx
 	url = git@github.com:chrismetcalf/vim-colorx.git
@@ -184,3 +178,18 @@
 [submodule ".tomorrow-theme.git"]
 	path = .tomorrow-theme.git
 	url = git://github.com/chriskempson/tomorrow-theme.git
+[submodule ".vimbundles/delimitMate.git"]
+	path = .vimbundles/delimitMate.git
+	url = git://github.com/Raimondi/delimitMate.git
+[submodule ".vimbundles/vim-browsereload-mac.git"]
+	path = .vimbundles/vim-browsereload-mac.git
+	url = git://github.com/tell-k/vim-browsereload-mac.git
+[submodule ".vimbundles/vim-pad.git"]
+	path = .vimbundles/vim-pad.git
+	url = git://github.com/vim-scripts/vim-pad.git
+[submodule ".vimbundles/vim-easymotion.git"]
+	path = .vimbundles/vim-easymotion.git
+	url = git://github.com/Lokaltog/vim-easymotion.git
+[submodule ".vimbundles/neocomplcache.git"]
+	path = .vimbundles/neocomplcache.git
+	url = git://github.com/Shougo/neocomplcache.git
