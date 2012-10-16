@@ -93,8 +93,7 @@ set wildmenu
 set clipboard=unnamed
 
 " Set nice colors
-set t_Co=256
-colorscheme badwolf
+colorscheme Tomorrow-Night-Bright
 
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
@@ -120,7 +119,31 @@ let NERDSpaceDelims = 1
 let NERDRemoveExtraSpaces = 1
 
 " Powerline config
-let Powerline_symbols = "compatible"
+let g:Powerline_symbols = "compatible"
+
+" EasyMotion
+let g:EasyMotion_leader_key = '<Leader><Leader>'
+hi link EasyMotionTarget ErrorMsg
+hi link EasyMotionShade  Comment
+
+""" NeoComplCache
+let g:neocomplcache_enable_at_startup = 1
+let g:neocomplcache_enable_smart_case = 1
+let g:neocomplcache_enable_camel_case_completion = 1
+let g:neocomplcache_enable_underbar_completion = 1
+let g:neocomplcache_min_syntax_length = 3
+
+" Enable omni completion.
+autocmd FileType css setlocal omnifunc=csscomplete#CompleteCSS
+autocmd FileType html,markdown setlocal omnifunc=htmlcomplete#CompleteTags
+autocmd FileType javascript setlocal omnifunc=javascriptcomplete#CompleteJS
+autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
+autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
+
+" Ctrl-P
+let g:ctrlp_match_window_bottom = 0
+let g:ctrlp_match_window_reversed = 0
+let g:ctrlp_root_markers = ['*.tmproj']
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
@@ -216,26 +239,31 @@ command! HtmlEntities :call HtmlEntities()
 if has("autocmd")
   filetype plugin indent on
 
-  " Set relevant filetypes
-  au BufNewFile,BufRead *.mkd,*.txt setfiletype mkd
+  function! SetMkdOptions()
+    set filetype=mkd
+    set nolinebreak
+    set wrapmargin=0
+    set spell
+  endfunction
+  au BufNewFile,BufRead *.mkd,*.txt call SetMkdOptions()
+
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru setfiletype ruby
-  au BufNewFile,BufRead *.json setfiletype javascript
+  au BufNewFile,BufRead *.json setfiletype json
 
   " Syntax options
-  au FileType pde :set syntax=c
   au FileType java :set shiftwidth=4
-  au FileType java,javascript,scala,ruby,c,c++ :RainbowParenthesesToggle
 
   " Delimitmate
-  au FileType gitcommit let b:delimitMate_autoclose = 0
+  function! SetGitOptions()
+    set spell
+    let b:delimitMate_autoclose = 0
+  endfunction
+  au FileType gitcommit call SetGitOptions()
 
   " Autoload vimrc and gvimrc
   au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
   au! BufWritePost .gvimrc source ~/.gvimrc
-
-  " Arduino!
-  autocmd! BufNewFile,BufRead *.pde setlocal ft=arduino
 endif
 
 " HTML Escaping
@@ -306,12 +334,9 @@ nnoremap <leader>ft Vatzf
 " Reselect just pasted
 nnoremap <leader>v V`]
 
-" Command-T
-let g:CommandTMaxFiles = 20000
-let g:CommandTMaxDepth = 20
-let g:CommandTMatchWindowAtTop = 1
-nmap <leader>t :CommandT<CR>
-nmap <leader>b :CommandTBuffer<CR>
+" Ctrl-P 
+nmap <leader>t :CtrlPMixed<CR>
+nmap <leader>b :CtrlPBuffer<CR>
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
@@ -356,10 +381,8 @@ map <leader>[ :tabp<CR>
 " Show syntax details
 map <leader>sy :call SyntaxAttr()<CR>
 
-" VimRoom
-map <leader>vr <Plug>VimroomToggle
-let g:vimroom_width = 120
-let g:vimroom_background = "black"
+" TagBar
+map <leader>tt :TagbarToggle<CR>
 
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")

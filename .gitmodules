@@ -67,9 +67,9 @@
 [submodule ".vimbundles/vim-yankring"]
 	path = .vimbundles/vim-yankring
 	url = git@github.com:chrismetcalf/vim-yankring.git
-[submodule ".vimbundles/vim-autocomplpop"]
-	path = .vimbundles/vim-autocomplpop
-	url = git@github.com:chrismetcalf/vim-autocomplpop.git
+; [submodule ".vimbundles/vim-autocomplpop"]
+; 	path = .vimbundles/vim-autocomplpop
+; 	url = git@github.com:chrismetcalf/vim-autocomplpop.git
 [submodule ".vimbundles/vim-json"]
 	path = .vimbundles/vim-json
 	url = git@github.com:chrismetcalf/vim-json.git
@@ -91,9 +91,9 @@
 ; [submodule ".vimbundles/vim-extradite"]
 ; 	path = .vimbundles/vim-extradite
 ; 	url = https://github.com/int3/vim-extradite.git
-[submodule ".vimbundles/Command-T"]
-	path = .vimbundles/Command-T
-	url = git@github.com:chrismetcalf/Command-T.git
+; [submodule ".vimbundles/Command-T"]
+; 	path = .vimbundles/Command-T
+; 	url = git@github.com:chrismetcalf/Command-T.git
 [submodule ".vimbundles/vim-ruby-runner"]
 	path = .vimbundles/vim-ruby-runner
 	url = https://github.com/henrik/vim-ruby-runner.git
@@ -184,12 +184,18 @@
 [submodule ".vimbundles/vim-browsereload-mac.git"]
 	path = .vimbundles/vim-browsereload-mac.git
 	url = git://github.com/tell-k/vim-browsereload-mac.git
-[submodule ".vimbundles/vim-pad.git"]
-	path = .vimbundles/vim-pad.git
-	url = git://github.com/vim-scripts/vim-pad.git
+; [submodule ".vimbundles/vim-pad.git"]
+; 	path = .vimbundles/vim-pad.git
+; 	url = git://github.com/vim-scripts/vim-pad.git
 [submodule ".vimbundles/vim-easymotion.git"]
 	path = .vimbundles/vim-easymotion.git
 	url = git://github.com/Lokaltog/vim-easymotion.git
 [submodule ".vimbundles/neocomplcache.git"]
 	path = .vimbundles/neocomplcache.git
 	url = git://github.com/Shougo/neocomplcache.git
+[submodule ".vimbundles/tagbar.git"]
+	path = .vimbundles/tagbar.git
+	url = git://github.com/majutsushi/tagbar.git
+[submodule ".vimbundles/ctrlp.vim.git"]
+	path = .vimbundles/ctrlp.vim.git
+	url = git://github.com/kien/ctrlp.vim.git
