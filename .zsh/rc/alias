@@ -1,0 +1,13 @@
+alias ls='ls --color'
+alias vi='vim'
+alias ftfy='fc'
+
+alias sha256='sha256sum'
+
+alias open-excel='open -a "Microsoft Excel"'
+
+# A shortcut to pull the latest updates from git
+alias update-homedir='cd $HOME/.homedir && git pull --rebase && gitfix && popd'
+
+# Random ascii for passwords and such
+alias random-ascii='cat /dev/urandom | tr -dc _A-Za-z0-9'
