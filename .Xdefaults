@@ -6,4 +6,4 @@ UXTerm*background: black
 
 urxvt*foreground:white
 urxvt*background:black
-urxvt*depth: 32
+urxvt*depth: 256
