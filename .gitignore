@@ -3,3 +3,4 @@ known
 .weechat/*.log
 .weechat/logs/*
 .vimbundles/__spell/.netrwhist
+.netrc
