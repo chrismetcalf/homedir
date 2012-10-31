@@ -1,5 +1,0 @@
-#!/bin/sh
-
-for sha in `git log $1...$2 --left-right --cherry-pick --boundary --pretty="format:%m %h" | grep '^>' | awk '{print $2}'`; do 
-  git show --quiet --pretty="format:[%cn] %s %b"  $sha; 
-done
