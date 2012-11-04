@@ -19,7 +19,3 @@ else
   HISTFILE=~root/.zsh-history/$(hostname -s).root
 fi
 
-
-
-
-
