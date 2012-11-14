@@ -6,15 +6,15 @@ setopt NO_BEEP                 # self explanatory
 
 ############## Imports
 
-# Everything not zsh-specific is broken out into imports now
-for file in $HOME/.zsh/rc/*; do
-  source $file
-done
-
 # OS-specific configurations
 if [ -f ~/.zsh/os/$VENDOR -a ! -z $VENDOR ]; then
     source ~/.zsh/os/$VENDOR
 fi
+
+# Everything not zsh-specific is broken out into imports now
+for file in $HOME/.zsh/rc/*; do
+  source $file
+done
 
 # Host-specific configurations
 if [ -f ~/.zsh/host/`hostname -s` ]; then
