@@ -34,24 +34,12 @@
 [submodule ".vimbundles/snipmate"]
 	path = .vimbundles/snipmate
 	url = git://github.com/msanders/snipmate.vim.git
-[submodule ".vimbundles/gist-vim"]
-	path = .vimbundles/gist-vim
-	url = git://github.com/mattn/gist-vim.git
 [submodule ".vimbundles/vim-markdown"]
 	path = .vimbundles/vim-markdown
 	url = git://github.com/plasticboy/vim-markdown.git
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
-[submodule ".vimbundles/vim-scratch"]
-	path = .vimbundles/vim-scratch
-	url = git://github.com/vim-scripts/scratch.vim.git
-[submodule ".vimbundles/vim-yankring"]
-	path = .vimbundles/vim-yankring
-	url = https://github.com/vim-scripts/YankRing.vim
-[submodule ".vimbundles/vim-json"]
-	path = .vimbundles/vim-json
-	url = git://github.com/vim-scripts/vim-json-bundle.git
 [submodule ".vimbundles/vim-ragtag"]
 	path = .vimbundles/vim-ragtag
 	url = http://github.com/tpope/vim-ragtag.git
@@ -136,3 +124,15 @@
 [submodule ".vimbundles/slimux.git"]
 	path = .vimbundles/slimux.git
 	url = git://github.com/epeli/slimux.git
+[submodule ".vimbundles/gist-vim.git"]
+	path = .vimbundles/gist-vim.git
+	url = git://github.com/mattn/gist-vim.git
+[submodule ".vimbundles/vim-json-bundle.git"]
+	path = .vimbundles/vim-json-bundle.git
+	url = git://github.com/vim-scripts/vim-json-bundle.git
+[submodule ".vimbundles/scratch.vim.git"]
+	path = .vimbundles/scratch.vim.git
+	url = git://github.com/vim-scripts/scratch.vim.git
+[submodule ".vimbundles/YankRing.vim"]
+	path = .vimbundles/YankRing.vim
+	url = https://github.com/vim-scripts/YankRing.vim
