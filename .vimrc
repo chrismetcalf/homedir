@@ -328,6 +328,9 @@ nnoremap <leader>a :Ack
 nnoremap <leader>m :make<CR>
 nnoremap <leader>M :make %<CR>
 
+" ChromeReload
+nnoremap <leader>r :ChromeReload<CR>
+
 " Fold at tag
 nnoremap <leader>ft Vatzf
 

@@ -199,3 +199,6 @@
 [submodule ".vimbundles/ctrlp.vim.git"]
 	path = .vimbundles/ctrlp.vim.git
 	url = git://github.com/kien/ctrlp.vim.git
+[submodule ".vimbundles/slimux.git"]
+	path = .vimbundles/slimux.git
+	url = git://github.com/epeli/slimux.git

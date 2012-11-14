@@ -1,0 +1,2 @@
+# Fixing some stuff
+alias ls='gls --color'
