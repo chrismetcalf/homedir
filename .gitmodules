@@ -1,6 +1,3 @@
-; [submodule ".vimbundles/vim-rails"]
-; 	path = .vimbundles/vim-rails
-; 	url = git://github.com/tpope/vim-rails.git
 [submodule ".vimbundles/vim-cucumber"]
 	path = .vimbundles/vim-cucumber
 	url = git://github.com/tpope/vim-cucumber.git
@@ -16,18 +13,9 @@
 [submodule ".vimbundles/vim-surround"]
 	path = .vimbundles/vim-surround
 	url = git://github.com/tpope/vim-surround.git
-; [submodule ".vimbundles/vim-abolish"]
-; 	path = .vimbundles/vim-abolish
-; 	url = git://github.com/tpope/vim-abolish.git
 [submodule ".vimbundles/vim-repeat"]
 	path = .vimbundles/vim-repeat
 	url = git://github.com/tpope/vim-repeat.git
-; [submodule ".vimbundles/nerdtree"]
-; 	path = .vimbundles/nerdtree
-; 	url = git://github.com/scrooloose/nerdtree.git
-; [submodule ".vimbundles/nerdcommenter"]
-; 	path = .vimbundles/nerdcommenter
-; 	url = git://github.com/scrooloose/nerdcommenter.git
 [submodule ".vimbundles/ack"]
 	path = .vimbundles/ack
 	url = git://github.com/mileszs/ack.vim.git
@@ -48,52 +36,28 @@
 	url = git://github.com/msanders/snipmate.vim.git
 [submodule ".vimbundles/gist-vim"]
 	path = .vimbundles/gist-vim
-	url = git@github.com:chrismetcalf/gist-vim.git
+	url = git://github.com/mattn/gist-vim.git
 [submodule ".vimbundles/vim-markdown"]
 	path = .vimbundles/vim-markdown
-	url = git@github.com:chrismetcalf/vim-markdown.git
+	url = git://github.com/plasticboy/vim-markdown.git
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
-[submodule "bin/timetrap.git"]
-	path = bin/timetrap.git
-	url = git@github.com:chrismetcalf/timetrap.git
 [submodule ".vimbundles/vim-scratch"]
 	path = .vimbundles/vim-scratch
-	url = git@github.com:chrismetcalf/vim-scratch.git
-; [submodule ".vimbundles/vim-rainbow"]
-; 	path = .vimbundles/vim-rainbow
-; 	url = git@github.com:chrismetcalf/vim-rainbow.git
+	url = git://github.com/vim-scripts/scratch.vim.git
 [submodule ".vimbundles/vim-yankring"]
 	path = .vimbundles/vim-yankring
-	url = git@github.com:chrismetcalf/vim-yankring.git
-; [submodule ".vimbundles/vim-autocomplpop"]
-; 	path = .vimbundles/vim-autocomplpop
-; 	url = git@github.com:chrismetcalf/vim-autocomplpop.git
+	url = https://github.com/vim-scripts/YankRing.vim
 [submodule ".vimbundles/vim-json"]
 	path = .vimbundles/vim-json
-	url = git@github.com:chrismetcalf/vim-json.git
+	url = git://github.com/vim-scripts/vim-json-bundle.git
 [submodule ".vimbundles/vim-ragtag"]
 	path = .vimbundles/vim-ragtag
 	url = http://github.com/tpope/vim-ragtag.git
-[submodule "bin/recordstream"]
-	path = bin/recordstream
-	url = git@github.com:chrismetcalf/RecordStream.git
-; [submodule ".vimbundles/vim-indent-guides"]
-; 	path = .vimbundles/vim-indent-guides
-; 	url = https://github.com/nathanaelkane/vim-indent-guides.git
 [submodule ".vimbundles/tabular"]
 	path = .vimbundles/tabular
 	url = https://github.com/godlygeek/tabular.git
-; [submodule ".vimbundles/vim-arduino"]
-; 	path = .vimbundles/vim-arduino
-; 	url = git@github.com:chrismetcalf/vim-arduino.git
-; [submodule ".vimbundles/vim-extradite"]
-; 	path = .vimbundles/vim-extradite
-; 	url = https://github.com/int3/vim-extradite.git
-; [submodule ".vimbundles/Command-T"]
-; 	path = .vimbundles/Command-T
-; 	url = git@github.com:chrismetcalf/Command-T.git
 [submodule ".vimbundles/vim-ruby-runner"]
 	path = .vimbundles/vim-ruby-runner
 	url = https://github.com/henrik/vim-ruby-runner.git
@@ -105,37 +69,16 @@
 	url = https://github.com/gregsexton/gitv.git
 [submodule ".vimbundles/scala-vim-support"]
 	path = .vimbundles/scala-vim-support
-	url = git@github.com:chrismetcalf/scala-vim-support.git
+	url = git://github.com/chrismetcalf/scala-vim-support.git
 [submodule ".vimbundles/scala-vim-snippets"]
 	path = .vimbundles/scala-vim-snippets
-	url = git@github.com:chrismetcalf/scala-vim-snippets.git
-; [submodule ".vimbundles/vim-css-color"]
-; 	path = .vimbundles/vim-css-color
-; 	url = https://github.com/skammer/vim-css-color.git
-[submodule ".vimbundles/vim-colorx"]
-	path = .vimbundles/vim-colorx
-	url = git@github.com:chrismetcalf/vim-colorx.git
+	url = git://github.com/chrismetcalf/scala-vim-snippets.git
 [submodule ".vimbundles/vim-idlefingers"]
 	path = .vimbundles/vim-idlefingers
 	url = https://github.com/shinzui/vim-idleFingers.git
 [submodule ".vimbundles/gundo.vim"]
 	path = .vimbundles/gundo.vim
 	url = https://github.com/sjl/gundo.vim.git
-; [submodule ".vimbundles/vim-matchit"]
-; 	path = .vimbundles/vim-matchit
-; 	url = https://github.com/mirell/vim-matchit.git
-[submodule "bin/dropbox-uploader"]
-	path = bin/dropbox-uploader
-	url = git@github.com:chrismetcalf/Dropbox-Uploader.git
-; [submodule ".vimbundles/vimroom.git"]
-; 	path = .vimbundles/vimroom.git
-; 	url = https://github.com/mikewest/vimroom.git
-[submodule "bin/spark.git"]
-	path = bin/spark.git
-	url = https://github.com/holman/spark.git
-[submodule "bin/bug.git"]
-	path = bin/bug.git
-	url = https://github.com/saraid/bug.git
 [submodule ".vimbundles/vim-powerline.git"]
 	path = .vimbundles/vim-powerline.git
 	url = https://github.com/Lokaltog/vim-powerline.git
@@ -145,15 +88,9 @@
 [submodule ".vimbundles/vim-r-plugin.git"]
 	path = .vimbundles/vim-r-plugin.git
 	url = https://github.com/jcfaria/Vim-R-plugin.git
-[submodule "bin/csvkit.git"]
-	path = bin/csvkit.git
-	url = https://github.com/onyxfish/csvkit.git
 [submodule ".oh-my-zsh"]
 	path = .oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
-[submodule ".vimbundles/xterm-color-table.vim.git"]
-	path = .vimbundles/xterm-color-table.vim.git
-	url = https://github.com/guns/xterm-color-table.vim.git
 [submodule ".vimbundles/webapi-vim.git"]
 	path = .vimbundles/webapi-vim.git
 	url = https://github.com/mattn/webapi-vim.git
@@ -184,9 +121,6 @@
 [submodule ".vimbundles/vim-browsereload-mac.git"]
 	path = .vimbundles/vim-browsereload-mac.git
 	url = git://github.com/tell-k/vim-browsereload-mac.git
-; [submodule ".vimbundles/vim-pad.git"]
-; 	path = .vimbundles/vim-pad.git
-; 	url = git://github.com/vim-scripts/vim-pad.git
 [submodule ".vimbundles/vim-easymotion.git"]
 	path = .vimbundles/vim-easymotion.git
 	url = git://github.com/Lokaltog/vim-easymotion.git
