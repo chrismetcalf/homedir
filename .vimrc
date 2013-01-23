@@ -119,7 +119,7 @@ let NERDSpaceDelims = 1
 let NERDRemoveExtraSpaces = 1
 
 " Powerline config
-let g:Powerline_symbols = "compatible"
+let g:Powerline_symbols = "fancy"
 
 " EasyMotion
 let g:EasyMotion_leader_key = '<Leader><Leader>'
@@ -144,6 +144,12 @@ autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
 let g:ctrlp_match_window_bottom = 0
 let g:ctrlp_match_window_reversed = 0
 let g:ctrlp_root_markers = ['*.tmproj']
+
+" browserreload.vim
+let g:returnApp = "iTerm"
+
+" Ack -> Ag
+let g:ackprg = 'ag --nogroup --nocolor --column'
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
@@ -231,6 +237,15 @@ function! HtmlEntities()
 endfunction
 command! HtmlEntities :call HtmlEntities()
 
+function! SoftWrap()
+  set formatoptions=1
+  set linebreak
+  set wrap
+  set nolist
+  set breakat=\ |@-+;:,./?^I
+endfunction
+command! SoftWrap :call SoftWrap()
+
 """"""""""""""""""""""""""""""""""""""""""
 " Filetype-Specific Config
 """"""""""""""""""""""""""""""""""""""""""
@@ -244,8 +259,10 @@ if has("autocmd")
     set nolinebreak
     set wrapmargin=0
     set spell
+    call SoftWrap()
+    NeoComplCacheDisable
   endfunction
-  au BufNewFile,BufRead *.mkd,*.txt call SetMkdOptions()
+  au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru setfiletype ruby
@@ -304,9 +321,6 @@ nmap <silent> <C-Tab> :bprevious<CR>
 " Scratch file
 nmap <leader>s :Sscratch<cr>
 
-" Rainbows
-nmap <leader>R :RainbowParenthesesToggle<CR>
-
 " Quick search clear
 nnoremap <leader><space> :noh<cr>
 
@@ -328,6 +342,9 @@ nnoremap <leader>a :Ack
 nnoremap <leader>m :make<CR>
 nnoremap <leader>M :make %<CR>
 
+" Open in marked
+nnoremap <leader>md :!mark "%"<CR>
+
 " ChromeReload
 nnoremap <leader>r :ChromeReload<CR>
 
@@ -347,6 +364,9 @@ nmap <leader>ys :YRSearch<cr>
 
 " Show Gundo window
 nnoremap <leader>g :GundoToggle<CR>
+
+" VimRoom
+nnoremap <leader>vr :VimroomToggle<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -386,6 +406,10 @@ map <leader>sy :call SyntaxAttr()<CR>
 
 " TagBar
 map <leader>tt :TagbarToggle<CR>
+
+" Slimux
+map <leader>sr :SlimuxREPLSendSelection<CR>
+map <leader>sc :SlimuxShellPrompt<CR>
 
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")

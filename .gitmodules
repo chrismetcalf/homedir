@@ -136,3 +136,12 @@
 [submodule ".vimbundles/YankRing.vim"]
 	path = .vimbundles/YankRing.vim
 	url = https://github.com/vim-scripts/YankRing.vim
+[submodule ".vimbundles/vim-arduino.git"]
+	path = .vimbundles/vim-arduino.git
+	url = git://github.com/tclem/vim-arduino.git
+[submodule ".vimbundles/vimroom.git"]
+	path = .vimbundles/vimroom.git
+	url = https://github.com/chrismetcalf/vimroom.git
+[submodule ".tmux/tmux-powerline.git"]
+	path = .tmux/tmux-powerline.git
+	url = git://github.com/erikw/tmux-powerline.git
