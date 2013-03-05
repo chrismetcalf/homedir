@@ -36,7 +36,7 @@
 	url = git://github.com/msanders/snipmate.vim.git
 [submodule ".vimbundles/vim-markdown"]
 	path = .vimbundles/vim-markdown
-	url = git://github.com/plasticboy/vim-markdown.git
+	url = git://github.com/tpope/vim-markdown.git
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
@@ -145,3 +145,15 @@
 [submodule ".tmux/tmux-powerline.git"]
 	path = .tmux/tmux-powerline.git
 	url = git://github.com/erikw/tmux-powerline.git
+[submodule ".vimbundles/vim-pad.git"]
+	path = .vimbundles/vim-pad.git
+	url = git://github.com/vim-scripts/vim-pad.git
+[submodule ".vimbundles/vim-bundler.git"]
+	path = .vimbundles/vim-bundler.git
+	url = git://github.com/tpope/vim-bundler.git
+[submodule ".vimbundles/vim-gitgutter.git"]
+	path = .vimbundles/vim-gitgutter.git
+	url = git://github.com/airblade/vim-gitgutter.git
+[submodule ".vimbundles/vim-liquid.git"]
+	path = .vimbundles/vim-liquid.git
+	url = git://github.com/tpope/vim-liquid.git
