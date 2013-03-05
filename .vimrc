@@ -99,6 +99,12 @@ colorscheme Tomorrow-Night-Bright
 " Plugin Config
 """"""""""""""""""""""""""""""""""""""""""
 
+" vim-gitgutter
+highlight clear SignColumn
+
+" Vim-Pad
+let g:pad_dir = "~/Dropbox/Notes/"
+
 " Gist
 let g:gist_open_browser_after_post = 1
 let g:gist_show_privates = 1
@@ -123,8 +129,6 @@ let g:Powerline_symbols = "fancy"
 
 " EasyMotion
 let g:EasyMotion_leader_key = '<Leader><Leader>'
-hi link EasyMotionTarget ErrorMsg
-hi link EasyMotionShade  Comment
 
 """ NeoComplCache
 let g:neocomplcache_enable_at_startup = 1
@@ -260,7 +264,7 @@ if has("autocmd")
     set wrapmargin=0
     set spell
     call SoftWrap()
-    NeoComplCacheDisable
+    :NeoComplCacheDisable
   endfunction
   au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
@@ -318,15 +322,8 @@ nmap <silent> <C-right> :wincmd l<CR>
 " Toggle through buffers
 nmap <silent> <C-Tab> :bprevious<CR>
 
-" Scratch file
-nmap <leader>s :Sscratch<cr>
-
 " Quick search clear
 nnoremap <leader><space> :noh<cr>
-
-" NERDTree
-nmap <leader>n :NERDTreeToggle<CR>
-nmap <leader>p :NERDTreeFind<CR>
 
 " ,/ to invert comment on the current line/selection
 nmap <leader>/ :call NERDComment(0, "invert")<cr>
