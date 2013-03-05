@@ -1,3 +1,3 @@
 --- 
-round_in_seconds: 900
-database_file: /Users/metcalf/DropBox/timetrap/timetrap.db
+round_in_seconds: 60
+database_file: /Users/metcalf/.timetrap/timetrap.db
