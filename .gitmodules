@@ -34,9 +34,6 @@
 [submodule ".vimbundles/snipmate"]
 	path = .vimbundles/snipmate
 	url = git://github.com/msanders/snipmate.vim.git
-[submodule ".vimbundles/vim-markdown"]
-	path = .vimbundles/vim-markdown
-	url = git://github.com/tpope/vim-markdown.git
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
