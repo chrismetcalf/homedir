@@ -154,3 +154,6 @@
 [submodule ".vimbundles/vim-liquid.git"]
 	path = .vimbundles/vim-liquid.git
 	url = git://github.com/tpope/vim-liquid.git
+[submodule ".vimbundles/vim-markdown.git"]
+	path = .vimbundles/vim-markdown.git
+	url = git://github.com/tpope/vim-markdown.git
