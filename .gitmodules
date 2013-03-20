@@ -166,3 +166,6 @@
 [submodule ".vimbundles/vim-pathogen.git"]
 	path = .vimbundles/vim-pathogen.git
 	url = git://github.com/tpope/vim-pathogen.git
+[submodule ".vimbundles/funcoo.vim.git"]
+	path = .vimbundles/funcoo.vim.git
+	url = git://github.com/rizzatti/funcoo.vim.git
