@@ -1,11 +1,8 @@
-" Yeah, bye vim
+" Yeah, bye vi
 set nocompatible
 
 " Load Pathogen first
-runtime! autoload/pathogen.vim
-if exists('g:loaded_pathogen')
-  call pathogen#runtime_prepend_subdirectories(expand('~/.vimbundles'))
-end
+execute pathogen#infect('~/.vimbundles/{}')
 
 " Tab config
 set smarttab
@@ -98,6 +95,9 @@ colorscheme Tomorrow-Night-Bright
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
 """"""""""""""""""""""""""""""""""""""""""
+
+" Disable screen plugin for R
+let vimrplugin_screenplugin = 0
 
 " vim-gitgutter
 highlight clear SignColumn
@@ -258,15 +258,15 @@ command! SoftWrap :call SoftWrap()
 if has("autocmd")
   filetype plugin indent on
 
-  function! SetMkdOptions()
-    set filetype=mkd
-    set nolinebreak
-    set wrapmargin=0
-    set spell
-    call SoftWrap()
-    :NeoComplCacheDisable
-  endfunction
-  au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
+  " function! SetMkdOptions()
+  "   set filetype=mkd
+  "   set nolinebreak
+  "   set wrapmargin=0
+  "   set spell
+  "   call SoftWrap()
+  " endfunction
+  " au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
+  au BufNewFile,BufRead *.md,*.mkd,*.txt setfiletype mkd 
 
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru setfiletype ruby
@@ -340,7 +340,7 @@ nnoremap <leader>m :make<CR>
 nnoremap <leader>M :make %<CR>
 
 " Open in marked
-nnoremap <leader>md :!mark "%"<CR>
+nnoremap <leader>md :silent !open -a Marked.app '%:p'<cr>
 
 " ChromeReload
 nnoremap <leader>r :ChromeReload<CR>

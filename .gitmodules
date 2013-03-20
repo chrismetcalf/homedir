@@ -160,3 +160,9 @@
 [submodule ".vimbundles/vim-rooter.git"]
 	path = .vimbundles/vim-rooter.git
 	url = git://github.com/airblade/vim-rooter.git
+[submodule ".vimbundles/dash.vim.git"]
+	path = .vimbundles/dash.vim.git
+	url = git://github.com/rizzatti/dash.vim.git
+[submodule ".vimbundles/vim-pathogen.git"]
+	path = .vimbundles/vim-pathogen.git
+	url = git://github.com/tpope/vim-pathogen.git
