@@ -1,6 +1,7 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # Stolen from http://skwp.github.com/dotfiles/#section-13-1
+# ... and http://osxdaily.com/2012/10/09/best-defaults-write-commands-mac-os-x/
 
 # Enable full keyboard access for all controls (e.g. enable Tab in modal dialogs)
 defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
@@ -14,21 +15,20 @@ defaults write com.apple.dock no-glass -bool true
 # Automatically hide and show the Dock
 defaults write com.apple.dock autohide -bool true
 
+# Hide and show quickly
+defaults write com.apple.Dock autohide-delay -float 0.05
+
 # Make Dock icons of hidden applications translucent
-defaults write com.apple.dock showhidden -bool false
+defaults write com.apple.dock showhidden -bool true
 
 # Disable menu bar transparency
-#defaults write NSGlobalDomain AppleEnableMenuBarTransparency -bool false
-
-# Show remaining battery time; hide percentage
-#defaults write com.apple.menuextra.battery ShowPercent -string "NO"
-#defaults write com.apple.menuextra.battery ShowTime -string "YES"
+defaults write NSGlobalDomain AppleEnableMenuBarTransparency -bool false
 
 # Always show scrollbars
 defaults write NSGlobalDomain AppleShowScrollBars -string "Always"
 
 # Allow quitting Finder via ⌘ + Q; doing so will also hide desktop icons
-#defaults write com.apple.finder QuitMenuItem -bool true
+defaults write com.apple.finder QuitMenuItem -bool true
 
 # Show all filename extensions in Finder
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
@@ -64,7 +64,7 @@ defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
 defaults write NSGlobalDomain KeyRepeat -int 0
 
 # Disable auto-correct
-#defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 
 # Disable window animations
 defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
@@ -85,7 +85,7 @@ defaults write com.apple.frameworks.diskimages auto-open-rw-root -bool true
 defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
 
 # Increase window resize speed for Cocoa applications
-#defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
+defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 
 # Avoid creating .DS_Store files on network volumes
 defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
@@ -93,34 +93,24 @@ defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
 # Disable the warning when changing a file extension
 defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
 
-# Show item info below desktop icons
-#/usr/libexec/PlistBuddy -c "Set :DesktopViewSettings:IconViewSettings:showItemInfo true" ~/Library/Preferences/com.apple.finder.plist
-
-# Disable the warning before emptying the Trash
-#defaults write com.apple.finder WarnOnEmptyTrash -bool false
+# Hide all desktop icons
+defaults write com.apple.finder CreateDesktop -bool false
 
 # Empty Trash securely by default
-# defaults write com.apple.finder EmptyTrashSecurely -bool false
+defaults write com.apple.finder EmptyTrashSecurely -bool false
 
-# Require password immediately after sleep or screen saver begins
-# defaults write com.apple.screensaver askForPassword -int 1
-# defaults write com.apple.screensaver askForPasswordDelay -int 0
+# Require password 30 seconds after sleep or screen saver begins
+defaults write com.apple.screensaver askForPassword -int 1
+defaults write com.apple.screensaver askForPasswordDelay -int 30
 
-# Enable tap to click (Trackpad)
-#defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-
-# Map bottom right Trackpad corner to right-click
-# defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadCornerSecondaryClick -int 2
-# defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadRightClick -bool true
-
-# Disable Safari’s thumbnail cache for History and Top Sites
-#defaults write com.apple.Safari DebugSnapshotsUpdatePolicy -int 2
+# Disable tap to click (Trackpad)
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool false
 
 # Enable Safari’s debug menu
-#defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
+defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
 
 # Remove useless icons from Safari’s bookmarks bar
-# defaults write com.apple.Safari ProxiesInBookmarksBar "()"
+defaults write com.apple.Safari ProxiesInBookmarksBar "()"
 
 # Only use UTF-8 in Terminal.app
 defaults write com.apple.terminal StringEncodings -array 4
@@ -132,27 +122,25 @@ defaults write com.apple.iTunes disablePingSidebar -bool true
 defaults write com.apple.iTunes disablePing -bool true
 
 # Disable send and reply animations in Mail.app
-#defaults write com.apple.Mail DisableReplyAnimations -bool true
-#defaults write com.apple.Mail DisableSendAnimations -bool true
+defaults write com.apple.Mail DisableReplyAnimations -bool true
+defaults write com.apple.Mail DisableSendAnimations -bool true
 
 # Disable Resume system-wide
-# defaults write NSGlobalDomain NSQuitAlwaysKeepsWindows -bool false
+defaults write NSGlobalDomain NSQuitAlwaysKeepsWindows -bool false
 
 # Enable Dashboard dev mode (allows keeping widgets on the desktop)
 defaults write com.apple.dashboard devmode -bool true
-
-# Reset Launchpad
-# [ -e ~/Library/Application\ Support/Dock/*.db ] && rm ~/Library/Application\ Support/Dock/*.db
 
 # Show the ~/Library folder
 chflags nohidden ~/Library
 
 # Disable local Time Machine backups
-# hash tmutil &> /dev/null && sudo tmutil disablelocal
+hash tmutil &> /dev/null && sudo tmutil disablelocal
 
-# Remove Dropbox’s green checkmark icons in Finder.app
-#file=/Applications/Dropbox.app/Contents/Resources/check.icns
-#[ -e "$file" ] && mv -f "$file" "$file.bak"
-#unset file
+# Enable text selection in Quick Look
+defaults write com.apple.finder QLEnableTextSelection -bool TRUE
 
 # Kill affected applications
+killall Dock
+killall Finder
+killall iTunes
