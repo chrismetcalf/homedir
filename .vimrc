@@ -102,9 +102,6 @@ let vimrplugin_screenplugin = 0
 " vim-gitgutter
 highlight clear SignColumn
 
-" Vim-Pad
-let g:pad_dir = "~/Dropbox/Notes/"
-
 " Gist
 let g:gist_open_browser_after_post = 1
 let g:gist_show_privates = 1
@@ -130,7 +127,7 @@ let g:Powerline_symbols = "fancy"
 " EasyMotion
 let g:EasyMotion_leader_key = '<Leader><Leader>'
 
-""" NeoComplCache
+" NeoComplCache
 let g:neocomplcache_enable_at_startup = 1
 let g:neocomplcache_enable_smart_case = 1
 let g:neocomplcache_enable_camel_case_completion = 1
@@ -139,10 +136,11 @@ let g:neocomplcache_min_syntax_length = 3
 
 " Enable omni completion.
 autocmd FileType css setlocal omnifunc=csscomplete#CompleteCSS
-autocmd FileType html,markdown setlocal omnifunc=htmlcomplete#CompleteTags
+autocmd FileType html setlocal omnifunc=htmlcomplete#CompleteTags
 autocmd FileType javascript setlocal omnifunc=javascriptcomplete#CompleteJS
 autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
 autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
+autocmd FileType ruby,eruby setlocal omnifunc=rubycomplete#Complete
 
 " Ctrl-P
 let g:ctrlp_match_window_bottom = 0
@@ -258,15 +256,15 @@ command! SoftWrap :call SoftWrap()
 if has("autocmd")
   filetype plugin indent on
 
-  " function! SetMkdOptions()
-  "   set filetype=mkd
-  "   set nolinebreak
-  "   set wrapmargin=0
-  "   set spell
-  "   call SoftWrap()
-  " endfunction
-  " au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
-  au BufNewFile,BufRead *.md,*.mkd,*.txt setfiletype mkd 
+  function! SetMkdOptions()
+    set filetype=markdown
+    set nolinebreak
+    set wrapmargin=0
+    set spell
+    call SoftWrap()
+    :NeoComplCacheDisable()<CR>
+  endfunction
+  au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru setfiletype ruby
