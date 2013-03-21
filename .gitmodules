@@ -169,3 +169,6 @@
 [submodule ".vimbundles/funcoo.vim.git"]
 	path = .vimbundles/funcoo.vim.git
 	url = git://github.com/rizzatti/funcoo.vim.git
+[submodule ".vimbundles/vim-obsession.git"]
+	path = .vimbundles/vim-obsession.git
+	url = git://github.com/tpope/vim-obsession.git
