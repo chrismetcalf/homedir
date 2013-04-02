@@ -172,3 +172,6 @@
 [submodule ".vimbundles/vim-rvm.git"]
 	path = .vimbundles/vim-rvm.git
 	url = git://github.com/tpope/vim-rvm.git
+[submodule ".vimbundles/vim-powerline.git"]
+	path = .vimbundles/vim-powerline.git
+	url = git://github.com/Lokaltog/vim-powerline.git
