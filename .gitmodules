@@ -172,3 +172,6 @@
 [submodule ".vimbundles/vim-obsession.git"]
 	path = .vimbundles/vim-obsession.git
 	url = git://github.com/tpope/vim-obsession.git
+[submodule ".vimbundles/vim-rvm.git"]
+	path = .vimbundles/vim-rvm.git
+	url = git://github.com/tpope/vim-rvm.git
