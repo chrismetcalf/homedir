@@ -153,6 +153,13 @@ let g:returnApp = "iTerm"
 " Ack -> Ag
 let g:ackprg = 'ag --nogroup --nocolor --column'
 
+" Syntastic
+let g:syntastic_mode_map = { 'mode': 'active',
+      \ 'passive_filetypes': ['html'] }
+
+" Disable auto-cd of vim-rooter
+let g:rooter_manual_only = 1
+
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
 """"""""""""""""""""""""""""""""""""""""""
@@ -262,12 +269,12 @@ if has("autocmd")
     set wrapmargin=0
     set spell
     call SoftWrap()
-    :NeoComplCacheDisable()<CR>
+    " :NeoComplCacheDisable()<CR>
   endfunction
   au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
-  au BufNewFile,BufRead Gemfile,Rakefile,*.ru setfiletype ruby
+  au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
   au BufNewFile,BufRead *.json setfiletype json
 
   " Syntax options
