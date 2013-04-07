@@ -11,5 +11,6 @@ set guioptions=cR
 set mousehide
 
 " Source local config
-source $HOME/.gvimrc.local
-
+if filereadable("$HOME/.gvimrc.local")
+  source $HOME/.gvimrc.local
+end

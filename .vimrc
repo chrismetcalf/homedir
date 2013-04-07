@@ -90,7 +90,7 @@ set wildmenu
 set clipboard=unnamed
 
 " Set nice colors
-colorscheme Tomorrow-Night-Bright
+colorscheme molokai
 
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
@@ -143,6 +143,10 @@ autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
 autocmd FileType ruby,eruby setlocal omnifunc=rubycomplete#Complete
 
 " Ctrl-P
+let g:ctrlp_cmd = 'CtrlPMixed'
+let g:ctrlp_use_caching = 1
+let g:ctrlp_switch_buffer = 'et'
+let g:ctrlp_max_height = 10
 let g:ctrlp_match_window_bottom = 0
 let g:ctrlp_match_window_reversed = 0
 let g:ctrlp_root_markers = ['*.tmproj']
@@ -442,4 +446,3 @@ set directory=./.backup,~/.vimswap,$TEMP,$TMP
 if filereadable("$HOME/.vimrc.local")
   source $HOME/.vimrc.local
 end
-
