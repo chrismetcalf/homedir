@@ -164,6 +164,9 @@ let g:syntastic_mode_map = { 'mode': 'active',
 " Disable auto-cd of vim-rooter
 let g:rooter_manual_only = 1
 
+" Vim-Pad
+let g:pad_dir = "~/Dropbox/Notes/"
+
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
 """"""""""""""""""""""""""""""""""""""""""
@@ -394,8 +397,8 @@ inoremap <F1> <ESC>
 nnoremap <F1> <ESC>
 vnoremap <F1> <ESC>
 
-" Pressing ,ss will toggle and untoggle spell checking
-map <leader>ss :setlocal spell!<cr>
+" Pressing ,sp will toggle and untoggle spell checking
+map <leader>sp :setlocal spell!<cr>
 
 " Shortcuts using <leader>
 map <leader>sn ]s
