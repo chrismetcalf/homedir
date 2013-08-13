@@ -87,7 +87,7 @@ set history=500
 set wildmenu
 
 " Use system clipboard
-set clipboard=unnamed
+" set clipboard=unnamed
 
 " Set nice colors
 colorscheme molokai
@@ -340,6 +340,9 @@ nnoremap <leader><space> :noh<cr>
 " ,/ to invert comment on the current line/selection
 nmap <leader>/ :call NERDComment(0, "invert")<cr>
 vmap <leader>/ :call NERDComment(0, "invert")<cr>
+
+" MultiMarkdown the selection
+vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
 
 " Color Pickers
 nnoremap <leader>c :ColorHEX<CR>
