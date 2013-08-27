@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby-2.0.0-p0
+
+require 'readline'
+require 'open3'
+
+# Read STDIN and then reopen
+note = STDIN.read 
+STDIN.reopen("/dev/tty")
+
+# Print a summary
+puts note.split(/\n/)[0, 30].join("\n")
+puts "=========="
+
+# Read in our task
+task = Readline.readline("task @context #project due() start() ! > ", true)
+
+# Call otask
+output, status = Open3.capture2("otask \"#{task}\"", :stdin_data => note)
+
+if status.exitstatus == 0
+  puts "Success: #{output}"
+else
+  puts "Error!: #{output}"
+end

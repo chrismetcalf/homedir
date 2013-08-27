@@ -1,0 +1,75 @@
+[general]
+ui = ttyui
+accounts = Work,Personal
+pythonfile=~/.offlineimap/offlineimap.py
+fsync = False
+
+[Account Work]
+localrepository = Work-Local
+remoterepository = Work-Remote
+status_backend = sqlite
+postsynchook = notmuch new
+maxage = 365
+
+[Repository Work-Local]
+type = Maildir
+localfolders = ~/.mail/socrata.com
+nametrans = lambda folder: {'drafts':  '[Gmail]/Drafts',
+                            'sent':    '[Gmail]/Sent Mail',
+                            'flagged': '[Gmail]/Starred',
+                            'trash':   '[Gmail]/Trash',
+                            'archive': '[Gmail]/All Mail',
+                            }.get(folder, folder)
+
+[Repository Work-Remote]
+maxconnections = 1
+type = Gmail
+remoteuser = chris.metcalf@socrata.com
+remotepasseval = get_keychain_pass(account="chris.metcalf@socrata.com", server="imap.gmail.com")
+cert_fingerprint = b0ba392bba326e6feb1add4d04fa0fb86cd173fa
+realdelete = no
+nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
+                            '[Gmail]/Sent Mail': 'sent',
+                            '[Gmail]/Starred':   'flagged',
+                            '[Gmail]/Trash':     'trash',
+                            '[Gmail]/All Mail':  'archive',
+                            }.get(folder, folder)
+folderfilter = lambda folder: folder not in ['[Gmail]/Trash',
+                                             '[Gmail]/Important',
+                                             '[Gmail]/Spam',
+                                             ]
+
+[Account Personal]
+localrepository = Personal-Local
+remoterepository = Personal-Remote
+status_backend = sqlite
+postsynchook = notmuch new
+maxage = 365
+
+[Repository Personal-Local]
+type = Maildir
+localfolders = ~/.mail/chrismetcalf.net
+nametrans = lambda folder: {'drafts':  '[Gmail]/Drafts',
+                            'sent':    '[Gmail]/Sent Mail',
+                            'flagged': '[Gmail]/Starred',
+                            'trash':   '[Gmail]/Trash',
+                            'archive': '[Gmail]/All Mail',
+                            }.get(folder, folder)
+
+[Repository Personal-Remote]
+maxconnections = 1
+type = Gmail
+remoteuser = chris@chrismetcalf.net
+remotepasseval = get_keychain_pass(account="chris@chrismetcalf.net", server="imap.gmail.com")
+cert_fingerprint = b0ba392bba326e6feb1add4d04fa0fb86cd173fa
+realdelete = no
+nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
+                            '[Gmail]/Sent Mail': 'sent',
+                            '[Gmail]/Starred':   'flagged',
+                            '[Gmail]/Trash':     'trash',
+                            '[Gmail]/All Mail':  'archive',
+                            }.get(folder, folder)
+folderfilter = lambda folder: folder not in ['[Gmail]/Trash',
+                                             '[Gmail]/Important',
+                                             '[Gmail]/Spam',
+                                             ]
