@@ -1,5 +1,5 @@
 [general]
-ui = ttyui
+ui = blinkenlights
 accounts = Work,Personal
 pythonfile=~/.offlineimap/offlineimap.py
 fsync = False
@@ -22,11 +22,11 @@ nametrans = lambda folder: {'drafts':  '[Gmail]/Drafts',
                             }.get(folder, folder)
 
 [Repository Work-Remote]
-maxconnections = 1
+maxconnections = 4
 type = Gmail
 remoteuser = chris.metcalf@socrata.com
 remotepasseval = get_keychain_pass(account="chris.metcalf@socrata.com", server="imap.gmail.com")
-cert_fingerprint = b0ba392bba326e6feb1add4d04fa0fb86cd173fa
+sslcacertfile = /usr/local/opt/curl-ca-bundle/share/ca-bundle.crt
 realdelete = no
 nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
                             '[Gmail]/Sent Mail': 'sent',
@@ -34,10 +34,11 @@ nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
                             '[Gmail]/Trash':     'trash',
                             '[Gmail]/All Mail':  'archive',
                             }.get(folder, folder)
-folderfilter = lambda folder: folder not in ['[Gmail]/Trash',
-                                             '[Gmail]/Important',
-                                             '[Gmail]/Spam',
-                                             ]
+folderfilter = lambda folder: folder in ['INBOX',
+                                         '[Gmail]/Drafts',
+                                         '[Gmail]/Sent Mail',
+                                         '[Gmail]/Starred',
+                                         '[Gmail]/All Mail' ]
 
 [Account Personal]
 localrepository = Personal-Local
@@ -57,11 +58,11 @@ nametrans = lambda folder: {'drafts':  '[Gmail]/Drafts',
                             }.get(folder, folder)
 
 [Repository Personal-Remote]
-maxconnections = 1
+maxconnections = 4
 type = Gmail
 remoteuser = chris@chrismetcalf.net
 remotepasseval = get_keychain_pass(account="chris@chrismetcalf.net", server="imap.gmail.com")
-cert_fingerprint = b0ba392bba326e6feb1add4d04fa0fb86cd173fa
+sslcacertfile = /usr/local/opt/curl-ca-bundle/share/ca-bundle.crt
 realdelete = no
 nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
                             '[Gmail]/Sent Mail': 'sent',
@@ -69,7 +70,8 @@ nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
                             '[Gmail]/Trash':     'trash',
                             '[Gmail]/All Mail':  'archive',
                             }.get(folder, folder)
-folderfilter = lambda folder: folder not in ['[Gmail]/Trash',
-                                             '[Gmail]/Important',
-                                             '[Gmail]/Spam',
-                                             ]
+folderfilter = lambda folder: folder in ['INBOX',
+                                         '[Gmail]/Drafts',
+                                         '[Gmail]/Sent Mail',
+                                         '[Gmail]/Starred',
+                                         '[Gmail]/All Mail' ]
