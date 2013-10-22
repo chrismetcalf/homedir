@@ -24,7 +24,7 @@ set thorough_search      # strip headers and eval mimes before searching
 
 # Sidebar Patch --------------------------------------
 set sidebar_delim   = '  │'
-set sidebar_visible = yes
+set sidebar_visible = no 
 set sidebar_width   = 36 
 color sidebar_new color221 color233
 
@@ -51,8 +51,6 @@ mailboxes +socrata.com/INBOX \
           +socrata.com/archive \
           +socrata.com/sent \
           +socrata.com/drafts \
-          +socrata.com/\#\#Noise.Nagios \
-          +socrata.com/\#\#Noise.Sensu \
           +chrismetcalf.net/INBOX \
           +chrismetcalf.net/archive \
           +chrismetcalf.net/sent \
@@ -84,8 +82,8 @@ bind index <space>  collapse-thread
 macro index \Cr "T~U<enter><tag-prefix><clear-flag>N<untag-pattern>.<enter>" "mark all messages as read"
 
 # Sync email
-macro index,pager O "<shell-escape>offlineimap<enter>"           "run offlineimap to sync all mail"
-macro index,pager o "<shell-escape>offlineimap -qf INBOX<enter><shell-escape>msmtpq -r<enter>" "run offlineimap to sync inbox"
+macro index,pager O "<shell-escape>tmux split-window -d -l 8 \"offlineimap\"<enter>"           "run offlineimap to sync all mail"
+macro index,pager o "<shell-escape>tmux split-window -d -l 8 \"offlineimap -qf INBOX && msmtpq -r\"<enter>" "run offlineimap to sync inbox"
 
 # Saner copy/move dialogs
 macro index C "<copy-message>?<toggle-mailboxes>" "copy a message to a mailbox"
@@ -97,7 +95,7 @@ bind index,pager <up>     sidebar-prev
 bind index,pager <right>  sidebar-open
 
 # Pager View Options ---------------------------------
-set pager_index_lines = 10 # number of index lines to show
+set pager_index_lines = 15 # number of index lines to show
 set pager_context = 3      # number of context lines to show
 set pager_stop             # don't go to next message automatically
 set menu_scroll            # scroll in menus
@@ -146,7 +144,7 @@ bind index p recall-message
 set from     = "chris.metcalf@socrata.com"
 # set sendmail = "/usr/local/bin/msmtp -a chrismetcalf --debug"
 set sendmail = "~/bin/msmtp-enqueue"
-set sendmail_wait = 0
+set sendmail_wait = -1
 unset record
 
 # Manage contacts
@@ -161,110 +159,8 @@ macro index a "<limit>all\n" "show all messages (undo limit)"
 macro index S "<enter-command>unset wait_key<enter><shell-escape>mutt-notmuch-py ~/.mail/temporary/search<enter><change-folder-readonly>+temporary/search<enter>" "search mail (using notmuch)"
 
 macro index,pager ,t "<enter-command>unset wait_key<enter><pipe-entry>new-task<enter><enter-command>set wait_key<enter>"
+macro index,pager ,c "<enter-command>unset wait_key<enter><pipe-entry>reattach-to-user-namespace pbcopy<enter><enter-command>set wait_key<enter>"
 
-# highlight my name and other personally relevant strings
-color body          color136        color233        "(metcalf|chris)"
-# custom index highlights ----------------------------------------------
-# messages which mention my name in the body
-color index         color136        color233        "~b \"(chris|metcalf)\" !~N !~T !~F !~p !~P"
-color index         color136        color37         "~b \"(chris|metcalf)\" ~T !~F !~p !~P"
-## messages which are in reference to my mails
-color index         color136        color233        "~x \"chris\.metcalf@socrata.com\" !~N !~T !~F !~p !~P"
-color index         color136        color230        "~x \"chris\.metcalf@socrata.com\" ~N !~T !~F !~p !~P"
-color index         color136        color37         "~x \"chris\.metcalf@socrata.com\" ~T !~F !~p !~P"
-color index         color136        color160        "~x \"chris\.metcalf@socrata.com\" ~F !~p !~P"
+# Source our external colors file
+source ~/.mutt/colors
 
-# for background in 16 color terminal, valid background colors include:
-# base03, bg, black, any of the non brights
-
-# basic colors ---------------------------------------------------------
-color normal        color252        color233
-color error         color218        color197
-color tilde         color235        color233
-color message       color37         color233
-color markers       color160        color254
-color attachment    color254        color233
-color search        color61         color233
-color status        color241        color235
-color indicator     color233        color81
-color tree          color136        color233                                    # arrow in threads
-
-# basic monocolor screen
-mono  bold          bold
-mono  underline     underline
-mono  indicator     reverse
-mono  error         bold
-
-# index ----------------------------------------------------------------
-color index         color160        color233        "~A"                        # all messages
-color index         color166        color233        "~E"                        # expired messages
-color index         color81         color233        "~N"                        # new messages
-color index         color81         color233        "~O"                        # old messages
-color index         color61         color233        "~Q"                        # messages that have been replied to
-color index         color246        color233        "~R"                        # read messages
-color index         color81         color233        "~U"                        # unread messages
-color index         color81         color233        "~U~$"                      # unread, unreferenced messages
-color index         color241        color233        "~v"                        # messages part of a collapsed thread
-color index         color241        color233        "~P"                        # messages from me
-color index         color37         color233        "~p!~F"                     # messages to me
-color index         color37         color233        "~N~p!~F"                   # new messages to me
-color index         color37         color233        "~U~p!~F"                   # unread messages to me
-color index         color248        color233        "~R~p!~F"                   # messages to me
-color index         color160        color233        "~F"                        # flagged messages
-color index         color160        color233        "~F~p"                      # flagged messages to me
-color index         color160        color233        "~N~F"                      # new flagged messages
-color index         color160        color233        "~N~F~p"                    # new flagged messages to me
-color index         color160        color233        "~U~F~p"                    # new flagged messages to me
-color index         color254        color197        "~D"                        # deleted messages
-color index         color245        color233        "~v~(!~N)"                  # collapsed thread with no unread
-color index         color136        color233        "~v~(~N)"                   # collapsed thread with some unread
-color index         color64         color233        "~N~v~(~N)"                 # collapsed thread with unread parent
-
-# statusbg used to indicated flagged when foreground color shows other status
-# for collapsed thread
-color index         color160        color235        "~v~(~F)!~N"                # collapsed thread with flagged, no unread
-color index         color136        color235        "~v~(~F~N)"                 # collapsed thread with some unread & flagged
-color index         color64         color235        "~N~v~(~F~N)"               # collapsed thread with unread parent & flagged
-color index         color64         color235        "~N~v~(~F)"                 # collapsed thread with unread parent, no unread inside, but some flagged
-color index         color37         color235        "~v~(~p)"                   # collapsed thread with unread parent, no unread inside, some to me directly
-color index         color136        color160        "~v~(~D)"                   # thread with deleted (doesn't differentiate between all or partial)
-
-# message headers ------------------------------------------------------
-
-#color header        color240        color233        "^"
-color hdrdefault    color240        color233
-color header        color241        color233        "^(From)"
-color header        color81         color233        "^(Subject)"
-
-# body -----------------------------------------------------------------
-color quoted        color81         color233
-color quoted1       color37         color233
-color quoted2       color136        color233
-color quoted3       color160        color233
-color quoted4       color166        color233
-
-color signature     color240        color233
-color bold          color235        color233
-color underline     color235        color233
-color normal        color244        color233
-
-## Emoticons
-color body          color245        color233        "[;:][-o][)/(|]"    # emoticons
-color body          color245        color233        "[;:][)(|]"         # emoticons
-color body          color245        color233        "[*]?((N)?ACK|CU|LOL|SCNR|BRB|BTW|CWYL|\
-                                                     |FWIW|vbg|GD&R|HTH|HTHBE|IMHO|IMNSHO|\
-                                                     |IRL|RTFM|ROTFL|ROFL|YMMV)[*]?"
-color body          color245        color233        "[ ][*][^*]*[*][ ]?" # more emoticon?
-color body          color245        color233        "[ ]?[*][^*]*[*][ ]" # more emoticon?
-
-## pgp
-color body          color160        color233        "(BAD signature)"
-color body          color37         color233        "(Good signature)"
-color body          color233        color233        "^gpg: Good signature .*"
-color body          color241        color233        "^gpg: "
-color body          color241        color160        "^gpg: BAD signature from.*"
-mono  body          bold                            "^gpg: Good signature"
-mono  body          bold                            "^gpg: BAD signature from.*"
-
-# yes, an insance URL regex
-color body          color197        color233        "([a-z][a-z0-9+-]*://(((([a-z0-9_.!~*'();:&=+$,-]|%[0-9a-f][0-9a-f])*@)?((([a-z0-9]([a-z0-9-]*[a-z0-9])?)\\.)*([a-z]([a-z0-9-]*[a-z0-9])?)\\.?|[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)(:[0-9]+)?)|([a-z0-9_.!~*'()$,;:@&=+-]|%[0-9a-f][0-9a-f])+)(/([a-z0-9_.!~*'():@&=+$,-]|%[0-9a-f][0-9a-f])*(;([a-z0-9_.!~*'():@&=+$,-]|%[0-9a-f][0-9a-f])*)*(/([a-z0-9_.!~*'():@&=+$,-]|%[0-9a-f][0-9a-f])*(;([a-z0-9_.!~*'():@&=+$,-]|%[0-9a-f][0-9a-f])*)*)*)?(\\?([a-z0-9_.!~*'();/?:@&=+$,-]|%[0-9a-f][0-9a-f])*)?(#([a-z0-9_.!~*'();/?:@&=+$,-]|%[0-9a-f][0-9a-f])*)?|(www|ftp)\\.(([a-z0-9]([a-z0-9-]*[a-z0-9])?)\\.)*([a-z]([a-z0-9-]*[a-z0-9])?)\\.?(:[0-9]+)?(/([-a-z0-9_.!~*'():@&=+$,]|%[0-9a-f][0-9a-f])*(;([-a-z0-9_.!~*'():@&=+$,]|%[0-9a-f][0-9a-f])*)*(/([-a-z0-9_.!~*'():@&=+$,]|%[0-9a-f][0-9a-f])*(;([-a-z0-9_.!~*'():@&=+$,]|%[0-9a-f][0-9a-f])*)*)*)?(\\?([-a-z0-9_.!~*'();/?:@&=+$,]|%[0-9a-f][0-9a-f])*)?(#([-a-z0-9_.!~*'();/?:@&=+$,]|%[0-9a-f][0-9a-f])*)?)[^].,:;!)? \t\r\n<>\"]"

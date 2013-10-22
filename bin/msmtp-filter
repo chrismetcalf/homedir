@@ -1,0 +1,11 @@
+#!/bin/sh
+
+TEMPFILE=`mktemp /tmp/msmtp-filter.XXXXXX` || exit 1
+cat - > $TEMPFILE
+
+TASK=$(cat $TEMPFILE | grep "X-Task:" | sed 's/^X-Task: *//')
+
+if [[ -n $TASK ]]; then
+  cat $TEMPFILE | ~/bin/otask "$TASK"
+  terminal-notifier -title "msmtp" -message "Created task: $TASK"
+fi

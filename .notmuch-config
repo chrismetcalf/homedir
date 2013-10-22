@@ -31,6 +31,7 @@ path=/Users/metcalf/.mail
 [user]
 name=Chris Metcalf
 primary_email=chris.metcalf@socrata.com
+other_email=chris@chrismetcalf.net
 
 # Configuration for "notmuch new"
 #

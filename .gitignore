@@ -4,3 +4,9 @@ known
 .weechat/logs/*
 .vimbundles/__spell/.netrwhist
 .netrc
+.offlineimap/Repository-*
+.offlineimap/Account-*
+.offlineimap/pid
+.offlineimap/*.pyc
+.mutt/temp/*
+.mutt/alias
