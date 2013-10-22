@@ -190,3 +190,6 @@
 [submodule "bin/gcalcli.git"]
 	path = bin/gcalcli.git
 	url = https://github.com/insanum/gcalcli.git
+[submodule "bin/ansiweather.git"]
+	path = bin/ansiweather.git
+	url = git@github.com:fcambus/ansiweather.git
