@@ -1,0 +1,7 @@
+#!/bin/sh
+
+APP_DIR=`pwd`
+echo "Linking $APP_DIR..."
+pushd ~/.pow
+ln -s $APP_DIR
+popd
