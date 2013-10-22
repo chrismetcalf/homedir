@@ -19,3 +19,8 @@ application/octet-stream; ~/.mutt/view_attachment.sh %s "-"
 
 # ICS Calendar File
 application/ics; ~/.mutt/view_attachment.sh %s "-"
+text/calendar; ~/.mutt/view_attachment.sh %s "-"
+
+# HTML!
+text/html; open %s
+
