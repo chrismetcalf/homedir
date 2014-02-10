@@ -193,3 +193,6 @@
 [submodule "bin/ansiweather.git"]
 	path = bin/ansiweather.git
 	url = git@github.com:fcambus/ansiweather.git
+[submodule "bin/hr.git"]
+	path = bin/hr.git
+	url = git@github.com:LuRsT/hr.git
