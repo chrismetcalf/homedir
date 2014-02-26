@@ -136,9 +136,6 @@
 [submodule ".tmux/tmux-powerline.git"]
 	path = .tmux/tmux-powerline.git
 	url = git://github.com/erikw/tmux-powerline.git
-[submodule ".vimbundles/vim-pad.git"]
-	path = .vimbundles/vim-pad.git
-	url = https://github.com/fmoralesc/vim-pad.git
 [submodule ".vimbundles/vim-bundler.git"]
 	path = .vimbundles/vim-bundler.git
 	url = https://github.com/tpope/vim-bundler.git
@@ -196,3 +193,9 @@
 [submodule "bin/hr.git"]
 	path = bin/hr.git
 	url = git@github.com:LuRsT/hr.git
+[submodule ".vimbundles/vim-notes.git"]
+	path = .vimbundles/vim-notes.git
+	url = git@github.com:xolox/vim-notes.git
+[submodule ".vimbundles/vim-misc.git"]
+	path = .vimbundles/vim-misc.git
+	url = git@github.com:xolox/vim-misc.git

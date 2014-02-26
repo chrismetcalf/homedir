@@ -164,8 +164,8 @@ let g:syntastic_mode_map = { 'mode': 'active',
 " Disable auto-cd of vim-rooter
 let g:rooter_manual_only = 1
 
-" Vim-Pad
-let g:pad_dir = "~/Dropbox/Notes/"
+" Vim-Notes
+let g:notes_directories = ['~/Dropbox/Notes']
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
