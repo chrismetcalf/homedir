@@ -195,7 +195,7 @@
 	url = git@github.com:LuRsT/hr.git
 [submodule ".vimbundles/vim-notes.git"]
 	path = .vimbundles/vim-notes.git
-	url = git@github.com:xolox/vim-notes.git
+	url = git@github.com:chrismetcalf/vim-notes.git
 [submodule ".vimbundles/vim-misc.git"]
 	path = .vimbundles/vim-misc.git
 	url = git@github.com:xolox/vim-misc.git
