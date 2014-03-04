@@ -199,3 +199,6 @@
 [submodule ".vimbundles/vim-misc.git"]
 	path = .vimbundles/vim-misc.git
 	url = git@github.com:xolox/vim-misc.git
+[submodule ".vimbundles/utl.vim.git"]
+	path = .vimbundles/utl.vim.git
+	url = git@github.com:vim-scripts/utl.vim.git
