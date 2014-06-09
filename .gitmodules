@@ -144,7 +144,7 @@
 	url = git://github.com/airblade/vim-gitgutter.git
 [submodule ".vimbundles/vim-liquid.git"]
 	path = .vimbundles/vim-liquid.git
-	url = git://github.com/tpope/vim-liquid.git
+	url = git@github.com:tpope/vim-liquid.git
 [submodule ".vimbundles/vim-markdown.git"]
 	path = .vimbundles/vim-markdown.git
 	url = git://github.com/tpope/vim-markdown.git
@@ -193,12 +193,24 @@
 [submodule "bin/hr.git"]
 	path = bin/hr.git
 	url = git@github.com:LuRsT/hr.git
-[submodule ".vimbundles/vim-notes.git"]
-	path = .vimbundles/vim-notes.git
-	url = git@github.com:chrismetcalf/vim-notes.git
 [submodule ".vimbundles/vim-misc.git"]
 	path = .vimbundles/vim-misc.git
 	url = git@github.com:xolox/vim-misc.git
 [submodule ".vimbundles/utl.vim.git"]
 	path = .vimbundles/utl.vim.git
 	url = git@github.com:vim-scripts/utl.vim.git
+[submodule ".vimbundles/vim-multiple-cursors.git"]
+	path = .vimbundles/vim-multiple-cursors.git
+	url = git@github.com:terryma/vim-multiple-cursors.git
+[submodule ".vimbundles/vim-apib.git"]
+	path = .vimbundles/vim-apib.git
+	url = git@github.com:lrampa/vim-apib.git
+[submodule "bin/spl.git"]
+	path = bin/spl.git
+	url = https://gist.github.com/11476891.git
+[submodule ".vimbundles/taskpaper.vim.git"]
+	path = .vimbundles/taskpaper.vim.git
+	url = git@github.com:davidoc/taskpaper.vim.git
+[submodule "bin/recordstream.git"]
+	path = bin/recordstream.git
+	url = git@github.com:benbernard/RecordStream.git
