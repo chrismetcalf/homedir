@@ -214,3 +214,9 @@
 [submodule "bin/recordstream.git"]
 	path = bin/recordstream.git
 	url = git@github.com:benbernard/RecordStream.git
+[submodule ".vimbundles/nerdtree.git"]
+	path = .vimbundles/nerdtree.git
+	url = git@github.com:scrooloose/nerdtree.git
+[submodule ".vimbundles/vim-mustache-handlebars.git"]
+	path = .vimbundles/vim-mustache-handlebars.git
+	url = git@github.com:mustache/vim-mustache-handlebars.git

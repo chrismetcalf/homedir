@@ -44,7 +44,7 @@
   short = log --pretty=format:\"%h %cr %cn %Cgreen%s%Creset\"
   changelog = log --pretty=format:\" * %s\"
   shortnocolor = log --pretty=format:\"%h %cr %cn %s\"
-  lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative
+  lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%C(bold blue) <%ae>%Creset' --abbrev-commit
   lol = log --color=auto --pretty=format:'%h... %Cgreen[%an] %Cred(%ar) %Creset %s' --abbrev-commit --since='2 day ago'
   llol = log --color=auto --pretty=format:'%h... %Cgreen[%an] %Cred(%ar) %Creset %s' --abbrev-commit
   ltd = log --color=auto --pretty=format:'%h\t%an\t%ai\t%s' --abbrev-commit
@@ -109,3 +109,6 @@
 
 [help]
   autocorrect = 1
+
+[init]
+	templatedir = ~/.git_template
