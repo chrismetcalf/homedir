@@ -166,6 +166,10 @@ let g:rooter_manual_only = 1
 
 " Vim-Notes
 let g:notes_directories = ['~/Dropbox/Notes']
+let g:notes_suffix = '.txt'
+let g:notes_smart_quotes = 1
+let g:notes_list_bullets = ['*', '-', '+']
+let g:notes_unicode_enabled = 0
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
@@ -262,6 +266,14 @@ function! SoftWrap()
 endfunction
 command! SoftWrap :call SoftWrap()
 
+" Write this to a 
+function! WNote()
+  let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
+  exe "save " . filename 
+  set filetype=markdown
+endfunction
+command! WNote :call WNote()
+
 """"""""""""""""""""""""""""""""""""""""""
 " Filetype-Specific Config
 """"""""""""""""""""""""""""""""""""""""""
@@ -283,6 +295,7 @@ if has("autocmd")
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
   au BufNewFile,BufRead *.json setfiletype json
+  au BufNewFile,BufRead *.mst set filetype=mustache
 
   " Syntax options
   au FileType java :set shiftwidth=4
@@ -344,6 +357,9 @@ vmap <leader>/ :call NERDComment(0, "invert")<cr>
 " MultiMarkdown the selection
 vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
 
+" Open NerdTree
+nnoremap <leader>nt :NERDTreeToggle<CR>
+
 " Color Pickers
 nnoremap <leader>c :ColorHEX<CR>
 
@@ -367,7 +383,7 @@ nnoremap <leader>ft Vatzf
 nnoremap <leader>v V`]
 
 " Ctrl-P 
-nmap <leader>t :CtrlPMixed<CR>
+nmap <leader>t :CtrlP<CR>
 nmap <leader>b :CtrlPBuffer<CR>
 
 " map ,y to show the yankring
@@ -422,6 +438,13 @@ map <leader>tt :TagbarToggle<CR>
 " Slimux
 map <leader>sr :SlimuxREPLSendSelection<CR>
 map <leader>sc :SlimuxShellPrompt<CR>
+
+" vim-notes
+map <leader>nn :Note 
+map <leader>nd :DeleteNote<CR>
+map <leader>nr :RecentNotes<CR>
+map <C-n> :SearchNotes 
+
 
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
