@@ -4,6 +4,10 @@ export PATH=/usr/local/share/npm/bin:$PATH
 
 export MANPATH=/opt/local/share/man:$MANPATH
 
+# tmux copy and paste
+alias pbcopy='reattach-to-user-namespace pbcopy'
+alias pbpaste='reattach-to-user-namespace pbpaste'
+
 # mivm aliases
 alias mvimdiff='mvim -d'
 
