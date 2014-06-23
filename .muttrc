@@ -22,12 +22,6 @@ set beep_new             # bell on new mails
 set pipe_decode          # strip headers and eval mimes when piping
 set thorough_search      # strip headers and eval mimes before searching
 
-# Sidebar Patch --------------------------------------
-set sidebar_delim   = '  │'
-set sidebar_visible = no 
-set sidebar_width   = 36 
-color sidebar_new color221 color233
-
 # Status Bar -----------------------------------------
 set status_chars  = " *%A"
 set status_format = "───[ Folder: %f ]───[%r%m messages%?n? (%n new)?%?d? (%d to delete)?%?t? (%t tagged)? ]───%>─%?p?( %p postponed )?───"
@@ -71,28 +65,37 @@ set sort_re                                # thread based on regex
 set reply_regexp = "^(([Rr][Ee]?(\[[0-9]+\])?: *)?(\[[^]]+\] *)?)*"
 
 # Index Key Bindings ---------------------------------
-bind index gg       first-entry
-bind index G        last-entry
 
-bind index R        group-reply
+# Gmail-style keyboard shortcuts
+bind  index,pager y  delete-message
+macro index,pager gi "=socrata.com/INBOX" "Go to inbox"
+macro index,pager ga "=socrata.com/archive" "Go to all mail"
+macro index,pager gd "=socrata.com/drafts" "Go to drafts"
+macro index,pager gt "=socrata.com/sent" "Go to sent mail"
+
+bind  index,pager c  mail           #Compose
+bind  generic     x  tag-entry      #Select Conversation
+bind  index,pager x  tag-thread     #Select Conversation
+bind  index,pager s  flag-message   #Star a message
+bind  index,pager a  group-reply    #Reply all
+
+bind pager k  previous-line
+bind pager j  next-line
+
+bind index,pager gg       first-entry
+bind index,pager G        last-entry
+
+bind index,pager R        group-reply
 bind index,pager <tab>    sync-mailbox
 bind index <space>  collapse-thread
 
-# Ctrl-R to mark all as read
-macro index \Cr "T~U<enter><tag-prefix><clear-flag>N<untag-pattern>.<enter>" "mark all messages as read"
-
 # Sync email
 macro index,pager O "<shell-escape>tmux split-window -d -l 8 \"offlineimap\"<enter>"           "run offlineimap to sync all mail"
-macro index,pager o "<shell-escape>tmux split-window -d -l 8 \"offlineimap -qf INBOX && msmtpq -r\"<enter>" "run offlineimap to sync inbox"
+macro index,pager o "<shell-escape>tmux split-window -d -l 8 \"msmtpq -r && offlineimap -qf INBOX\"<enter>" "run offlineimap to sync inbox"
 
-# Saner copy/move dialogs
-macro index C "<copy-message>?<toggle-mailboxes>" "copy a message to a mailbox"
-macro index M "<save-message>?<toggle-mailboxes>" "move a message to a mailbox"
-
-# Sidebar Navigation ---------------------------------
-bind index,pager <down>   sidebar-next
-bind index,pager <up>     sidebar-prev
-bind index,pager <right>  sidebar-open
+# Postpone messages offline
+bind compose p postpone-message
+bind index p recall-message
 
 # Pager View Options ---------------------------------
 set pager_index_lines = 15 # number of index lines to show
@@ -104,14 +107,6 @@ unset markers              # no ugly plus signs
 
 set quote_regexp = "^( {0,4}[>|:#%]| {0,4}[a-z0-9]+[>|]+)+"
 alternative_order text/plain text/enriched text/html
-
-# Pager Key Bindings ---------------------------------
-bind pager k  previous-line
-bind pager j  next-line
-bind pager gg top
-bind pager G  bottom
-
-bind pager R  group-reply
 
 # View attachments properly.
 bind attach <return> view-mailcap
@@ -136,13 +131,8 @@ set include                          # include message in replies
 set forward_quote                    # include message in forwards
 set editor = "vim"                   # Use terminal Vim to compose email.
 
-# Postpone messages offline
-bind compose p postpone-message
-bind index p recall-message
-
 # Sending mail
 set from     = "chris.metcalf@socrata.com"
-# set sendmail = "/usr/local/bin/msmtp -a chrismetcalf --debug"
 set sendmail = "~/bin/msmtp-enqueue"
 set sendmail_wait = -1
 unset record
@@ -155,9 +145,10 @@ bind editor ^T    complete
 # Search
 bind index N search-opposite
 bind pager N search-opposite
-macro index a "<limit>all\n" "show all messages (undo limit)"
+macro index A "<limit>all\n" "show all messages (undo limit)"
 macro index S "<enter-command>unset wait_key<enter><shell-escape>mutt-notmuch-py ~/.mail/temporary/search<enter><change-folder-readonly>+temporary/search<enter>" "search mail (using notmuch)"
 
+# Task management
 macro index,pager ,t "<enter-command>unset wait_key<enter><pipe-entry>new-task<enter><enter-command>set wait_key<enter>"
 macro index,pager ,c "<enter-command>unset wait_key<enter><pipe-entry>reattach-to-user-namespace pbcopy<enter><enter-command>set wait_key<enter>"
 
