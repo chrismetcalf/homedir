@@ -90,7 +90,7 @@ set wildmenu
 " set clipboard=unnamed
 
 " Set nice colors
-colorscheme molokai
+colorscheme jellybeans
 
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
@@ -120,9 +120,6 @@ let b:delimitMate_autoclose = 0
 let NERDDefaultNesting = 1
 let NERDSpaceDelims = 1
 let NERDRemoveExtraSpaces = 1
-
-" Powerline config
-let g:Powerline_symbols = "fancy"
 
 " EasyMotion
 let g:EasyMotion_leader_key = '<Leader><Leader>'
@@ -170,6 +167,11 @@ let g:notes_suffix = '.txt'
 let g:notes_smart_quotes = 1
 let g:notes_list_bullets = ['*', '-', '+']
 let g:notes_unicode_enabled = 0
+
+" vim-airline
+let g:airline_left_sep = ''
+let g:airline_right_sep = ''
+let g:airline#extensions#bufferline#enabled = 1
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
