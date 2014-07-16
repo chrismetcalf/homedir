@@ -220,6 +220,3 @@
 [submodule ".vimbundles/vim-airline.git"]
 	path = .vimbundles/vim-airline.git
 	url = git@github.com:bling/vim-airline.git
-[submodule ".vimbundles/vim-bufferline.git"]
-	path = .vimbundles/vim-bufferline.git
-	url = git@github.com:bling/vim-bufferline.git
