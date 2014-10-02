@@ -22,6 +22,15 @@ set beep_new             # bell on new mails
 set pipe_decode          # strip headers and eval mimes when piping
 set thorough_search      # strip headers and eval mimes before searching
 
+# Sidebar Patch --------------------------------------
+set sidebar_delim   = '  │'
+set sidebar_visible = yes
+set sidebar_width   = 35 
+color sidebar_new color221 color233
+bind index,pager <down>   sidebar-next
+bind index,pager <up>     sidebar-prev
+bind index,pager <right>  sidebar-open
+
 # Status Bar -----------------------------------------
 set status_chars  = " *%A"
 set status_format = "───[ Folder: %f ]───[%r%m messages%?n? (%n new)?%?d? (%d to delete)?%?t? (%t tagged)? ]───%>─%?p?( %p postponed )?───"
@@ -42,10 +51,10 @@ alternates chris.metcalf@socrata.com, chris@chrismetcalf.net
 
 # Mailboxes to show in the sidebar.
 mailboxes +socrata.com/INBOX \
+          +chrismetcalf.net/INBOX \
           +socrata.com/archive \
           +socrata.com/sent \
           +socrata.com/drafts \
-          +chrismetcalf.net/INBOX \
           +chrismetcalf.net/archive \
           +chrismetcalf.net/sent \
           +chrismetcalf.net/drafts \
@@ -75,15 +84,15 @@ macro index,pager gt "=socrata.com/sent" "Go to sent mail"
 
 bind  index,pager c  mail           #Compose
 bind  generic     x  tag-entry      #Select Conversation
-bind  index,pager x  tag-thread     #Select Conversation
+# bind  index,pager x  tag-thread     #Select Conversation
 bind  index,pager s  flag-message   #Star a message
 bind  index,pager a  group-reply    #Reply all
 
 bind pager k  previous-line
 bind pager j  next-line
 
-bind index,pager gg       first-entry
-bind index,pager G        last-entry
+# bind index,pager gg       first-entry
+# bind index,pager G        last-entry
 
 bind index,pager R        group-reply
 bind index,pager <tab>    sync-mailbox
