@@ -9,7 +9,7 @@ localrepository = Work-Local
 remoterepository = Work-Remote
 status_backend = sqlite
 postsynchook = notmuch new
-maxage = 365
+maxage = 730
 
 [Repository Work-Local]
 type = Maildir
@@ -45,7 +45,7 @@ localrepository = Personal-Local
 remoterepository = Personal-Remote
 status_backend = sqlite
 postsynchook = notmuch new
-maxage = 365
+maxage = 60
 
 [Repository Personal-Local]
 type = Maildir
