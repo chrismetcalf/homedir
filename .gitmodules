@@ -220,3 +220,15 @@
 [submodule ".vimbundles/vim-airline.git"]
 	path = .vimbundles/vim-airline.git
 	url = git@github.com:bling/vim-airline.git
+[submodule ".vimbundles/vimroom.git"]
+	path = .vimbundles/vimroom.git
+	url = https://github.com/mikewest/vimroom.git
+[submodule ".vimbundles/dockerfile.vim.git"]
+	path = .vimbundles/dockerfile.vim.git
+	url = https://github.com/honza/dockerfile.vim.git
+[submodule ".vimbundles/vim-heroku.git"]
+	path = .vimbundles/vim-heroku.git
+	url = https://github.com/tpope/vim-heroku.git
+[submodule ".vimbundles/vim-speeddating.git"]
+	path = .vimbundles/vim-speeddating.git
+	url = https://github.com/tpope/vim-speeddating.git
