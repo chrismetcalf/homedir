@@ -156,7 +156,7 @@ let g:ackprg = 'ag --nogroup --nocolor --column'
 
 " Syntastic
 let g:syntastic_mode_map = { 'mode': 'active',
-      \ 'passive_filetypes': ['html'] }
+    \ 'passive_filetypes': ['html'] }
 
 " Disable auto-cd of vim-rooter
 let g:rooter_manual_only = 1
@@ -179,100 +179,100 @@ let g:airline#extensions#bufferline#enabled = 1
 
 " Strip trailing whitespace and delete blanks
 function! <SID>StripTrailingWhitespaces()
-  let _s=@/
-  let l = line(".")
-  let c = col(".")
-  %s/\s\+$//e
-  let @/=_s
-  call cursor(l, c)
+let _s=@/
+let l = line(".")
+let c = col(".")
+%s/\s\+$//e
+let @/=_s
+call cursor(l, c)
 endfunction
 command! StripTrail call <SID>StripTrailingWhitespaces()
 
 command! DeleteBlank :g/^$/d
 
 function! HtmlEntities()
-  silent %s/À/\&Agrave;/e
-  silent %s/Á/\&Aacute;/e
-  silent %s/Â/\&Acirc;/e
-  silent %s/Ã/\&Atilde;/e
-  silent %s/Ä/\&Auml;/e
-  silent %s/Å/\&Aring;/e
-  silent %s/Æ/\&AElig;/e
-  silent %s/Ç/\&Ccedil;/e
-  silent %s/È/\&Egrave;/e
-  silent %s/É/\&Eacute;/e
-  silent %s/Ê/\&Ecirc;/e
-  silent %s/Ë/\&Euml;/e
-  silent %s/Ì/\&Igrave;/e
-  silent %s/Í/\&Iacute;/e
-  silent %s/Î/\&Icirc;/e
-  silent %s/Ï/\&Iuml;/e
-  silent %s/Ð/\&ETH;/e
-  silent %s/Ñ/\&Ntilde;/e
-  silent %s/Ò/\&Ograve;/e
-  silent %s/Ó/\&Oacute;/e
-  silent %s/Ô/\&Ocirc;/e
-  silent %s/Õ/\&Otilde;/e
-  silent %s/Ö/\&Ouml;/e
-  silent %s/Ø/\&Oslash;/e
-  silent %s/Ù/\&Ugrave;/e
-  silent %s/Ú/\&Uacute;/e
-  silent %s/Û/\&Ucirc;/e
-  silent %s/Ü/\&Uuml;/e
-  silent %s/Ý/\&Yacute;/e
-  silent %s/Þ/\&THORN;/e
-  silent %s/ß/\&szlig;/e
-  silent %s/à/\&agrave;/e
-  silent %s/á/\&aacute;/e
-  silent %s/â/\&acirc;/e
-  silent %s/ã/\&atilde;/e
-  silent %s/ä/\&auml;/e
-  silent %s/å/\&aring;/e
-  silent %s/æ/\&aelig;/e
-  silent %s/ç/\&ccedil;/e
-  silent %s/è/\&egrave;/e
-  silent %s/é/\&eacute;/e
-  silent %s/ê/\&ecirc;/e
-  silent %s/ë/\&euml;/e
-  silent %s/ì/\&igrave;/e
-  silent %s/í/\&iacute;/e
-  silent %s/î/\&icirc;/e
-  silent %s/ï/\&iuml;/e
-  silent %s/ð/\&eth;/e
-  silent %s/ñ/\&ntilde;/e
-  silent %s/ò/\&ograve;/e
-  silent %s/ó/\&oacute;/e
-  silent %s/ô/\&ocirc;/e
-  silent %s/õ/\&otilde;/e
-  silent %s/ö/\&ouml;/e
-  silent %s/ø/\&oslash;/e
-  silent %s/ù/\&ugrave;/e
-  silent %s/ú/\&uacute;/e
-  silent %s/û/\&ucirc;/e
-  silent %s/ü/\&uuml;/e
-  silent %s/ý/\&yacute;/e
-  silent %s/þ/\&thorn;/e
-  silent %s/ÿ/\&yuml;/e
-  silent %s/“/"/e
-  silent %s/”/"/e
-  silent %s/’/'/e
+silent %s/À/\&Agrave;/e
+silent %s/Á/\&Aacute;/e
+silent %s/Â/\&Acirc;/e
+silent %s/Ã/\&Atilde;/e
+silent %s/Ä/\&Auml;/e
+silent %s/Å/\&Aring;/e
+silent %s/Æ/\&AElig;/e
+silent %s/Ç/\&Ccedil;/e
+silent %s/È/\&Egrave;/e
+silent %s/É/\&Eacute;/e
+silent %s/Ê/\&Ecirc;/e
+silent %s/Ë/\&Euml;/e
+silent %s/Ì/\&Igrave;/e
+silent %s/Í/\&Iacute;/e
+silent %s/Î/\&Icirc;/e
+silent %s/Ï/\&Iuml;/e
+silent %s/Ð/\&ETH;/e
+silent %s/Ñ/\&Ntilde;/e
+silent %s/Ò/\&Ograve;/e
+silent %s/Ó/\&Oacute;/e
+silent %s/Ô/\&Ocirc;/e
+silent %s/Õ/\&Otilde;/e
+silent %s/Ö/\&Ouml;/e
+silent %s/Ø/\&Oslash;/e
+silent %s/Ù/\&Ugrave;/e
+silent %s/Ú/\&Uacute;/e
+silent %s/Û/\&Ucirc;/e
+silent %s/Ü/\&Uuml;/e
+silent %s/Ý/\&Yacute;/e
+silent %s/Þ/\&THORN;/e
+silent %s/ß/\&szlig;/e
+silent %s/à/\&agrave;/e
+silent %s/á/\&aacute;/e
+silent %s/â/\&acirc;/e
+silent %s/ã/\&atilde;/e
+silent %s/ä/\&auml;/e
+silent %s/å/\&aring;/e
+silent %s/æ/\&aelig;/e
+silent %s/ç/\&ccedil;/e
+silent %s/è/\&egrave;/e
+silent %s/é/\&eacute;/e
+silent %s/ê/\&ecirc;/e
+silent %s/ë/\&euml;/e
+silent %s/ì/\&igrave;/e
+silent %s/í/\&iacute;/e
+silent %s/î/\&icirc;/e
+silent %s/ï/\&iuml;/e
+silent %s/ð/\&eth;/e
+silent %s/ñ/\&ntilde;/e
+silent %s/ò/\&ograve;/e
+silent %s/ó/\&oacute;/e
+silent %s/ô/\&ocirc;/e
+silent %s/õ/\&otilde;/e
+silent %s/ö/\&ouml;/e
+silent %s/ø/\&oslash;/e
+silent %s/ù/\&ugrave;/e
+silent %s/ú/\&uacute;/e
+silent %s/û/\&ucirc;/e
+silent %s/ü/\&uuml;/e
+silent %s/ý/\&yacute;/e
+silent %s/þ/\&thorn;/e
+silent %s/ÿ/\&yuml;/e
+silent %s/“/"/e
+silent %s/”/"/e
+silent %s/’/'/e
 endfunction
 command! HtmlEntities :call HtmlEntities()
 
 function! SoftWrap()
-  set formatoptions=1
-  set linebreak
-  set wrap
-  set nolist
-  set breakat=\ |@-+;:,./?^I
+set formatoptions=1
+set linebreak
+set wrap
+set nolist
+set breakat=\ |@-+;:,./?^I
 endfunction
 command! SoftWrap :call SoftWrap()
 
 " Write this to a 
 function! WNote()
-  let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
-  exe "save " . filename 
-  set filetype=markdown
+let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
+exe "save " . filename 
+set filetype=markdown
 endfunction
 command! WNote :call WNote()
 
@@ -282,50 +282,50 @@ command! WNote :call WNote()
 
 " AutoCmds
 if has("autocmd")
-  filetype plugin indent on
+filetype plugin indent on
 
-  function! SetMkdOptions()
-    set filetype=markdown
-    set nolinebreak
-    set wrapmargin=0
-    set spell
-    call SoftWrap()
-    " :NeoComplCacheDisable()<CR>
-  endfunction
-  au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
+function! SetMkdOptions()
+  set filetype=markdown
+  set nolinebreak
+  set wrapmargin=0
+  set spell
+  call SoftWrap()
+  " :NeoComplCacheDisable()<CR>
+endfunction
+au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
-  au BufNewFile,BufRead *.rss,*.atom setfiletype xml
-  au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
-  au BufNewFile,BufRead *.json setfiletype json
-  au BufNewFile,BufRead *.mst set filetype=mustache
+au BufNewFile,BufRead *.rss,*.atom setfiletype xml
+au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
+au BufNewFile,BufRead *.json setfiletype json
+au BufNewFile,BufRead *.mst set filetype=mustache
 
-  " Syntax options
-  au FileType java :set shiftwidth=4
+" Syntax options
+au FileType java :set shiftwidth=4
 
-  " Delimitmate
-  function! SetGitOptions()
-    set spell
-    let b:delimitMate_autoclose = 0
-  endfunction
-  au FileType gitcommit call SetGitOptions()
+" Delimitmate
+function! SetGitOptions()
+  set spell
+  let b:delimitMate_autoclose = 0
+endfunction
+au FileType gitcommit call SetGitOptions()
 
-  " Autoload vimrc and gvimrc
-  au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
-  au! BufWritePost .gvimrc source ~/.gvimrc
+" Autoload vimrc and gvimrc
+au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
+au! BufWritePost .gvimrc source ~/.gvimrc
 endif
 
 " HTML Escaping
 function! <SID>HtmlEscape()
-  silent '<,'>s/&/\&amp;/eg
-  silent '<,'>s/</\&lt;/eg
-  silent '<,'>s/>/\&gt;/eg
+silent '<,'>s/&/\&amp;/eg
+silent '<,'>s/</\&lt;/eg
+silent '<,'>s/>/\&gt;/eg
 endfunction
 command! HtmlEscape call <SID>HtmlEscape()
 
 function! <SID>HtmlUnEscape()
-  silent '<,'>s/&lt;/</eg
-  silent '<,'>s/&gt;/>/eg
-  silent '<,'>s/&amp;/\&/eg
+silent '<,'>s/&lt;/</eg
+silent '<,'>s/&gt;/>/eg
+silent '<,'>s/&amp;/\&/eg
 endfunction
 command! HtmlUnEscape call <SID>HtmlUnEscape()
 
@@ -447,7 +447,8 @@ map <leader>nd :DeleteNote<CR>
 map <leader>nr :RecentNotes<CR>
 map <C-n> :SearchNotes 
 
-
+" Jekyll magic
+nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   " Shifted
