@@ -18,7 +18,10 @@ task = Readline.readline("task @context #project due() start() ! > ", true)
 output, status = Open3.capture2("otask \"#{task}\"", :stdin_data => note)
 
 if status.exitstatus == 0
+  system("terminal-notifier -title Mutt -message \"Successfully created task: #{output}\"")
   puts "Success: #{output}"
 else
+  system("terminal-notifier -title Mutt -message \"Problem creating task: #{output}\"")
+  system("tput bel")
   puts "Error!: #{output}"
 end
