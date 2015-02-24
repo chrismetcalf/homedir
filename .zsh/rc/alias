@@ -17,3 +17,9 @@ alias d='doing'
 
 # Where am I?
 alias whereami='geoiplookup `curl --max-time 2 -s http://whatismyip.akamai.com/ | tr -d "\n"`'
+
+# Speed Test
+alias speed-test="wget -O /dev/null http://speedtest.wdc01.softlayer.com/downloads/test10.zip"
+
+# Toggle Squid offline state
+alias toggle-offline="squidclient mgr:offline_toggle"
