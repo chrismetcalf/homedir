@@ -23,9 +23,9 @@ TMUX_POWERLINE_SEG_NOW_PLAYING_MUSIC_PLAYER="spotify"
 
 if [ -z $TMUX_POWERLINE_LEFT_STATUS_SEGMENTS ]; then
   TMUX_POWERLINE_LEFT_STATUS_SEGMENTS=(
-  "tmux_session_info 148 234" \
-    "hostname 33 0" \
-    "doing 235 136"
+    "tmux_session_info 148 234" \
+    # "hostname 33 0" \
+    # "doing 235 136"
     # "ifstat 30 255" \
     # "ifstat_sys 30 255" \
     # "lan_ip 24 255" \
@@ -35,7 +35,7 @@ if [ -z $TMUX_POWERLINE_LEFT_STATUS_SEGMENTS ]; then
     # "vcs_staged 64 255" \
     # "vcs_modified 9 255" \
     # "vcs_others 245 0" \
-    )
+  )
 fi
 
 if [ -z $TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS ]; then
@@ -43,7 +43,7 @@ if [ -z $TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS ]; then
     # "earthquake 3 0" \
     # "pwd 89 211" \
     # "mailcount 9 255" \
-    "now_playing 234 37" \
+    # "now_playing 234 37" \
     # "cpu 240 136" \
     "load 237 167" \
     # "tmux_mem_cpu_load 234 136" \
@@ -52,7 +52,7 @@ if [ -z $TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS ]; then
     # "xkb_layout 125 117" \
     # "date_day 235 136" \
     # "date 235 136 ${TMUX_POWERLINE_SEPARATOR_LEFT_THIN}" \
-    # "time 235 136 ${TMUX_POWERLINE_SEPARATOR_LEFT_THIN}" \
+    "time 235 136 ${TMUX_POWERLINE_SEPARATOR_LEFT_THIN}" \
     # "utc_time 235 136 ${TMUX_POWERLINE_SEPARATOR_LEFT_THIN}" \
-    )
+  )
 fi
