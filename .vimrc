@@ -373,7 +373,7 @@ nnoremap <leader>m :make<CR>
 nnoremap <leader>M :make %<CR>
 
 " Open in marked
-nnoremap <leader>md :silent !open -a Marked.app '%:p'<cr>
+nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
 
 " ChromeReload
 nnoremap <leader>r :ChromeReload<CR>
