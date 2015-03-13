@@ -232,3 +232,9 @@
 [submodule ".vimbundles/vim-speeddating.git"]
 	path = .vimbundles/vim-speeddating.git
 	url = https://github.com/tpope/vim-speeddating.git
+[submodule ".vimbundles/splitjoin.vim"]
+	path = .vimbundles/splitjoin.vim
+	url = https://github.com/AndrewRadev/splitjoin.vim
+[submodule ".vimbundles/unite.git"]
+	path = .vimbundles/unite.git
+	url = git@github.com:Shougo/unite.vim.git
