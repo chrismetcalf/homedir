@@ -139,15 +139,6 @@ autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
 autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
 autocmd FileType ruby,eruby setlocal omnifunc=rubycomplete#Complete
 
-" Ctrl-P
-let g:ctrlp_cmd = 'CtrlPMixed'
-let g:ctrlp_use_caching = 1
-let g:ctrlp_switch_buffer = 'et'
-let g:ctrlp_max_height = 10
-let g:ctrlp_match_window_bottom = 0
-let g:ctrlp_match_window_reversed = 0
-let g:ctrlp_root_markers = ['*.tmproj']
-
 " browserreload.vim
 let g:returnApp = "iTerm"
 
@@ -179,92 +170,92 @@ let g:airline#extensions#bufferline#enabled = 1
 
 " Strip trailing whitespace and delete blanks
 function! <SID>StripTrailingWhitespaces()
-let _s=@/
-let l = line(".")
-let c = col(".")
-%s/\s\+$//e
-let @/=_s
-call cursor(l, c)
+  let _s=@/
+  let l = line(".")
+  let c = col(".")
+  %s/\s\+$//e
+  let @/=_s
+  call cursor(l, c)
 endfunction
 command! StripTrail call <SID>StripTrailingWhitespaces()
 
 command! DeleteBlank :g/^$/d
 
 function! HtmlEntities()
-silent %s/À/\&Agrave;/e
-silent %s/Á/\&Aacute;/e
-silent %s/Â/\&Acirc;/e
-silent %s/Ã/\&Atilde;/e
-silent %s/Ä/\&Auml;/e
-silent %s/Å/\&Aring;/e
-silent %s/Æ/\&AElig;/e
-silent %s/Ç/\&Ccedil;/e
-silent %s/È/\&Egrave;/e
-silent %s/É/\&Eacute;/e
-silent %s/Ê/\&Ecirc;/e
-silent %s/Ë/\&Euml;/e
-silent %s/Ì/\&Igrave;/e
-silent %s/Í/\&Iacute;/e
-silent %s/Î/\&Icirc;/e
-silent %s/Ï/\&Iuml;/e
-silent %s/Ð/\&ETH;/e
-silent %s/Ñ/\&Ntilde;/e
-silent %s/Ò/\&Ograve;/e
-silent %s/Ó/\&Oacute;/e
-silent %s/Ô/\&Ocirc;/e
-silent %s/Õ/\&Otilde;/e
-silent %s/Ö/\&Ouml;/e
-silent %s/Ø/\&Oslash;/e
-silent %s/Ù/\&Ugrave;/e
-silent %s/Ú/\&Uacute;/e
-silent %s/Û/\&Ucirc;/e
-silent %s/Ü/\&Uuml;/e
-silent %s/Ý/\&Yacute;/e
-silent %s/Þ/\&THORN;/e
-silent %s/ß/\&szlig;/e
-silent %s/à/\&agrave;/e
-silent %s/á/\&aacute;/e
-silent %s/â/\&acirc;/e
-silent %s/ã/\&atilde;/e
-silent %s/ä/\&auml;/e
-silent %s/å/\&aring;/e
-silent %s/æ/\&aelig;/e
-silent %s/ç/\&ccedil;/e
-silent %s/è/\&egrave;/e
-silent %s/é/\&eacute;/e
-silent %s/ê/\&ecirc;/e
-silent %s/ë/\&euml;/e
-silent %s/ì/\&igrave;/e
-silent %s/í/\&iacute;/e
-silent %s/î/\&icirc;/e
-silent %s/ï/\&iuml;/e
-silent %s/ð/\&eth;/e
-silent %s/ñ/\&ntilde;/e
-silent %s/ò/\&ograve;/e
-silent %s/ó/\&oacute;/e
-silent %s/ô/\&ocirc;/e
-silent %s/õ/\&otilde;/e
-silent %s/ö/\&ouml;/e
-silent %s/ø/\&oslash;/e
-silent %s/ù/\&ugrave;/e
-silent %s/ú/\&uacute;/e
-silent %s/û/\&ucirc;/e
-silent %s/ü/\&uuml;/e
-silent %s/ý/\&yacute;/e
-silent %s/þ/\&thorn;/e
-silent %s/ÿ/\&yuml;/e
-silent %s/“/"/e
-silent %s/”/"/e
-silent %s/’/'/e
+  silent %s/À/\&Agrave;/e
+  silent %s/Á/\&Aacute;/e
+  silent %s/Â/\&Acirc;/e
+  silent %s/Ã/\&Atilde;/e
+  silent %s/Ä/\&Auml;/e
+  silent %s/Å/\&Aring;/e
+  silent %s/Æ/\&AElig;/e
+  silent %s/Ç/\&Ccedil;/e
+  silent %s/È/\&Egrave;/e
+  silent %s/É/\&Eacute;/e
+  silent %s/Ê/\&Ecirc;/e
+  silent %s/Ë/\&Euml;/e
+  silent %s/Ì/\&Igrave;/e
+  silent %s/Í/\&Iacute;/e
+  silent %s/Î/\&Icirc;/e
+  silent %s/Ï/\&Iuml;/e
+  silent %s/Ð/\&ETH;/e
+  silent %s/Ñ/\&Ntilde;/e
+  silent %s/Ò/\&Ograve;/e
+  silent %s/Ó/\&Oacute;/e
+  silent %s/Ô/\&Ocirc;/e
+  silent %s/Õ/\&Otilde;/e
+  silent %s/Ö/\&Ouml;/e
+  silent %s/Ø/\&Oslash;/e
+  silent %s/Ù/\&Ugrave;/e
+  silent %s/Ú/\&Uacute;/e
+  silent %s/Û/\&Ucirc;/e
+  silent %s/Ü/\&Uuml;/e
+  silent %s/Ý/\&Yacute;/e
+  silent %s/Þ/\&THORN;/e
+  silent %s/ß/\&szlig;/e
+  silent %s/à/\&agrave;/e
+  silent %s/á/\&aacute;/e
+  silent %s/â/\&acirc;/e
+  silent %s/ã/\&atilde;/e
+  silent %s/ä/\&auml;/e
+  silent %s/å/\&aring;/e
+  silent %s/æ/\&aelig;/e
+  silent %s/ç/\&ccedil;/e
+  silent %s/è/\&egrave;/e
+  silent %s/é/\&eacute;/e
+  silent %s/ê/\&ecirc;/e
+  silent %s/ë/\&euml;/e
+  silent %s/ì/\&igrave;/e
+  silent %s/í/\&iacute;/e
+  silent %s/î/\&icirc;/e
+  silent %s/ï/\&iuml;/e
+  silent %s/ð/\&eth;/e
+  silent %s/ñ/\&ntilde;/e
+  silent %s/ò/\&ograve;/e
+  silent %s/ó/\&oacute;/e
+  silent %s/ô/\&ocirc;/e
+  silent %s/õ/\&otilde;/e
+  silent %s/ö/\&ouml;/e
+  silent %s/ø/\&oslash;/e
+  silent %s/ù/\&ugrave;/e
+  silent %s/ú/\&uacute;/e
+  silent %s/û/\&ucirc;/e
+  silent %s/ü/\&uuml;/e
+  silent %s/ý/\&yacute;/e
+  silent %s/þ/\&thorn;/e
+  silent %s/ÿ/\&yuml;/e
+  silent %s/“/"/e
+  silent %s/”/"/e
+  silent %s/’/'/e
 endfunction
 command! HtmlEntities :call HtmlEntities()
 
 function! SoftWrap()
-set formatoptions=1
-set linebreak
-set wrap
-set nolist
-set breakat=\ |@-+;:,./?^I
+  set formatoptions=1
+  set linebreak
+  set wrap
+  set nolist
+  set breakat=\ |@-+;:,./?^I
 endfunction
 command! SoftWrap :call SoftWrap()
 
@@ -384,9 +375,9 @@ nnoremap <leader>ft Vatzf
 " Reselect just pasted
 nnoremap <leader>v V`]
 
-" Ctrl-P 
-nmap <leader>t :CtrlP<CR>
-nmap <leader>b :CtrlPBuffer<CR>
+" Unite.vim
+nmap <leader>t :Unite file_rec buffer<CR>i
+nmap <leader>b :Unite buffer<CR>i
 
 " map ,y to show the yankring
 nmap <leader>y :YRShow<cr>
