@@ -85,9 +85,6 @@
 [submodule ".vimbundles/vim-rake.git"]
 	path = .vimbundles/vim-rake.git
 	url = https://github.com/tpope/vim-rake.git
-[submodule ".vimbundles/SyntaxAttr.vim.git"]
-	path = .vimbundles/SyntaxAttr.vim.git
-	url = git://github.com/vim-scripts/SyntaxAttr.vim.git
 [submodule ".vimbundles/vim-jade.git"]
 	path = .vimbundles/vim-jade.git
 	url = git://github.com/digitaltoad/vim-jade.git
@@ -103,18 +100,12 @@
 [submodule ".vimbundles/vim-browsereload-mac.git"]
 	path = .vimbundles/vim-browsereload-mac.git
 	url = git://github.com/tell-k/vim-browsereload-mac.git
-[submodule ".vimbundles/vim-easymotion.git"]
-	path = .vimbundles/vim-easymotion.git
-	url = git://github.com/Lokaltog/vim-easymotion.git
 [submodule ".vimbundles/neocomplcache.git"]
 	path = .vimbundles/neocomplcache.git
 	url = git://github.com/Shougo/neocomplcache.git
 [submodule ".vimbundles/tagbar.git"]
 	path = .vimbundles/tagbar.git
 	url = git://github.com/majutsushi/tagbar.git
-[submodule ".vimbundles/ctrlp.vim.git"]
-	path = .vimbundles/ctrlp.vim.git
-	url = git://github.com/kien/ctrlp.vim.git
 [submodule ".vimbundles/slimux.git"]
 	path = .vimbundles/slimux.git
 	url = git://github.com/epeli/slimux.git
@@ -160,9 +151,6 @@
 [submodule ".vimbundles/funcoo.vim.git"]
 	path = .vimbundles/funcoo.vim.git
 	url = git://github.com/rizzatti/funcoo.vim.git
-[submodule ".vimbundles/vim-obsession.git"]
-	path = .vimbundles/vim-obsession.git
-	url = git://github.com/tpope/vim-obsession.git
 [submodule ".vimbundles/vim-rvm.git"]
 	path = .vimbundles/vim-rvm.git
 	url = git://github.com/tpope/vim-rvm.git
@@ -220,9 +208,6 @@
 [submodule ".vimbundles/vim-airline.git"]
 	path = .vimbundles/vim-airline.git
 	url = git@github.com:bling/vim-airline.git
-[submodule ".vimbundles/vimroom.git"]
-	path = .vimbundles/vimroom.git
-	url = https://github.com/mikewest/vimroom.git
 [submodule ".vimbundles/dockerfile.vim.git"]
 	path = .vimbundles/dockerfile.vim.git
 	url = https://github.com/honza/dockerfile.vim.git
