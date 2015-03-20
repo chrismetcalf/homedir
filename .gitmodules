@@ -106,9 +106,6 @@
 [submodule ".vimbundles/tagbar.git"]
 	path = .vimbundles/tagbar.git
 	url = git://github.com/majutsushi/tagbar.git
-[submodule ".vimbundles/slimux.git"]
-	path = .vimbundles/slimux.git
-	url = git://github.com/epeli/slimux.git
 [submodule ".vimbundles/gist-vim.git"]
 	path = .vimbundles/gist-vim.git
 	url = git://github.com/mattn/gist-vim.git
@@ -220,3 +217,6 @@
 [submodule ".vimbundles/unite.git"]
 	path = .vimbundles/unite.git
 	url = git@github.com:Shougo/unite.vim.git
+[submodule ".vimbundles/vimproc.vim"]
+	path = .vimbundles/vimproc.vim
+	url = git@github.com:Shougo/vimproc.vim.git
