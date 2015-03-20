@@ -116,14 +116,6 @@ let g:snips_author = "Chris Metcalf"
 " DelimitMate
 let b:delimitMate_autoclose = 0
 
-" NERDComment
-let NERDDefaultNesting = 1
-let NERDSpaceDelims = 1
-let NERDRemoveExtraSpaces = 1
-
-" EasyMotion
-let g:EasyMotion_leader_key = '<Leader><Leader>'
-
 " NeoComplCache
 let g:neocomplcache_enable_at_startup = 1
 let g:neocomplcache_enable_smart_case = 1
@@ -151,13 +143,6 @@ let g:syntastic_mode_map = { 'mode': 'active',
 
 " Disable auto-cd of vim-rooter
 let g:rooter_manual_only = 1
-
-" Vim-Notes
-let g:notes_directories = ['~/Dropbox/Notes']
-let g:notes_suffix = '.txt'
-let g:notes_smart_quotes = 1
-let g:notes_list_bullets = ['*', '-', '+']
-let g:notes_unicode_enabled = 0
 
 " vim-airline
 let g:airline_left_sep = ''
@@ -259,11 +244,11 @@ function! SoftWrap()
 endfunction
 command! SoftWrap :call SoftWrap()
 
-" Write this to a 
+" Write this to a new note file
 function! WNote()
-let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
-exe "save " . filename 
-set filetype=markdown
+  let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
+  exe "save " . filename 
+  set filetype=markdown
 endfunction
 command! WNote :call WNote()
 
@@ -273,50 +258,50 @@ command! WNote :call WNote()
 
 " AutoCmds
 if has("autocmd")
-filetype plugin indent on
+  filetype plugin indent on
 
-function! SetMkdOptions()
-  set filetype=markdown
-  set nolinebreak
-  set wrapmargin=0
-  set spell
-  call SoftWrap()
-  " :NeoComplCacheDisable()<CR>
-endfunction
-au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
+  function! SetMkdOptions()
+    set filetype=markdown
+    set nolinebreak
+    set wrapmargin=0
+    set spell
+    call SoftWrap()
+    " :NeoComplCacheDisable()<CR>
+  endfunction
+  au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
-au BufNewFile,BufRead *.rss,*.atom setfiletype xml
-au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
-au BufNewFile,BufRead *.json setfiletype json
-au BufNewFile,BufRead *.mst set filetype=mustache
+  au BufNewFile,BufRead *.rss,*.atom setfiletype xml
+  au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
+  au BufNewFile,BufRead *.json setfiletype json
+  au BufNewFile,BufRead *.mst set filetype=mustache
 
-" Syntax options
-au FileType java :set shiftwidth=4
+  " Syntax options
+  au FileType java :set shiftwidth=4
 
-" Delimitmate
-function! SetGitOptions()
-  set spell
-  let b:delimitMate_autoclose = 0
-endfunction
-au FileType gitcommit call SetGitOptions()
+  " Delimitmate
+  function! SetGitOptions()
+    set spell
+    let b:delimitMate_autoclose = 0
+  endfunction
+  au FileType gitcommit call SetGitOptions()
 
-" Autoload vimrc and gvimrc
-au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
-au! BufWritePost .gvimrc source ~/.gvimrc
+  " Autoload vimrc and gvimrc
+  au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
+  au! BufWritePost .gvimrc source ~/.gvimrc
 endif
 
 " HTML Escaping
 function! <SID>HtmlEscape()
-silent '<,'>s/&/\&amp;/eg
-silent '<,'>s/</\&lt;/eg
-silent '<,'>s/>/\&gt;/eg
+  silent '<,'>s/&/\&amp;/eg
+  silent '<,'>s/</\&lt;/eg
+  silent '<,'>s/>/\&gt;/eg
 endfunction
 command! HtmlEscape call <SID>HtmlEscape()
 
 function! <SID>HtmlUnEscape()
-silent '<,'>s/&lt;/</eg
-silent '<,'>s/&gt;/>/eg
-silent '<,'>s/&amp;/\&/eg
+  silent '<,'>s/&lt;/</eg
+  silent '<,'>s/&gt;/>/eg
+  silent '<,'>s/&amp;/\&/eg
 endfunction
 command! HtmlUnEscape call <SID>HtmlUnEscape()
 
@@ -343,15 +328,8 @@ nmap <silent> <C-Tab> :bprevious<CR>
 " Quick search clear
 nnoremap <leader><space> :noh<cr>
 
-" ,/ to invert comment on the current line/selection
-nmap <leader>/ :call NERDComment(0, "invert")<cr>
-vmap <leader>/ :call NERDComment(0, "invert")<cr>
-
 " MultiMarkdown the selection
 vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
-
-" Open NerdTree
-nnoremap <leader>nt :NERDTreeToggle<CR>
 
 " Color Pickers
 nnoremap <leader>c :ColorHEX<CR>
@@ -376,18 +354,22 @@ nnoremap <leader>ft Vatzf
 nnoremap <leader>v V`]
 
 " Unite.vim
-nmap <leader>t :Unite file_rec buffer<CR>i
-nmap <leader>b :Unite buffer<CR>i
-
-" map ,y to show the yankring
-nmap <leader>y :YRShow<cr>
-nmap <leader>ys :YRSearch<cr>
+let g:unite_source_history_yank_enable = 1
+if executable('ag')
+  let g:unite_source_grep_command = 'ag'
+  let g:unite_source_grep_default_opts =
+        \ '--line-numbers --nocolor --nogroup --hidden --ignore ' .
+        \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'' ' .
+        \ '--ignore ''**/*.pyc'''
+  let g:unite_source_grep_recursive_opt = ''
+endif
+nmap <leader>t :Unite -start-insert file_rec/async<CR>
+nmap <leader>b :Unite -quick-match buffer<CR>
+nmap <leader>y :Unite -quick-match history/yank<CR>
+nmap <leader>g :Unite grep:.<CR>
 
 " Show Gundo window
-nnoremap <leader>g :GundoToggle<CR>
-
-" VimRoom
-nnoremap <leader>vr :VimroomToggle<CR>
+nnoremap <leader>G :GundoToggle<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -425,21 +407,9 @@ map <leader>[ :tabp<CR>
 " Show syntax details
 map <leader>sy :call SyntaxAttr()<CR>
 
-" TagBar
-map <leader>tt :TagbarToggle<CR>
-
-" Slimux
-map <leader>sr :SlimuxREPLSendSelection<CR>
-map <leader>sc :SlimuxShellPrompt<CR>
-
-" vim-notes
-map <leader>nn :Note 
-map <leader>nd :DeleteNote<CR>
-map <leader>nr :RecentNotes<CR>
-map <C-n> :SearchNotes 
-
 " Jekyll magic
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
+
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   " Shifted
