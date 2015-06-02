@@ -363,9 +363,12 @@ if executable('ag')
         \ '--ignore ''**/*.pyc'''
   let g:unite_source_grep_recursive_opt = ''
 endif
+" if executable('gfind')
+  " let g:unite_source_rec_async_command = 'find . -type f -printf ''%T@ %p\n'' | sort -k 1 -n | sed ''s/^[^ ]* //'''
+" endif
 nmap <leader>t :Unite -start-insert file_rec/async<CR>
-nmap <leader>b :Unite -quick-match buffer<CR>
-nmap <leader>y :Unite -quick-match history/yank<CR>
+nmap <leader>b :Unite -start-insert buffer<CR>
+nmap <leader>y :Unite -start-insert history/yank<CR>
 nmap <leader>g :Unite grep:.<CR>
 
 " Show Gundo window
@@ -379,6 +382,8 @@ vnoremap k gk
 
 " Quick exit out of insert mode
 inoremap jj <Esc>
+inoremap jjw <Esc>:w<CR>
+inoremap jjwq <Esc>:wq<CR>
 
 " Duplicate the line below
 vmap D y'>p
@@ -409,6 +414,17 @@ map <leader>sy :call SyntaxAttr()<CR>
 
 " Jekyll magic
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
+
+" Force myself to use Vim keys by disabling a bunch of stuff
+inoremap <esc>   <NOP>
+inoremap <Left>  <NOP>
+inoremap <Right> <NOP>
+inoremap <Up>    <NOP>
+inoremap <Down>  <NOP>
+nnoremap <Left>  <NOP>
+nnoremap <Right> <NOP>
+nnoremap <Up>    <NOP>
+nnoremap <Down>  <NOP>
 
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")

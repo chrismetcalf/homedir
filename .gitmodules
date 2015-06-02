@@ -220,3 +220,6 @@
 [submodule ".vimbundles/vimproc.vim"]
 	path = .vimbundles/vimproc.vim
 	url = git@github.com:Shougo/vimproc.vim.git
+[submodule ".vimbundles/vim-tmux-navigator.git"]
+	path = .vimbundles/vim-tmux-navigator.git
+	url = git@github.com:christoomey/vim-tmux-navigator.git
