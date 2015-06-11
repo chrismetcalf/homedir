@@ -426,6 +426,12 @@ nnoremap <Right> <NOP>
 nnoremap <Up>    <NOP>
 nnoremap <Down>  <NOP>
 
+" Quick search/replace from
+" http://sheerun.net/2014/03/21/how-to-boost-your-vim-productivity/
+vnoremap <silent> s //e<C-r>=&selection=='exclusive'?'+1':'<CR><CR>
+    \:<C-u>call histdel('search',-1)<Bar>let @/=histget('search',-1)<CR>gv
+omap s :normal vs<CR>
+
 " Quick Ruby Run
 if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
   " Shifted
@@ -437,6 +443,18 @@ endif
 
 " Sudo to write
 cmap w!! w !sudo tee % >/dev/null
+
+" Don't replace the buffer when you put
+" vp doesn't replace paste buffer
+function! RestoreRegister()
+  let @" = s:restore_reg
+  return ''
+endfunction
+function! s:Repl()
+  let s:restore_reg = @"
+  return "p@=RestoreRegister()\<cr>"
+endfunction
+vmap <silent> <expr> p <sid>Repl()
 
 " Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
