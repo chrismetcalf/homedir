@@ -10,3 +10,4 @@ known
 .offlineimap/*.pyc
 .mutt/temp/*
 .mutt/alias
+.mutt/lists
