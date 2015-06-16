@@ -223,3 +223,12 @@
 [submodule ".vimbundles/vim-tmux-navigator.git"]
 	path = .vimbundles/vim-tmux-navigator.git
 	url = git@github.com:christoomey/vim-tmux-navigator.git
+[submodule ".zsh/git/zsh-syntax-highlighting.git"]
+	path = .zsh/git/zsh-syntax-highlighting.git
+	url = https://github.com/zsh-users/zsh-syntax-highlighting.git
+[submodule ".zsh/git/zsh-autoenv.git"]
+	path = .zsh/git/zsh-autoenv.git
+	url = https://github.com/Tarrasch/zsh-autoenv.git
+[submodule ".zsh/git/git-it-on.zsh.git"]
+	path = .zsh/git/git-it-on.zsh.git
+	url = https://github.com/peterhurford/git-it-on.zsh.git
