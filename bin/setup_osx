@@ -16,7 +16,7 @@ defaults write com.apple.dock no-glass -bool true
 defaults write com.apple.dock autohide -bool true
 
 # Hide and show quickly
-defaults write com.apple.Dock autohide-delay -float 0.05
+defaults write com.apple.Dock autohide-delay -float 0.02
 
 # Make Dock icons of hidden applications translucent
 defaults write com.apple.dock showhidden -bool true
@@ -68,6 +68,9 @@ defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 
 # Disable window animations
 defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+
+# Disable expose animations
+defaults write com.apple.dock expose-animation-duration -int 0.05
 
 # Enable AirDrop over Ethernet and on unsupported Macs running Lion
 defaults write com.apple.NetworkBrowser BrowseAllInterfaces -bool true
