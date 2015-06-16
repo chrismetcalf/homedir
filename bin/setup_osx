@@ -143,6 +143,12 @@ hash tmutil &> /dev/null && sudo tmutil disablelocal
 # Enable text selection in Quick Look
 defaults write com.apple.finder QLEnableTextSelection -bool TRUE
 
+# Disable fullscreen transition animation
+defaults write -g NSWindowResizeTime -float 0.001
+
+# Display system info on the login screen
+sudo defaults write /Library/Preferences/com.apple.loginwindow AdminHostInfo HostName
+
 # Kill affected applications
 killall Dock
 killall Finder
