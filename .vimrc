@@ -130,6 +130,7 @@ autocmd FileType javascript setlocal omnifunc=javascriptcomplete#CompleteJS
 autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
 autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
 autocmd FileType ruby,eruby setlocal omnifunc=rubycomplete#Complete
+autocmd FileType crontab setlocal nobackup nowritebackup
 
 " browserreload.vim
 let g:returnApp = "iTerm"
@@ -338,8 +339,7 @@ nnoremap <leader>c :ColorHEX<CR>
 nnoremap <leader>a :Ack 
 
 " Make
-nnoremap <leader>m :make<CR>
-nnoremap <leader>M :make %<CR>
+nnoremap <leader>m :Make<CR>
 
 " Open in marked
 nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
@@ -355,21 +355,24 @@ nnoremap <leader>v V`]
 
 " Unite.vim
 let g:unite_source_history_yank_enable = 1
+call unite#filters#matcher_default#use(['matcher_fuzzy'])
 if executable('ag')
+  " Use ag for grep
   let g:unite_source_grep_command = 'ag'
   let g:unite_source_grep_default_opts =
         \ '--line-numbers --nocolor --nogroup --hidden --ignore ' .
         \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'' ' .
         \ '--ignore ''**/*.pyc'''
   let g:unite_source_grep_recursive_opt = ''
+
+  " Use ag for file_rec/async
+  let g:unite_source_rec_command = 'ag'
 endif
-" if executable('gfind')
-  " let g:unite_source_rec_async_command = 'find . -type f -printf ''%T@ %p\n'' | sort -k 1 -n | sed ''s/^[^ ]* //'''
-" endif
-nmap <leader>t :Unite -start-insert file_rec/async<CR>
-nmap <leader>b :Unite -start-insert buffer<CR>
-nmap <leader>y :Unite -start-insert history/yank<CR>
-nmap <leader>g :Unite grep:.<CR>
+nnoremap <leader>o :Unite -start-insert outline<CR>
+nnoremap <leader>t :Unite -start-insert file_rec<CR>
+nnoremap <leader>b :Unite -start-insert buffer<CR>
+nnoremap <leader>y :Unite -start-insert history/yank<CR>
+nnoremap <leader>g :Unite grep:.<CR>
 
 " Show Gundo window
 nnoremap <leader>G :GundoToggle<CR>
@@ -414,17 +417,18 @@ map <leader>sy :call SyntaxAttr()<CR>
 
 " Jekyll magic
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
+nnoremap <leader>mw :silent !tmux split-window -b -l 8 'cd $(pwd); make watch<cr>
 
 " Force myself to use Vim keys by disabling a bunch of stuff
-inoremap <esc>   <NOP>
-inoremap <Left>  <NOP>
-inoremap <Right> <NOP>
-inoremap <Up>    <NOP>
-inoremap <Down>  <NOP>
-nnoremap <Left>  <NOP>
-nnoremap <Right> <NOP>
-nnoremap <Up>    <NOP>
-nnoremap <Down>  <NOP>
+" inoremap <esc>   <NOP>
+" inoremap <Left>  <NOP>
+" inoremap <Right> <NOP>
+" inoremap <Up>    <NOP>
+" inoremap <Down>  <NOP>
+" nnoremap <Left>  <NOP>
+" nnoremap <Right> <NOP>
+" nnoremap <Up>    <NOP>
+" nnoremap <Down>  <NOP>
 
 " Quick search/replace from
 " http://sheerun.net/2014/03/21/how-to-boost-your-vim-productivity/
