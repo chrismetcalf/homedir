@@ -235,6 +235,6 @@
 [submodule ".vimbundles/goyo.vim.git"]
 	path = .vimbundles/goyo.vim.git
 	url = https://github.com/junegunn/goyo.vim.git
-[submodule ".vimbundles/vim-zenroom2.git"]
-	path = .vimbundles/vim-zenroom2.git
-	url = https://github.com/amix/vim-zenroom2.git
+[submodule ".vimbundles/ejs-synta.git"]
+	path = .vimbundles/ejs-synta.git
+	url = https://github.com/nikvdp/ejs-syntax.git
