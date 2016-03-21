@@ -238,3 +238,6 @@
 [submodule ".vimbundles/ejs-synta.git"]
 	path = .vimbundles/ejs-synta.git
 	url = https://github.com/nikvdp/ejs-syntax.git
+[submodule ".tmux/plugins/tpm"]
+	path = .tmux/plugins/tpm
+	url = https://github.com/tmux-plugins/tpm
