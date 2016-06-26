@@ -244,3 +244,6 @@
 [submodule ".vimbundles/vim-tmux.git"]
 	path = .vimbundles/vim-tmux.git
 	url = git://github.com/tmux-plugins/vim-tmux.git
+[submodule ".vimbundles/vim-zenroom2.git"]
+	path = .vimbundles/vim-zenroom2.git
+	url = https://github.com/amix/vim-zenroom2.git
