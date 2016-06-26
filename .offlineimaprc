@@ -9,7 +9,7 @@ localrepository = Work-Local
 remoterepository = Work-Remote
 status_backend = sqlite
 postsynchook = notmuch new
-maxage = 730
+maxage = 30
 
 [Repository Work-Local]
 type = Maildir
@@ -26,7 +26,7 @@ maxconnections = 4
 type = Gmail
 remoteuser = chris.metcalf@socrata.com
 remotepasseval = get_keychain_pass(account="chris.metcalf@socrata.com", server="imap.gmail.com")
-sslcacertfile = /usr/local/opt/curl-ca-bundle/share/ca-bundle.crt
+sslcacertfile = /usr/local/lib/node_modules/npm/node_modules/node-gyp/test/fixtures/ca-bundle.crt
 realdelete = no
 nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
                             '[Gmail]/Sent Mail': 'sent',
@@ -45,7 +45,7 @@ localrepository = Personal-Local
 remoterepository = Personal-Remote
 status_backend = sqlite
 postsynchook = notmuch new
-maxage = 60
+maxage = 14
 
 [Repository Personal-Local]
 type = Maildir
@@ -62,7 +62,7 @@ maxconnections = 4
 type = Gmail
 remoteuser = chris@chrismetcalf.net
 remotepasseval = get_keychain_pass(account="chris@chrismetcalf.net", server="imap.gmail.com")
-sslcacertfile = /usr/local/opt/curl-ca-bundle/share/ca-bundle.crt
+sslcacertfile = /usr/local/lib/node_modules/npm/node_modules/node-gyp/test/fixtures/ca-bundle.crt
 realdelete = no
 nametrans = lambda folder: {'[Gmail]/Drafts':    'drafts',
                             '[Gmail]/Sent Mail': 'sent',
