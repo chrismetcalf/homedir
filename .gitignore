@@ -11,3 +11,4 @@ known
 .mutt/temp/*
 .mutt/alias
 .mutt/lists
+.tmux/plugins/*
