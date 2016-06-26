@@ -20,3 +20,6 @@ export PERLLIB=$HOME/bin/record-stream/libs:$PERLLIB
 
 # Number of directories in your pushd/popd stack
 DIRSTACKSIZE=20
+
+# Homebrew opts
+export HOMEBREW_CASK_OPTS="--appdir=/Applications"
