@@ -25,3 +25,6 @@ fi
 if [ -f ~/.zshrc.local ]; then
     source ~/.zshrc.local
 fi
+
+# added by travis gem
+[ -f /Users/metcalf/.travis/travis.sh ] && source /Users/metcalf/.travis/travis.sh
