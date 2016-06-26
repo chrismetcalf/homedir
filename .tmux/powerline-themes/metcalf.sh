@@ -28,7 +28,7 @@ if [ -z $TMUX_POWERLINE_LEFT_STATUS_SEGMENTS ]; then
     # "doing 235 136"
     # "ifstat 30 255" \
     # "ifstat_sys 30 255" \
-    # "lan_ip 24 255" \
+    "lan_ip 24 255" \
     # "wan_ip 24 255" \
     # "vcs_branch 29 88" \
     # "vcs_compare 60 255" \
