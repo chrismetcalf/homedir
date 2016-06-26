@@ -12,9 +12,6 @@ alias update-homedir='cd $HOME/.homedir && git pull --rebase && gitfix && popd'
 # Random ascii for passwords and such
 alias random-ascii='cat /dev/urandom | tr -dc _A-Za-z0-9'
 
-# Shortened alias for doing
-alias d='doing'
-
 # Where am I?
 alias whereami='geoiplookup `curl --max-time 2 -s http://whatismyip.akamai.com/ | tr -d "\n"`'
 
