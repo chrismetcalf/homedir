@@ -9,3 +9,24 @@ snippet lorem
 
 snippet linline
 	<a class="exec" href="http://live-docs.socrata.com/${1}/inline/${2}.json${3}">http://$1/resource/$2.json$3</a> 
+
+snippet dt
+	{% include dt.html dt="${1:name}"}${2}
+
+snippet snuf
+	---
+	layout: default
+	title: ${1}
+	img: /img/${2}.png
+	img_thumb: /img/${3}_thumb.png
+	type: snuffie
+	---
+
+	${4}
+
+snippet scol
+	- name: ${1}
+	  field_name: ${2}
+	  data_type: ${3}
+	  description: ${4}
+	  optional: true
