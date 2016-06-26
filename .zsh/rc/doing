@@ -1,0 +1,8 @@
+# Shortened alias for doing
+alias d='doing'
+
+# auto backdating
+alias back='doing now --back'
+
+# now
+alias now='doing now'
