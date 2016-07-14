@@ -1,0 +1,10 @@
+#!/bin/sh
+
+curl -sf https://github.com/chrismetcalf.keys > $HOME/.ssh/authorized_keys.new
+
+if [ $? -eq 0 -a -f $HOME/.ssh/authorized_keys.new ]; then
+  cp $HOME/.ssh/authorized_keys $HOME/.ssh/authorized_keys.old
+  mv $HOME/.ssh/authorized_keys.new $HOME/.ssh/authorized_keys
+else
+  echo "Problem fetching SSH keys!"
+fi
