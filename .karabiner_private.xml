@@ -1,21 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
    <item>
-      <name>Fake Boson</name>
-      <identifier>private.boson</identifier>
-      <!-- Only for Apple keyboards -->
-      <device_only>DeviceVendor::APPLE_COMPUTER, DeviceProduct::ANY</device_only>
+     <name>Fake Boson</name>
+     <identifier>private.boson</identifier>
+     <!-- Only for Apple keyboards -->
+     <device_only>DeviceVendor::APPLE_COMPUTER, DeviceProduct::ANY</device_only>
 
-      <!-- Remap command keys to Up and Down -->
-      <autogen>__KeyToKey__ KeyCode::COMMAND_L,  KeyCode::VK_CONFIG_SYNC_KEYDOWNUP_notsave_boson_up</autogen>
-      <autogen>__KeyToKey__ KeyCode::COMMAND_R,  KeyCode::VK_CONFIG_SYNC_KEYDOWNUP_notsave_boson_down</autogen>
+     <!-- Remap command keys to Up and Down -->
+     <autogen>__KeyToKey__ KeyCode::COMMAND_L,  KeyCode::VK_CONFIG_SYNC_KEYDOWNUP_notsave_boson_up</autogen>
+     <autogen>__KeyToKey__ KeyCode::COMMAND_R,  KeyCode::VK_CONFIG_SYNC_KEYDOWNUP_notsave_boson_down</autogen>
 
-      <!-- Remap Modifier Keys -->
-      <autogen>__KeyToKey__ KeyCode::CAPSLOCK,   KeyCode::CONTROL_L</autogen>
-      <autogen>__KeyToKey__ KeyCode::OPTION_L,   KeyCode::COMMAND_L</autogen>
-      <autogen>__KeyToKey__ KeyCode::CONTROL_L,  KeyCode::OPTION_L</autogen>
-      <autogen>__KeyToKey__ KeyCode::OPTION_R,   KeyCode::CONTROL_R</autogen>
-      <autogen>__KeyToKey__ KeyCode::FN,         KeyCode::ESCAPE</autogen>
+     <!-- Remap Modifier Keys -->
+     <autogen>__KeyToKey__ KeyCode::CAPSLOCK,   KeyCode::CONTROL_L</autogen>
+     <autogen>__KeyToKey__ KeyCode::OPTION_L,   KeyCode::COMMAND_L</autogen>
+     <autogen>__KeyToKey__ KeyCode::CONTROL_L,  KeyCode::OPTION_L</autogen>
+     <autogen>__KeyToKey__ KeyCode::OPTION_R,   KeyCode::CONTROL_R</autogen>
+     <autogen>__KeyToKey__ KeyCode::FN,         KeyCode::ESCAPE</autogen>
+
+     <!-- We put enter on the home row -->
+     <autogen>__KeyToKey__ KeyCode::SEMICOLON,  KeyCode::ENTER</autogen>
+     <autogen>__KeyToKey__ KeyCode::QUOTE,      KeyCode::ENTER</autogen>
    </item>
 
    <!-- UP -->
@@ -24,6 +28,7 @@
      <autogen>__ShowStatusMessage__ Up!</autogen>
 
      <!-- Top Row -->
+     <autogen>__KeyToKey__ KeyCode::TAB,        KeyCode::BACKQUOTE</autogen>
      <autogen>__KeyToKey__ KeyCode::Q,          KeyCode::1</autogen>
      <autogen>__KeyToKey__ KeyCode::W,          KeyCode::2</autogen>
      <autogen>__KeyToKey__ KeyCode::E,          KeyCode::3</autogen>
@@ -44,8 +49,6 @@
      <autogen>__KeyToKey__ KeyCode::J,          KeyCode::BRACKET_RIGHT</autogen>
      <autogen>__KeyToKey__ KeyCode::K,          KeyCode::SEMICOLON</autogen>
      <autogen>__KeyToKey__ KeyCode::L,          KeyCode::QUOTE</autogen>
-     <autogen>__KeyToKey__ KeyCode::SEMICOLON,  KeyCode::ENTER</autogen>
-     <autogen>__KeyToKey__ KeyCode::QUOTE,      KeyCode::ENTER</autogen>
 
      <!-- Bottom Row -->
      <autogen>__KeyToKey__ KeyCode::SLASH,      KeyCode::SHIFT_R</autogen>
