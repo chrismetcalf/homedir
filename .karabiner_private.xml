@@ -20,6 +20,11 @@
      <!-- We put enter on the home row -->
      <autogen>__KeyToKey__ KeyCode::SEMICOLON,  KeyCode::ENTER</autogen>
      <autogen>__KeyToKey__ KeyCode::QUOTE,      KeyCode::ENTER</autogen>
+
+     <!-- Remap top row delete -->
+     <autogen>__KeyToKey__ KeyCode::BRACKET_LEFT,   KeyCode::DELETE</autogen>
+     <autogen>__KeyToKey__ KeyCode::BRACKET_RIGHT,  KeyCode::DELETE</autogen>
+     <autogen>__KeyToKey__ KeyCode::BACKSLASH,      KeyCode::DELETE</autogen>
    </item>
 
    <!-- UP -->
@@ -28,17 +33,17 @@
      <autogen>__ShowStatusMessage__ Up!</autogen>
 
      <!-- Top Row -->
-     <autogen>__KeyToKey__ KeyCode::TAB,        KeyCode::BACKQUOTE</autogen>
-     <autogen>__KeyToKey__ KeyCode::Q,          KeyCode::1</autogen>
-     <autogen>__KeyToKey__ KeyCode::W,          KeyCode::2</autogen>
-     <autogen>__KeyToKey__ KeyCode::E,          KeyCode::3</autogen>
-     <autogen>__KeyToKey__ KeyCode::R,          KeyCode::4</autogen>
-     <autogen>__KeyToKey__ KeyCode::T,          KeyCode::5</autogen>
-     <autogen>__KeyToKey__ KeyCode::Y,          KeyCode::6</autogen>
-     <autogen>__KeyToKey__ KeyCode::U,          KeyCode::7</autogen>
-     <autogen>__KeyToKey__ KeyCode::I,          KeyCode::8</autogen>
-     <autogen>__KeyToKey__ KeyCode::O,          KeyCode::9</autogen>
-     <autogen>__KeyToKey__ KeyCode::P,          KeyCode::0</autogen>
+     <autogen>__KeyToKey__ KeyCode::TAB,            KeyCode::BACKQUOTE</autogen>
+     <autogen>__KeyToKey__ KeyCode::Q,              KeyCode::1</autogen>
+     <autogen>__KeyToKey__ KeyCode::W,              KeyCode::2</autogen>
+     <autogen>__KeyToKey__ KeyCode::E,              KeyCode::3</autogen>
+     <autogen>__KeyToKey__ KeyCode::R,              KeyCode::4</autogen>
+     <autogen>__KeyToKey__ KeyCode::T,              KeyCode::5</autogen>
+     <autogen>__KeyToKey__ KeyCode::Y,              KeyCode::6</autogen>
+     <autogen>__KeyToKey__ KeyCode::U,              KeyCode::7</autogen>
+     <autogen>__KeyToKey__ KeyCode::I,              KeyCode::8</autogen>
+     <autogen>__KeyToKey__ KeyCode::O,              KeyCode::9</autogen>
+     <autogen>__KeyToKey__ KeyCode::P,              KeyCode::0</autogen>
 
      <!-- Middle Row -->
      <autogen>__KeyToKey__ KeyCode::S,          KeyCode::MINUS</autogen>
@@ -81,5 +86,7 @@
      <autogen>__KeyToKey__ KeyCode::V,          KeyCode::VK_CONSUMERKEY_MUSIC_NEXT</autogen>
 
      <autogen>__KeyToKey__ KeyCode::COMMA,      KeyCode::BACKSLASH, ModifierFlag::COMMAND_L, ModifierFlag::SHIFT_L</autogen>
+     <autogen>__KeyToKey__ KeyCode::DOT,        KeyCode::BACKSLASH, ModifierFlag::COMMAND_L, ModifierFlag::CONTROL_L</autogen>
+     <autogen>__KeyToKey__ KeyCode::SLASH,      KeyCode::BACKSLASH, ModifierFlag::COMMAND_L, ModifierFlag::SHIFT_L, ModifierFlag::OPTION_L</autogen>
    </item>
 </root>
