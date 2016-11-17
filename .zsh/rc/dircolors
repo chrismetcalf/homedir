@@ -1,1 +1,3 @@
-eval `dircolors ~/.dircolors.256dark`
+if type dircolors > /dev/null; then
+  eval `dircolors ~/.dircolors.256dark`
+fi
