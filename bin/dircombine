@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Uses symlinks to merge the files contained in a set of vcs
 # checkouts to into a single directory. Keeps track of when files are
 # removed from the merged directories and removes the symlinks.
