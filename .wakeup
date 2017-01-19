@@ -1,2 +1,4 @@
 #!/bin/sh
 
+# Enable keyboard
+#/usr/local/bin/enable-keyboard
