@@ -366,7 +366,11 @@ if executable('ag')
   let g:unite_source_grep_recursive_opt = ''
 
   " Use ag for file_rec/async
-  let g:unite_source_rec_command = 'ag'
+  let g:unite_source_rec_async_command = 'ag'
+  let g:unite_source_rec_async_default_opts =
+        \ '--line-numbers --nocolor --nogroup --hidden --ignore ' .
+        \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'' ' .
+        \ '--ignore ''**/*.pyc'''
 endif
 nnoremap <leader>o :Unite -start-insert outline<CR>
 nnoremap <leader>t :Unite -start-insert file_rec<CR>

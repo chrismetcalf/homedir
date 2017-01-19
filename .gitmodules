@@ -247,3 +247,9 @@
 [submodule ".vimbundles/vim-zenroom2.git"]
 	path = .vimbundles/vim-zenroom2.git
 	url = https://github.com/amix/vim-zenroom2.git
+[submodule ".vimbundles/vim-tmux-focus-events.git"]
+	path = .vimbundles/vim-tmux-focus-events.git
+	url = git://github.com/tmux-plugins/vim-tmux-focus-events.git
+[submodule ".vimbundles/Monkey-VIM.git"]
+	path = .vimbundles/Monkey-VIM.git
+	url = https://github.com/rawsource/Monkey-VIM.git
