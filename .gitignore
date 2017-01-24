@@ -12,3 +12,4 @@ known
 .mutt/alias
 .mutt/lists
 .tmux/plugins/*
+/.config/thefuck/settings.pyc
