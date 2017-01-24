@@ -13,3 +13,4 @@ known
 .mutt/lists
 .tmux/plugins/*
 /.config/thefuck/settings.pyc
+.DS_Store
