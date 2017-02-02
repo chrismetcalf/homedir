@@ -423,6 +423,9 @@ map <leader>sy :call SyntaxAttr()<CR>
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
 nnoremap <leader>mw :silent !tmux split-window -b -l 8 'cd $(pwd); make watch<cr>
 
+" Quick Dash search
+nnoremap <leader>d :Dash 
+
 " Force myself to use Vim keys by disabling a bunch of stuff
 " inoremap <esc>   <NOP>
 " inoremap <Left>  <NOP>
