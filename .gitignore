@@ -14,3 +14,10 @@ known
 .tmux/plugins/*
 /.config/thefuck/settings.pyc
 .DS_Store
+.config/gqrx
+.config/gtk-2.0
+.config/hub
+.config/inkscape
+.config/rtv
+.config/xm1
+.config/configstore
