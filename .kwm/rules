@@ -13,4 +13,5 @@ kwmc rule owner="Fantastical 2" properties={role="AXDialog"}
 kwmc rule owner="1Password 6" properties={float="true"}
 kwmc rule owner="Connect IQ Device Simulator" properties={float="true"}
 kwmc rule owner="ConnectIQ" properties={role="AXDialog"}
+kwmc rule owner="Dash" properties={float="true"}
 kwmc rule owner="Dictionary" properties={float="true"}
