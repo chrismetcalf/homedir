@@ -91,6 +91,8 @@ set wildmenu
 
 " Set nice colors
 colorscheme jellybeans
+highlight Normal guibg=NONE ctermbg=NONE
+highlight LineNr guibg=NONE ctermbg=NONE
 
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
@@ -101,6 +103,7 @@ let vimrplugin_screenplugin = 0
 
 " vim-gitgutter
 highlight clear SignColumn
+highlight SignColumn guibg=NONE ctermbg=NONE
 
 " Gist
 let g:gist_open_browser_after_post = 1
