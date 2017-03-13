@@ -1,5 +1,5 @@
 [General]
-  snippetfile = "/Users/metcalf/.config/pet/snippet.toml"
+  snippetfile = "~/Dropbox/Apps/pet/snippet.toml"
   editor = "vim"
   column = 40
   selectcmd = "peco"
