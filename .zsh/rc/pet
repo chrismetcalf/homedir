@@ -1,0 +1,17 @@
+if type pet > /dev/null; then
+  # Map a new snippet
+  function prev() {
+    PREV=$(fc -lrn | head -n 1)
+    sh -c "pet new `printf %q "$PREV"`"
+  }
+
+  # Select a snippet with a shortcut key
+  function pet-select() {
+    BUFFER=$(pet search --query "$LBUFFER")
+    CURSOR=$#BUFFER
+    zle redisplay
+  }
+  zle -N pet-select
+  bindkey '^p' pet-select
+fi
+

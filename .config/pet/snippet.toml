@@ -1,0 +1,3 @@
+[[snippets]]
+  description = "Who am I?"
+  command = "whoami"
