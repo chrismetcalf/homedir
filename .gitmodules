@@ -253,3 +253,18 @@
 [submodule ".vimbundles/Monkey-VIM.git"]
 	path = .vimbundles/Monkey-VIM.git
 	url = https://github.com/rawsource/Monkey-VIM.git
+[submodule ".vimbundles/neoyank.vim.git"]
+	path = .vimbundles/neoyank.vim.git
+	url = https://github.com/Shougo/neoyank.vim.git
+[submodule ".vimbundles/unite-help.git"]
+	path = .vimbundles/unite-help.git
+	url = https://github.com/Shougo/unite-help.git
+[submodule ".vimbundles/vim-outline.git"]
+	path = .vimbundles/vim-outline.git
+	url = https://github.com/Shougo/unite-outline.git
+[submodule ".vimbundles/vim-quickfix.git"]
+	path = .vimbundles/vim-quickfix.git
+	url = https://github.com/osyo-manga/unite-quickfix.git
+[submodule ".vimbundles/unite-tag.git"]
+	path = .vimbundles/unite-tag.git
+	url = https://github.com/tsukkee/unite-tag.git

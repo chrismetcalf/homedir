@@ -6,12 +6,15 @@ brew 'corelocationcli'
 brew 'coreutils'
 brew 'curl'
 brew 'diff-so-fancy'
+brew 'fzf'
 brew 'git'
 brew 'htop-osx'
+brew 'imagemagick'
 brew 'mobile-shell'
 brew 'ncdu'
 brew 'pstree'
 brew 'reattach-to-user-namespace'
+brew 'stunnel'
 brew 'thefuck'
 brew 'tmux'
 brew 'vim'
@@ -34,11 +37,17 @@ tap 'koekeishiya/formulae'
 brew 'kwm', restart_service: true
 brew 'khd', restart_service: true
 
+
 # Cask Mac Apps
 cask_args appdir: '/Applications'
 
+# For omnipotent
+cask 'java'
+brew 'elasticsearch'
+
 cask '1password'
 cask 'alfred'
+cask 'anvil'
 cask 'bartender'
 cask 'bitbar'
 cask 'caffeine'
@@ -50,6 +59,8 @@ cask 'flux'
 cask 'hazel'
 cask 'iterm2'
 cask 'karabiner-elements'
+cask 'little-snitch'
+cask 'micro-snitch'
 cask 'nimbus'
 cask 'omnifocus'
 cask 'path-finder'
