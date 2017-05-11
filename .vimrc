@@ -93,6 +93,7 @@ set wildmenu
 colorscheme jellybeans
 highlight Normal guibg=NONE ctermbg=NONE
 highlight LineNr guibg=NONE ctermbg=NONE
+highlight NonText guibg=NONE ctermbg=NONE
 
 """"""""""""""""""""""""""""""""""""""""""
 " Plugin Config
@@ -375,11 +376,14 @@ if executable('ag')
         \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'' ' .
         \ '--ignore ''**/*.pyc'''
 endif
-nnoremap <leader>o :Unite -start-insert outline<CR>
-nnoremap <leader>t :Unite -start-insert file_rec<CR>
 nnoremap <leader>b :Unite -start-insert buffer<CR>
-nnoremap <leader>y :Unite -start-insert history/yank<CR>
+nnoremap <leader>f :Unite -start-insert file_rec/git:--cached:--others:--exclude-standard<CR>
 nnoremap <leader>g :Unite grep:.<CR>
+nnoremap <leader>h :Unite -start-insert help<CR>
+nnoremap <leader>o :Unite -start-insert outline<CR>
+nnoremap <leader>q :Unite -start-insert quickfix<CR>
+nnoremap <leader>t :Unite -start-insert tag<CR>
+nnoremap <leader>y :Unite -start-insert history/yank<CR>
 
 " Show Gundo window
 nnoremap <leader>G :GundoToggle<CR>
