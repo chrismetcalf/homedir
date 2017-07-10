@@ -1,168 +1,15 @@
-[submodule ".vimbundles/vim-cucumber"]
-	path = .vimbundles/vim-cucumber
-	url = git://github.com/tpope/vim-cucumber.git
-[submodule ".vimbundles/vim-vividchalk"]
-	path = .vimbundles/vim-vividchalk
-	url = git://github.com/tpope/vim-vividchalk.git
-[submodule ".vimbundles/vim-haml"]
-	path = .vimbundles/vim-haml
-	url = git://github.com/tpope/vim-haml.git
-[submodule ".vimbundles/vim-endwise"]
-	path = .vimbundles/vim-endwise
-	url = git://github.com/tpope/vim-endwise.git
-[submodule ".vimbundles/vim-surround"]
-	path = .vimbundles/vim-surround
-	url = git://github.com/tpope/vim-surround.git
-[submodule ".vimbundles/vim-repeat"]
-	path = .vimbundles/vim-repeat
-	url = git://github.com/tpope/vim-repeat.git
-[submodule ".vimbundles/ack"]
-	path = .vimbundles/ack
-	url = git://github.com/mileszs/ack.vim.git
-[submodule ".vimbundles/vim-git"]
-	path = .vimbundles/vim-git
-	url = git://github.com/tpope/vim-git.git
-[submodule ".vimbundles/vim-fugitive"]
-	path = .vimbundles/vim-fugitive
-	url = git://github.com/tpope/vim-fugitive.git
-[submodule ".vimbundles/vim-pastie"]
-	path = .vimbundles/vim-pastie
-	url = git://github.com/tpope/vim-pastie.git
-[submodule ".vimbundles/gitosis"]
-	path = .vimbundles/gitosis
-	url = git://github.com/timcharper/gitosis.vim.git
-[submodule ".vimbundles/snipmate"]
-	path = .vimbundles/snipmate
-	url = git://github.com/msanders/snipmate.vim.git
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
 	url = git://github.com/robey/growlme.git
-[submodule ".vimbundles/vim-ragtag"]
-	path = .vimbundles/vim-ragtag
-	url = http://github.com/tpope/vim-ragtag.git
-[submodule ".vimbundles/tabular"]
-	path = .vimbundles/tabular
-	url = https://github.com/godlygeek/tabular.git
-[submodule ".vimbundles/vim-ruby-runner"]
-	path = .vimbundles/vim-ruby-runner
-	url = https://github.com/henrik/vim-ruby-runner.git
-[submodule ".vimbundles/vim-easymotion"]
-	path = .vimbundles/vim-easymotion
-	url = https://github.com/Lokaltog/vim-easymotion.git
-[submodule ".vimbundles/gitv"]
-	path = .vimbundles/gitv
-	url = https://github.com/gregsexton/gitv.git
-[submodule ".vimbundles/scala-vim-support"]
-	path = .vimbundles/scala-vim-support
-	url = git://github.com/chrismetcalf/scala-vim-support.git
-[submodule ".vimbundles/scala-vim-snippets"]
-	path = .vimbundles/scala-vim-snippets
-	url = git://github.com/chrismetcalf/scala-vim-snippets.git
-[submodule ".vimbundles/vim-idlefingers"]
-	path = .vimbundles/vim-idlefingers
-	url = https://github.com/shinzui/vim-idleFingers.git
-[submodule ".vimbundles/gundo.vim"]
-	path = .vimbundles/gundo.vim
-	url = https://github.com/sjl/gundo.vim.git
-[submodule ".vimbundles/badwolf.git"]
-	path = .vimbundles/badwolf.git
-	url = https://github.com/sjl/badwolf.git
-[submodule ".vimbundles/vim-r-plugin.git"]
-	path = .vimbundles/vim-r-plugin.git
-	url = https://github.com/jcfaria/Vim-R-plugin.git
 [submodule ".oh-my-zsh"]
 	path = .oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
-[submodule ".vimbundles/webapi-vim.git"]
-	path = .vimbundles/webapi-vim.git
-	url = https://github.com/mattn/webapi-vim.git
-[submodule ".vimbundles/vim-eunich.git"]
-	path = .vimbundles/vim-eunich.git
-	url = https://github.com/tpope/vim-eunuch
-[submodule ".vimbundles/vim-commentary.git"]
-	path = .vimbundles/vim-commentary.git
-	url = https://github.com/tpope/vim-commentary.git
-[submodule ".vimbundles/vim-rake.git"]
-	path = .vimbundles/vim-rake.git
-	url = https://github.com/tpope/vim-rake.git
-[submodule ".vimbundles/vim-jade.git"]
-	path = .vimbundles/vim-jade.git
-	url = git://github.com/digitaltoad/vim-jade.git
-[submodule ".vimbundles/syntastic.git"]
-	path = .vimbundles/syntastic.git
-	url = git://github.com/scrooloose/syntastic.git
 [submodule ".tomorrow-theme.git"]
 	path = .tomorrow-theme.git
 	url = git://github.com/chriskempson/tomorrow-theme.git
-[submodule ".vimbundles/delimitMate.git"]
-	path = .vimbundles/delimitMate.git
-	url = git://github.com/Raimondi/delimitMate.git
-[submodule ".vimbundles/vim-browsereload-mac.git"]
-	path = .vimbundles/vim-browsereload-mac.git
-	url = git://github.com/tell-k/vim-browsereload-mac.git
-[submodule ".vimbundles/neocomplcache.git"]
-	path = .vimbundles/neocomplcache.git
-	url = git://github.com/Shougo/neocomplcache.git
-[submodule ".vimbundles/tagbar.git"]
-	path = .vimbundles/tagbar.git
-	url = git://github.com/majutsushi/tagbar.git
-[submodule ".vimbundles/gist-vim.git"]
-	path = .vimbundles/gist-vim.git
-	url = git://github.com/mattn/gist-vim.git
-[submodule ".vimbundles/vim-json-bundle.git"]
-	path = .vimbundles/vim-json-bundle.git
-	url = git://github.com/vim-scripts/vim-json-bundle.git
-[submodule ".vimbundles/scratch.vim.git"]
-	path = .vimbundles/scratch.vim.git
-	url = git://github.com/vim-scripts/scratch.vim.git
-[submodule ".vimbundles/YankRing.vim"]
-	path = .vimbundles/YankRing.vim
-	url = https://github.com/vim-scripts/YankRing.vim
-[submodule ".vimbundles/vim-arduino.git"]
-	path = .vimbundles/vim-arduino.git
-	url = git://github.com/tclem/vim-arduino.git
 [submodule ".tmux/tmux-powerline.git"]
 	path = .tmux/tmux-powerline.git
 	url = git://github.com/erikw/tmux-powerline.git
-[submodule ".vimbundles/vim-bundler.git"]
-	path = .vimbundles/vim-bundler.git
-	url = https://github.com/tpope/vim-bundler.git
-[submodule ".vimbundles/vim-gitgutter.git"]
-	path = .vimbundles/vim-gitgutter.git
-	url = git://github.com/airblade/vim-gitgutter.git
-[submodule ".vimbundles/vim-liquid.git"]
-	path = .vimbundles/vim-liquid.git
-	url = git@github.com:tpope/vim-liquid.git
-[submodule ".vimbundles/vim-markdown.git"]
-	path = .vimbundles/vim-markdown.git
-	url = git://github.com/tpope/vim-markdown.git
-[submodule ".vimbundles/vim-rooter.git"]
-	path = .vimbundles/vim-rooter.git
-	url = git://github.com/airblade/vim-rooter.git
-[submodule ".vimbundles/dash.vim.git"]
-	path = .vimbundles/dash.vim.git
-	url = git://github.com/rizzatti/dash.vim.git
-[submodule ".vimbundles/vim-pathogen.git"]
-	path = .vimbundles/vim-pathogen.git
-	url = git://github.com/tpope/vim-pathogen.git
-[submodule ".vimbundles/funcoo.vim.git"]
-	path = .vimbundles/funcoo.vim.git
-	url = git://github.com/rizzatti/funcoo.vim.git
-[submodule ".vimbundles/vim-rvm.git"]
-	path = .vimbundles/vim-rvm.git
-	url = git://github.com/tpope/vim-rvm.git
-[submodule ".vimbundles/molokai.git"]
-	path = .vimbundles/molokai.git
-	url = https://github.com/tomasr/molokai
-[submodule ".vimbundles/vim-tbone.git"]
-	path = .vimbundles/vim-tbone.git
-	url = https://github.com/tpope/vim-tbone.git
-[submodule ".vimbundles/vim-dispatch.git"]
-	path = .vimbundles/vim-dispatch.git
-	url = https://github.com/tpope/vim-dispatch.git
-[submodule ".vimbundles/vim-fakeclip.git"]
-	path = .vimbundles/vim-fakeclip.git
-	url = https://github.com/kana/vim-fakeclip.git
 [submodule "bin/otask.git"]
 	path = bin/otask.git
 	url = https://github.com/chrismetcalf/OTask.git
@@ -175,54 +22,12 @@
 [submodule "bin/hr.git"]
 	path = bin/hr.git
 	url = git@github.com:LuRsT/hr.git
-[submodule ".vimbundles/vim-misc.git"]
-	path = .vimbundles/vim-misc.git
-	url = git@github.com:xolox/vim-misc.git
-[submodule ".vimbundles/utl.vim.git"]
-	path = .vimbundles/utl.vim.git
-	url = git@github.com:vim-scripts/utl.vim.git
-[submodule ".vimbundles/vim-multiple-cursors.git"]
-	path = .vimbundles/vim-multiple-cursors.git
-	url = git@github.com:terryma/vim-multiple-cursors.git
-[submodule ".vimbundles/vim-apib.git"]
-	path = .vimbundles/vim-apib.git
-	url = git@github.com:lrampa/vim-apib.git
 [submodule "bin/spl.git"]
 	path = bin/spl.git
 	url = https://gist.github.com/11476891.git
-[submodule ".vimbundles/taskpaper.vim.git"]
-	path = .vimbundles/taskpaper.vim.git
-	url = git@github.com:davidoc/taskpaper.vim.git
 [submodule "bin/recordstream.git"]
 	path = bin/recordstream.git
 	url = git@github.com:benbernard/RecordStream.git
-[submodule ".vimbundles/vim-mustache-handlebars.git"]
-	path = .vimbundles/vim-mustache-handlebars.git
-	url = git@github.com:mustache/vim-mustache-handlebars.git
-[submodule ".vimbundles/vim-airline.git"]
-	path = .vimbundles/vim-airline.git
-	url = git@github.com:bling/vim-airline.git
-[submodule ".vimbundles/dockerfile.vim.git"]
-	path = .vimbundles/dockerfile.vim.git
-	url = https://github.com/honza/dockerfile.vim.git
-[submodule ".vimbundles/vim-heroku.git"]
-	path = .vimbundles/vim-heroku.git
-	url = https://github.com/tpope/vim-heroku.git
-[submodule ".vimbundles/vim-speeddating.git"]
-	path = .vimbundles/vim-speeddating.git
-	url = https://github.com/tpope/vim-speeddating.git
-[submodule ".vimbundles/splitjoin.vim"]
-	path = .vimbundles/splitjoin.vim
-	url = https://github.com/AndrewRadev/splitjoin.vim
-[submodule ".vimbundles/unite.git"]
-	path = .vimbundles/unite.git
-	url = git@github.com:Shougo/unite.vim.git
-[submodule ".vimbundles/vimproc.vim"]
-	path = .vimbundles/vimproc.vim
-	url = git@github.com:Shougo/vimproc.vim.git
-[submodule ".vimbundles/vim-tmux-navigator.git"]
-	path = .vimbundles/vim-tmux-navigator.git
-	url = git@github.com:christoomey/vim-tmux-navigator.git
 [submodule ".zsh/git/zsh-syntax-highlighting.git"]
 	path = .zsh/git/zsh-syntax-highlighting.git
 	url = https://github.com/zsh-users/zsh-syntax-highlighting.git
@@ -232,39 +37,6 @@
 [submodule ".zsh/git/git-it-on.zsh.git"]
 	path = .zsh/git/git-it-on.zsh.git
 	url = https://github.com/peterhurford/git-it-on.zsh.git
-[submodule ".vimbundles/goyo.vim.git"]
-	path = .vimbundles/goyo.vim.git
-	url = https://github.com/junegunn/goyo.vim.git
-[submodule ".vimbundles/ejs-synta.git"]
-	path = .vimbundles/ejs-synta.git
-	url = https://github.com/nikvdp/ejs-syntax.git
 [submodule ".tmux/plugins/tpm"]
 	path = .tmux/plugins/tpm
 	url = https://github.com/tmux-plugins/tpm
-[submodule ".vimbundles/vim-tmux.git"]
-	path = .vimbundles/vim-tmux.git
-	url = git://github.com/tmux-plugins/vim-tmux.git
-[submodule ".vimbundles/vim-zenroom2.git"]
-	path = .vimbundles/vim-zenroom2.git
-	url = https://github.com/amix/vim-zenroom2.git
-[submodule ".vimbundles/vim-tmux-focus-events.git"]
-	path = .vimbundles/vim-tmux-focus-events.git
-	url = git://github.com/tmux-plugins/vim-tmux-focus-events.git
-[submodule ".vimbundles/Monkey-VIM.git"]
-	path = .vimbundles/Monkey-VIM.git
-	url = https://github.com/rawsource/Monkey-VIM.git
-[submodule ".vimbundles/neoyank.vim.git"]
-	path = .vimbundles/neoyank.vim.git
-	url = https://github.com/Shougo/neoyank.vim.git
-[submodule ".vimbundles/unite-help.git"]
-	path = .vimbundles/unite-help.git
-	url = https://github.com/Shougo/unite-help.git
-[submodule ".vimbundles/vim-outline.git"]
-	path = .vimbundles/vim-outline.git
-	url = https://github.com/Shougo/unite-outline.git
-[submodule ".vimbundles/vim-quickfix.git"]
-	path = .vimbundles/vim-quickfix.git
-	url = https://github.com/osyo-manga/unite-quickfix.git
-[submodule ".vimbundles/unite-tag.git"]
-	path = .vimbundles/unite-tag.git
-	url = https://github.com/tsukkee/unite-tag.git

@@ -1,9 +1,6 @@
 " Yeah, bye vi
 set nocompatible
 
-" Load Pathogen first
-execute pathogen#infect('~/.vimbundles/{}')
-
 " Tab config
 set smarttab
 set shiftwidth=2
@@ -31,10 +28,7 @@ set matchtime=1
 
 " The opposite is set noignorecase
 set ignorecase
-set smartcase
-
-" Global replace by default
-set gdefault
+set smartcase " Global replace by default set gdefault
 
 " You may want to turn off the beep sounds (if you want quite) with visual bell
 set vb
@@ -85,74 +79,6 @@ set history=500
 
 " Menus Gone Wild!
 set wildmenu
-
-" Use system clipboard
-" set clipboard=unnamed
-
-" Set nice colors
-colorscheme jellybeans
-highlight Normal guibg=NONE ctermbg=NONE
-highlight LineNr guibg=NONE ctermbg=NONE
-highlight NonText guibg=NONE ctermbg=NONE
-
-""""""""""""""""""""""""""""""""""""""""""
-" Plugin Config
-""""""""""""""""""""""""""""""""""""""""""
-
-" Disable screen plugin for R
-let vimrplugin_screenplugin = 0
-
-" vim-gitgutter
-highlight clear SignColumn
-highlight SignColumn guibg=NONE ctermbg=NONE
-
-" Gist
-let g:gist_open_browser_after_post = 1
-let g:gist_show_privates = 1
-let g:gist_detect_filetype = 1
-let g:gist_clip_command = 'pbcopy'
-let g:github_user = "chrismetcalf"
-
-" snipMate
-" Author name
-let g:snips_author = "Chris Metcalf"
-
-" DelimitMate
-let b:delimitMate_autoclose = 0
-
-" NeoComplCache
-let g:neocomplcache_enable_at_startup = 1
-let g:neocomplcache_enable_smart_case = 1
-let g:neocomplcache_enable_camel_case_completion = 1
-let g:neocomplcache_enable_underbar_completion = 1
-let g:neocomplcache_min_syntax_length = 3
-
-" Enable omni completion.
-autocmd FileType css setlocal omnifunc=csscomplete#CompleteCSS
-autocmd FileType html setlocal omnifunc=htmlcomplete#CompleteTags
-autocmd FileType javascript setlocal omnifunc=javascriptcomplete#CompleteJS
-autocmd FileType python setlocal omnifunc=pythoncomplete#Complete
-autocmd FileType xml setlocal omnifunc=xmlcomplete#CompleteTags
-autocmd FileType ruby,eruby setlocal omnifunc=rubycomplete#Complete
-autocmd FileType crontab setlocal nobackup nowritebackup
-
-" browserreload.vim
-let g:returnApp = "iTerm"
-
-" Ack -> Ag
-let g:ackprg = 'ag --nogroup --nocolor --column'
-
-" Syntastic
-let g:syntastic_mode_map = { 'mode': 'active',
-    \ 'passive_filetypes': ['html'] }
-
-" Disable auto-cd of vim-rooter
-let g:rooter_manual_only = 1
-
-" vim-airline
-let g:airline_left_sep = ''
-let g:airline_right_sep = ''
-let g:airline#extensions#bufferline#enabled = 1
 
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
@@ -336,57 +262,17 @@ nnoremap <leader><space> :noh<cr>
 " MultiMarkdown the selection
 vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
 
-" Color Pickers
-nnoremap <leader>c :ColorHEX<CR>
-
-" Quick Ack
-nnoremap <leader>a :Ack 
-
-" Make
-nnoremap <leader>m :Make<CR>
-
 " Open in marked
 nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
 
-" ChromeReload
-nnoremap <leader>r :ChromeReload<CR>
+" Make
+nnoremap <leader>m :Make<CR>
 
 " Fold at tag
 nnoremap <leader>ft Vatzf
 
 " Reselect just pasted
 nnoremap <leader>v V`]
-
-" Unite.vim
-let g:unite_source_history_yank_enable = 1
-call unite#filters#matcher_default#use(['matcher_fuzzy'])
-if executable('ag')
-  " Use ag for grep
-  let g:unite_source_grep_command = 'ag'
-  let g:unite_source_grep_default_opts =
-        \ '--line-numbers --nocolor --nogroup --hidden --ignore ' .
-        \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'' ' .
-        \ '--ignore ''**/*.pyc'''
-  let g:unite_source_grep_recursive_opt = ''
-
-  " Use ag for file_rec/async
-  let g:unite_source_rec_async_command = 'ag'
-  let g:unite_source_rec_async_default_opts =
-        \ '--line-numbers --nocolor --nogroup --hidden --ignore ' .
-        \ '''.hg'' --ignore ''.svn'' --ignore ''.git'' --ignore ''.bzr'' ' .
-        \ '--ignore ''**/*.pyc'''
-endif
-nnoremap <leader>b :Unite -start-insert buffer<CR>
-nnoremap <leader>f :Unite -start-insert file_rec/git:--cached:--others:--exclude-standard<CR>
-nnoremap <leader>g :Unite grep:.<CR>
-nnoremap <leader>h :Unite -start-insert help<CR>
-nnoremap <leader>o :Unite -start-insert outline<CR>
-nnoremap <leader>q :Unite -start-insert quickfix<CR>
-nnoremap <leader>t :Unite -start-insert tag<CR>
-nnoremap <leader>y :Unite -start-insert history/yank<CR>
-
-" Show Gundo window
-nnoremap <leader>G :GundoToggle<CR>
 
 " Move one screen line at a time while wrapped
 nnoremap j gj
@@ -423,41 +309,15 @@ map <leader>s? z=
 map <leader>] :tabn<CR>
 map <leader>[ :tabp<CR>
 
-" Show syntax details
-map <leader>sy :call SyntaxAttr()<CR>
-
 " Jekyll magic
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
 nnoremap <leader>mw :silent !tmux split-window -b -l 8 'cd $(pwd); make watch<cr>
-
-" Quick Dash search
-nnoremap <leader>d :Dash 
-
-" Force myself to use Vim keys by disabling a bunch of stuff
-" inoremap <esc>   <NOP>
-" inoremap <Left>  <NOP>
-" inoremap <Right> <NOP>
-" inoremap <Up>    <NOP>
-" inoremap <Down>  <NOP>
-" nnoremap <Left>  <NOP>
-" nnoremap <Right> <NOP>
-" nnoremap <Up>    <NOP>
-" nnoremap <Down>  <NOP>
 
 " Quick search/replace from
 " http://sheerun.net/2014/03/21/how-to-boost-your-vim-productivity/
 vnoremap <silent> s //e<C-r>=&selection=='exclusive'?'+1':'<CR><CR>
     \:<C-u>call histdel('search',-1)<Bar>let @/=histget('search',-1)<CR>gv
 omap s :normal vs<CR>
-
-" Quick Ruby Run
-if !hasmapto("RunRuby") && has("autocmd") && has("gui_macvim")
-  " Shifted
-  au FileType ruby nmap <leader>r :RunRuby<CR> <C-w>w
-
-  " Close output buffer
-  au FileType ruby-runner nmap <leader>r ZZ
-endif
 
 " Sudo to write
 cmap w!! w !sudo tee % >/dev/null
@@ -473,6 +333,108 @@ function! s:Repl()
   return "p@=RestoreRegister()\<cr>"
 endfunction
 vmap <silent> <expr> p <sid>Repl()
+
+"""""""""""""""""""""""""""""""""""""""
+" Plugins!
+"""""""""""""""""""""""""""""""""""""""
+call plug#begin('~/.vim-plugged')
+
+  " Color Schemes
+  Plug 'vim-scripts/Colour-Sampler-Pack'
+
+  " ChromeReload
+  Plug 'tell-k/vim-browsereload-mac'
+  nnoremap <leader>r :ChromeReload<CR>
+  let g:returnApp = "iTerm"
+
+  " FZF
+  Plug 'junegunn/fzf'
+  Plug 'junegunn/fzf.vim'
+  nnoremap <leader>b :Buffers<CR>
+  nnoremap <leader>f :GFiles<CR>
+  nnoremap <leader>g :Ag<CR>
+  nnoremap <leader>a :Ag<CR>
+  nnoremap <leader>h :Helptags<CR>
+
+  " Gundo
+  Plug 'sjl/gundo.vim'
+  nnoremap <leader>G :GundoToggle<CR>
+
+  " Quick Dash search
+  Plug 'rizzatti/dash.vim'
+  nnoremap <leader>d :Dash 
+
+  " Funcoo is a Dependency
+  Plug 'rizzatti/funcoo.vim'
+
+  " Gitgutter
+  Plug 'airblade/vim-gitgutter'
+  highlight clear SignColumn
+  highlight SignColumn guibg=NONE ctermbg=NONE
+
+  " Gist
+  Plug 'mattn/gist-vim'
+  let g:gist_open_browser_after_post = 1
+  let g:gist_show_privates = 1
+  let g:gist_detect_filetype = 1
+  let g:gist_clip_command = 'pbcopy'
+  let g:github_user = "chrismetcalf"
+
+  " vim-airline
+  Plug 'bling/vim-airline'
+  let g:airline_left_sep = ''
+  let g:airline_right_sep = ''
+  let g:airline#extensions#bufferline#enabled = 1
+
+  " Misc fun stuff
+  Plug 'timcharper/gitosis.vim'
+  Plug 'msanders/snipmate.vim'
+  Plug 'godlygeek/tabular'
+  Plug 'airblade/vim-rooter'
+  Plug 'junegunn/goyo.vim'
+
+  " tpop is my spirit animal
+  Plug 'tpope/vim-haml'
+  Plug 'tpope/vim-endwise'
+  Plug 'tpope/vim-surround'
+  Plug 'tpope/vim-repeat'
+  Plug 'tpope/vim-git'
+  Plug 'tpope/vim-fugitive'
+  Plug 'tpope/vim-pastie'
+  Plug 'tpope/vim-eunuch'
+  Plug 'tpope/vim-commentary'
+  Plug 'tpope/vim-rake'
+  Plug 'tpope/vim-rvm'
+  Plug 'tpope/vim-tbone'
+  Plug 'tpope/vim-dispatch'
+  Plug 'tpope/vim-heroku'
+  Plug 'tpope/vim-speeddating'
+
+  " Syntax
+  Plug 'vim-scripts/vim-json-bundle'
+  Plug 'tclem/vim-arduino'
+  Plug 'honza/dockerfile.vim'
+  Plug 'tpope/vim-bundler'
+  Plug 'tpope/vim-liquid'
+  Plug 'tpope/vim-markdown'
+  Plug 'lrampa/vim-apib'
+  Plug 'davidoc/taskpaper.vim'
+
+  Plug 'AndrewRadev/splitjoin.vim'
+  Plug 'christoomey/vim-tmux-navigator'
+  Plug 'nikvdp/ejs-syntax'
+  Plug 'tmux-plugins/tpm'
+  Plug 'tmux-plugins/vim-tmux'
+  Plug 'tmux-plugins/vim-tmux-focus-events'
+
+call plug#end()
+""""" END Plugins """""""""""""""""""""
+
+" Color scheme must be set after plugin initialization
+colorscheme jellybeans
+highlight Normal guibg=NONE ctermbg=NONE
+highlight LineNr guibg=NONE ctermbg=NONE
+highlight NonText guibg=NONE ctermbg=NONE
 
 " Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
