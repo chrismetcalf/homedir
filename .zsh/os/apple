@@ -7,6 +7,7 @@ export MANPATH=/opt/local/share/man:$MANPATH
 # tmux copy and paste
 alias pbcopy='reattach-to-user-namespace pbcopy'
 alias pbpaste='reattach-to-user-namespace pbpaste'
+alias gist='reattach-to-user-namespace gist --copy'
 
 # mivm aliases
 alias mvimdiff='mvim -d'
