@@ -9,9 +9,12 @@ kwmc rule owner="Finder" properties={role="AXDialog"}
 kwmc rule owner="Finder" role="AXDialog" properties={float="true"}
 kwmc rule owner="System Preferences" properties={float="true"}
 kwmc rule owner="1Keyboard" properties={float="true"}
-kwmc rule owner="Fantastical 2" properties={role="AXDialog"}
+kwmc rule owner="Fantastical 2" properties={float="true"}
 kwmc rule owner="1Password 6" properties={float="true"}
 kwmc rule owner="Connect IQ Device Simulator" properties={float="true"}
 kwmc rule owner="ConnectIQ" properties={role="AXDialog"}
 kwmc rule owner="Dash" properties={float="true"}
 kwmc rule owner="Dictionary" properties={float="true"}
+kwmc rule owner="Little Snitch Network Monitor" properties={float="true"}
+kwmc rule owner="VLC" properties={float="true"}
+kwmc rule owner="Elmedia Player" properties={float="true"}
