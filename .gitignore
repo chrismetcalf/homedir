@@ -21,3 +21,4 @@ known
 .config/rtv
 .config/xm1
 .config/configstore
+.config/heroku
