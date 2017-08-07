@@ -15,3 +15,8 @@ zstyle ':completion:*' use-compctl true
 autoload -U compinit
 compinit -C
 # End of lines added by compinstall
+
+if type brew > /dev/null; then
+  fpath=(/usr/local/share/zsh-completions /usr/local/share/zsh/site-functions $fpath)
+fi
+
