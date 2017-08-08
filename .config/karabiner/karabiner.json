@@ -96,6 +96,7 @@
             },
             "devices": [
                 {
+<<<<<<< Updated upstream
                     "disable_built_in_keyboard_if_exists": false,
                     "identifiers": {
                         "is_keyboard": true,
@@ -107,12 +108,16 @@
                 },
                 {
                     "disable_built_in_keyboard_if_exists": false,
+=======
+                    "disable_built_in_keyboard_if_exists": true,
+>>>>>>> Stashed changes
                     "identifiers": {
                         "is_keyboard": true,
                         "is_pointing_device": false,
                         "product_id": 2572,
                         "vendor_id": 65261
                     },
+<<<<<<< Updated upstream
                     "ignore": true
                 },
                 {
@@ -134,6 +139,9 @@
                         "vendor_id": 1452
                     },
                     "ignore": true
+=======
+                    "ignore": false
+>>>>>>> Stashed changes
                 }
             ],
             "fn_function_keys": {

@@ -21,6 +21,7 @@ brew 'vim'
 brew 'watch'
 brew 'wget'
 brew 'zsh'
+brew 'zsh-completion'
 
 # Development tools
 brew 'ansible'
