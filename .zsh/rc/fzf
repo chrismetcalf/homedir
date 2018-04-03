@@ -1,16 +1,21 @@
 # Setup fzf
 # ---------
-if [[ ! "$PATH" == */usr/local/opt/fzf/bin* ]]; then
+if [[ -f "$HOME/.fzf.zsh" ]]; then
+  # Local install
+  source ~/.fzf.zsh
+
+elif [[ -d "/usr/local/opt/fzf" ]]; then
+  # Homebrew
   export PATH="$PATH:/usr/local/opt/fzf/bin"
+
+  # Auto-completion
+  # ---------------
+  [[ $- == *i* ]] && source "/usr/local/opt/fzf/shell/completion.zsh" 2> /dev/null
+
+  # Key bindings
+  # ------------
+  source "/usr/local/opt/fzf/shell/key-bindings.zsh"
 fi
-
-# Auto-completion
-# ---------------
-[[ $- == *i* ]] && source "/usr/local/opt/fzf/shell/completion.zsh" 2> /dev/null
-
-# Key bindings
-# ------------
-source "/usr/local/opt/fzf/shell/key-bindings.zsh"
 
 # Use fzf-tmux by default
 alias fzf='fzf-tmux'
