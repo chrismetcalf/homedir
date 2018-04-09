@@ -83,3 +83,5 @@ mas 'Annotate', id: 918207447
 mas 'TweetDeck by Twitter', id: 485812721
 mas 'Soulver', id: 413965349
 mas 'XCode', id: 497799835
+mas 'JSON Helper', id: 453114608
+mas 'Location Helper for Applescript', id: 488536386
