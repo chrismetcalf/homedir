@@ -40,3 +40,6 @@
 [submodule ".tmux/plugins/tpm"]
 	path = .tmux/plugins/tpm
 	url = https://github.com/tmux-plugins/tpm
+[submodule "bin/multi-git-status.git"]
+	path = bin/multi-git-status.git
+	url = git@github.com:fboender/multi-git-status.git
