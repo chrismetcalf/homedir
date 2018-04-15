@@ -1,20 +1,32 @@
 # Base Packages
 brew 'ag'
+brew 'ansible'
 brew 'autojump'
 brew 'binutils'
 brew 'corelocationcli'
 brew 'coreutils'
 brew 'curl'
 brew 'diff-so-fancy'
+brew 'elasticsearch'
 brew 'fzf'
 brew 'git'
 brew 'htop-osx'
 brew 'imagemagick'
 brew 'mobile-shell'
+brew 'multimarkdown'
 brew 'ncdu'
+brew 'nvm'
+brew 'nvm'
+brew 'parallel'
 brew 'pstree'
+brew 'rbenv'
+brew 'rbenv'
+brew 'rbenv-bundle-exec'
+brew 'rbenv-default-gems'
+brew 'rbenv-gemset'
 brew 'reattach-to-user-namespace'
 brew 'stunnel'
+brew 'switchaudio-osx'
 brew 'thefuck'
 brew 'tmux'
 brew 'vim'
@@ -23,49 +35,39 @@ brew 'wget'
 brew 'zsh'
 brew 'zsh-completion'
 
-# Development tools
-brew 'ansible'
-brew 'docker'
-brew 'docker-machine'
-brew 'nvm'
-brew 'rbenv'
-brew 'rbenv-bundle-exec'
-brew 'rbenv-default-gems'
-brew 'rbenv-gemset'
-
-# Window Management
-tap 'koekeishiya/formulae'
-brew 'kwm', restart_service: true
-brew 'khd', restart_service: true
-
-
 # Cask Mac Apps
 cask_args appdir: '/Applications'
-
-# For omnipotent
-cask 'java'
-brew 'elasticsearch'
 
 cask '1password'
 cask 'alfred'
 cask 'anvil'
+cask 'anylist'
 cask 'bartender'
 cask 'bitbar'
 cask 'caffeine'
+cask 'cardhop'
 cask 'dash'
+cask 'docker'
 cask 'dropbox'
 cask 'dropzone'
 cask 'fantastical'
 cask 'flux'
+cask 'goofy'
 cask 'hazel'
 cask 'iterm2'
+cask 'java'
 cask 'karabiner-elements'
+cask 'kitty'
 cask 'little-snitch'
 cask 'micro-snitch'
+cask 'moom'
 cask 'nimbus'
 cask 'omnifocus'
 cask 'path-finder'
 cask 'paw'
+cask 'pixelstick'
+cask 'podcastmenu'
+cask 'pullover'
 cask 'satellite-eyes'
 cask 'slack'
 cask 'spotify'
@@ -73,8 +75,10 @@ cask 'switchresx'
 cask 'textexpander5'
 cask 'touchswitcher'
 cask 'tower'
+cask 'tower'
 cask 'tunnelblick'
 cask 'virtualbox'
+cask 'xscreensaver'
 
 # Mac App Store stuff
 brew 'mas'
@@ -84,3 +88,5 @@ mas 'Annotate', id: 918207447
 mas 'TweetDeck by Twitter', id: 485812721
 mas 'Soulver', id: 413965349
 mas 'XCode', id: 497799835
+mas 'JSON Helper', id: 453114608
+mas 'Location Helper for Applescript', id: 488536386

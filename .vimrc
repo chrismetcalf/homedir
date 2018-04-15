@@ -336,6 +336,7 @@ vmap <silent> <expr> p <sid>Repl()
 
 """""""""""""""""""""""""""""""""""""""
 " Plugins!
+" Managed with https://github.com/junegunn/vim-plug
 """""""""""""""""""""""""""""""""""""""
 call plug#begin('~/.vim-plugged')
 
@@ -352,6 +353,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'junegunn/fzf.vim'
   nnoremap <leader>b :Buffers<CR>
   nnoremap <leader>f :GFiles<CR>
+  nnoremap <leader>F :Files<CR>
   nnoremap <leader>g :Ag<CR>
   nnoremap <leader>a :Ag<CR>
   nnoremap <leader>h :Helptags<CR>
@@ -392,6 +394,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'godlygeek/tabular'
   Plug 'airblade/vim-rooter'
   Plug 'junegunn/goyo.vim'
+  Plug 'gcmt/wildfire.vim'
 
   " tpop is my spirit animal
   Plug 'tpope/vim-haml'
