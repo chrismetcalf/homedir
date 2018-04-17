@@ -1,4 +1,3 @@
-alias ls='ls --color'
 alias vi='vim'
 alias ftfy='fc'
 
@@ -16,7 +15,8 @@ alias random-ascii='cat /dev/urandom | tr -dc _A-Za-z0-9'
 alias whereami='geoiplookup `curl --max-time 2 -s http://whatismyip.akamai.com/ | tr -d "\n"`'
 
 # Speed Test
-alias speed-test="wget -O /dev/null http://speedtest.wdc01.softlayer.com/downloads/test10.zip"
+alias speed-test="docker run --rm -it jariasl/speed-test"
 
-# Toggle Squid offline state
-alias toggle-offline="squidclient mgr:offline_toggle"
+# Cleanup detached mosh settings
+alias mosh-cleanup="kill $(ps --no-headers --sort=start_time -C mosh-server -o pid | head -n -1)"
+
