@@ -6,7 +6,6 @@ brew 'binutils'
 brew 'coreutils'
 brew 'curl'
 brew 'diff-so-fancy'
-brew 'elasticsearch'
 brew 'fzf'
 brew 'git'
 brew 'htop-osx'
@@ -37,9 +36,12 @@ brew 'zsh-completion'
 # Cask Mac Apps
 cask_args appdir: '/Applications'
 
+# ElasticSearch needs Java
+cask 'java'
+brew 'elasticsearch'
+
 cask '1password'
 cask 'alfred'
-cask 'anvil'
 cask 'anylist'
 cask 'bartender'
 cask 'bitbar'
@@ -53,39 +55,32 @@ cask 'fantastical'
 cask 'flux'
 cask 'goofy'
 cask 'hazel'
-cask 'iterm2'
-cask 'java'
 cask 'karabiner-elements'
 cask 'kitty'
 cask 'little-snitch'
 cask 'micro-snitch'
-cask 'moom'
-cask 'nimbus'
 cask 'omnifocus'
 cask 'path-finder'
 cask 'paw'
 cask 'pixelstick'
 cask 'podcastmenu'
 cask 'pullover'
-cask 'satellite-eyes'
 cask 'slack'
 cask 'spotify'
 cask 'switchresx'
-cask 'textexpander5'
-cask 'touchswitcher'
+cask 'textexpander'
 cask 'tower'
-cask 'tower'
-cask 'tunnelblick'
 cask 'virtualbox'
 cask 'xscreensaver'
 
 # Mac App Store stuff
 brew 'mas'
 mas '1Keyboard', id: 766939888
-mas 'iA Writer', id: 775737590
 mas 'Annotate', id: 918207447
-mas 'TweetDeck by Twitter', id: 485812721
-mas 'Soulver', id: 413965349
-mas 'XCode', id: 497799835
 mas 'JSON Helper', id: 453114608
 mas 'Location Helper for Applescript', id: 488536386
+mas 'Moom', id: 419330170
+mas 'Soulver', id: 413965349
+mas 'TweetDeck by Twitter', id: 485812721
+mas 'XCode', id: 497799835
+mas 'iA Writer', id: 775737590
