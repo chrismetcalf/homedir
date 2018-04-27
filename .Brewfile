@@ -37,7 +37,7 @@ brew 'zsh-completion'
 cask_args appdir: '/Applications'
 
 # ElasticSearch needs Java
-cask 'java'
+cask 'caskroom/versions/java8'
 brew 'elasticsearch'
 
 cask '1password'
@@ -78,6 +78,7 @@ cask 'xscreensaver'
 brew 'mas'
 mas '1Keyboard', id: 766939888
 mas 'Annotate', id: 918207447
+mas 'Bear', id: 1091189122
 mas 'JSON Helper', id: 453114608
 mas 'Location Helper for Applescript', id: 488536386
 mas 'Moom', id: 419330170
