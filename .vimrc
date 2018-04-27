@@ -219,6 +219,9 @@ if has("autocmd")
   " Autoload vimrc and gvimrc
   au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
   au! BufWritePost .gvimrc source ~/.gvimrc
+
+  " Crontab
+  autocmd filetype crontab setlocal nobackup nowritebackup
 endif
 
 " HTML Escaping
