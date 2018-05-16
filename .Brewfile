@@ -83,7 +83,7 @@ mas 'JSON Helper', id: 453114608
 mas 'Location Helper for Applescript', id: 488536386
 mas 'Moom', id: 419330170
 mas 'Soulver', id: 413965349
-mas 'TweetDeck by Twitter', id: 485812721
+mas 'Twitterrific 5 for Twitter', id: 1289378661
 mas 'Unsplash Wallpapers', id: 1284863847
 mas 'XCode', id: 497799835
 mas 'iA Writer', id: 775737590
