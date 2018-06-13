@@ -7,8 +7,8 @@ setopt NO_BEEP                 # self explanatory
 ############## Imports
 
 # OS-specific configurations
-if [ -f ~/.zsh/os/$VENDOR -a ! -z $VENDOR ]; then
-    source ~/.zsh/os/$VENDOR
+if [ -f $HOME/.zsh/os/$VENDOR -a ! -z $VENDOR ]; then
+    source $HOME/.zsh/os/$VENDOR
 fi
 
 # Everything not zsh-specific is broken out into imports now
@@ -17,16 +17,16 @@ for file in $HOME/.zsh/rc/*; do
 done
 
 # Host-specific configurations
-if [ -f ~/.zsh/host/`hostname -s` ]; then
-    source ~/.zsh/host/`hostname -s`
+if [ -f $HOME/.zsh/host/`hostname -s` ]; then
+    source $HOME/.zsh/host/`hostname -s`
 fi
 
 # Local, non-scm controlled configs. Loaded last to overload any other settings
-if [ -f ~/.zshrc.local ]; then
-    source ~/.zshrc.local
+if [ -f $HOME/.zshrc.local ]; then
+    source $HOME/.zshrc.local
 fi
 
 # added by travis gem
 [ -f /Users/metcalf/.travis/travis.sh ] && source /Users/metcalf/.travis/travis.sh
 
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+[ -f $HOME/.fzf.zsh ] && source $HOME/.fzf.zsh
