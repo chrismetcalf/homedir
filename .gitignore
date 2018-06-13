@@ -22,3 +22,6 @@ known
 .config/xm1
 .config/configstore
 .config/heroku
+.vim/.netrwhist
+.config/thefuck/__pycache__/
+.vim/autoload/plug.vim.old
