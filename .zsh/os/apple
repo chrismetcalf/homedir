@@ -13,5 +13,5 @@ alias gist='reattach-to-user-namespace gist --copy'
 alias mvimdiff='mvim -d'
 
 # Make less handle colors
-export LESS="-erX"
+export LESS="eFRX"
 export PATH=/usr/local/sbin:$PATH
