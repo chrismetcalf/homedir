@@ -288,6 +288,12 @@ inoremap jj <Esc>
 inoremap jjw <Esc>:w<CR>
 inoremap jjwq <Esc>:wq<CR>
 
+" Vimux
+map <leader>vp :VimuxPromptCommand<CR>
+map <leader>vl :VimuxRunLastCommand<CR>
+map <leader><leader> :VimuxRunLastCommand<CR>
+map <leader>vi :VimuxInspectRunner<CR>
+
 " Duplicate the line below
 vmap D y'>p
 
@@ -311,6 +317,9 @@ map <leader>s? z=
 " Tab skips
 map <leader>] :tabn<CR>
 map <leader>[ :tabp<CR>
+
+" Copy to PB
+map <leader>c :w !pbcopy<CR>
 
 " Jekyll magic
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
@@ -398,6 +407,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'airblade/vim-rooter'
   Plug 'junegunn/goyo.vim'
   Plug 'gcmt/wildfire.vim'
+  Plug 'benmills/vimux'
 
   " tpop is my spirit animal
   Plug 'tpope/vim-haml'
@@ -415,6 +425,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-dispatch'
   Plug 'tpope/vim-heroku'
   Plug 'tpope/vim-speeddating'
+  Plug 'tpope/vim-jdaddy'
 
   " Syntax
   Plug 'vim-scripts/vim-json-bundle'
@@ -425,6 +436,10 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-markdown'
   Plug 'lrampa/vim-apib'
   Plug 'davidoc/taskpaper.vim'
+
+  " Completion
+  Plug 'ervandew/supertab'
+  Plug 'davidhalter/jedi-vim'
 
   Plug 'AndrewRadev/splitjoin.vim'
   Plug 'christoomey/vim-tmux-navigator'
