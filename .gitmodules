@@ -18,16 +18,16 @@
 	url = https://github.com/insanum/gcalcli.git
 [submodule "bin/ansiweather.git"]
 	path = bin/ansiweather.git
-	url = git@github.com:fcambus/ansiweather.git
+	url = https://github.com/fcambus/ansiweather.git
 [submodule "bin/hr.git"]
 	path = bin/hr.git
-	url = git@github.com:LuRsT/hr.git
+	url = https://github.com/LuRsT/hr.git
 [submodule "bin/spl.git"]
 	path = bin/spl.git
 	url = https://gist.github.com/11476891.git
 [submodule "bin/recordstream.git"]
 	path = bin/recordstream.git
-	url = git@github.com:benbernard/RecordStream.git
+	url = https://github.com/benbernard/RecordStream.git
 [submodule ".zsh/git/zsh-syntax-highlighting.git"]
 	path = .zsh/git/zsh-syntax-highlighting.git
 	url = https://github.com/zsh-users/zsh-syntax-highlighting.git
@@ -42,4 +42,4 @@
 	url = https://github.com/tmux-plugins/tpm
 [submodule "bin/multi-git-status.git"]
 	path = bin/multi-git-status.git
-	url = git@github.com:fboender/multi-git-status.git
+	url = https://github.com/fboender/multi-git-status.git
