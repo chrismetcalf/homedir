@@ -1,15 +1,15 @@
 [submodule "bin/growlme.git"]
 	path = bin/growlme.git
-	url = git://github.com/robey/growlme.git
+	url = https://github.com/robey/growlme.git
 [submodule ".oh-my-zsh"]
 	path = .oh-my-zsh
 	url = https://github.com/robbyrussell/oh-my-zsh.git
 [submodule ".tomorrow-theme.git"]
 	path = .tomorrow-theme.git
-	url = git://github.com/chriskempson/tomorrow-theme.git
+	url = https://github.com/chriskempson/tomorrow-theme.git
 [submodule ".tmux/tmux-powerline.git"]
 	path = .tmux/tmux-powerline.git
-	url = git://github.com/erikw/tmux-powerline.git
+	url = https://github.com/erikw/tmux-powerline.git
 [submodule "bin/otask.git"]
 	path = bin/otask.git
 	url = https://github.com/chrismetcalf/OTask.git
