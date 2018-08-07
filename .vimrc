@@ -277,6 +277,9 @@ nnoremap <leader>ft Vatzf
 " Reselect just pasted
 nnoremap <leader>v V`]
 
+" <leader>y copys yank to Clipper
+nnoremap <leader>y :call system('nc localhost 8377', @0)<CR>
+
 " Move one screen line at a time while wrapped
 nnoremap j gj
 nnoremap k gk
