@@ -1,6 +1,9 @@
 " Yeah, bye vi
 set nocompatible
 
+" THE FUTURE
+set encoding=UTF-8
+
 " Tab config
 set smarttab
 set shiftwidth=2
@@ -178,7 +181,7 @@ command! SoftWrap :call SoftWrap()
 " Write this to a new note file
 function! WNote()
   let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
-  exe "save " . filename 
+  exe "save " . filename
   set filetype=markdown
 endfunction
 command! WNote :call WNote()
@@ -361,7 +364,7 @@ call plug#begin('~/.vim-plugged')
   " ChromeReload
   Plug 'tell-k/vim-browsereload-mac'
   nnoremap <leader>r :ChromeReload<CR>
-  let g:returnApp = "iTerm"
+  let g:returnApp = "kitty"
 
   " FZF
   Plug 'junegunn/fzf'
@@ -369,7 +372,6 @@ call plug#begin('~/.vim-plugged')
   nnoremap <leader>b :Buffers<CR>
   nnoremap <leader>f :GFiles<CR>
   nnoremap <leader>F :Files<CR>
-  nnoremap <leader>g :Ag<CR>
   nnoremap <leader>a :Ag<CR>
   nnoremap <leader>h :Helptags<CR>
 
@@ -379,7 +381,7 @@ call plug#begin('~/.vim-plugged')
 
   " Quick Dash search
   Plug 'rizzatti/dash.vim'
-  nnoremap <leader>d :Dash 
+  nnoremap <leader>d :Dash
 
   " Funcoo is a Dependency
   Plug 'rizzatti/funcoo.vim'
@@ -398,21 +400,28 @@ call plug#begin('~/.vim-plugged')
   let g:github_user = "chrismetcalf"
 
   " vim-airline
-  Plug 'bling/vim-airline'
-  let g:airline_left_sep = ''
-  let g:airline_right_sep = ''
+  Plug 'vim-airline/vim-airline'
+  Plug 'vim-airline/vim-airline-themes'
+  "let g:airline_left_sep = ''
+  "let g:airline_right_sep = ''
+  let g:airline_powerline_fonts = 1
+  let g:airline_theme='jellybeans'
   let g:airline#extensions#bufferline#enabled = 1
 
   " Misc fun stuff
   Plug 'timcharper/gitosis.vim'
-  Plug 'msanders/snipmate.vim'
   Plug 'godlygeek/tabular'
   Plug 'airblade/vim-rooter'
   Plug 'junegunn/goyo.vim'
   Plug 'gcmt/wildfire.vim'
   Plug 'benmills/vimux'
 
-  " tpop is my spirit animal
+  " Snipmate and its friends
+  Plug 'MarcWeber/vim-addon-mw-utils'
+  Plug 'tomtom/tlib_vim'
+  Plug 'garbas/vim-snipmate'
+
+  " tpope is my spirit animal
   Plug 'tpope/vim-haml'
   Plug 'tpope/vim-endwise'
   Plug 'tpope/vim-surround'
@@ -451,6 +460,21 @@ call plug#begin('~/.vim-plugged')
   Plug 'tmux-plugins/vim-tmux'
   Plug 'tmux-plugins/vim-tmux-focus-events'
 
+  " Open current selection in Github
+  Plug 'prakashdanish/vim-githubinator'
+
+  " Syntastic!
+  Plug 'vim-syntastic/syntastic'
+  set statusline+=%#warningmsg#
+  set statusline+=%{SyntasticStatuslineFlag()}
+  set statusline+=%*
+  let g:syntastic_always_populate_loc_list = 1
+  let g:syntastic_auto_loc_list = 1
+  let g:syntastic_check_on_open = 1
+  let g:syntastic_check_on_wq = 0
+
+  " DevIcons always needs to be last
+  Plug 'ryanoasis/vim-devicons'
 call plug#end()
 """"" END Plugins """""""""""""""""""""
 
