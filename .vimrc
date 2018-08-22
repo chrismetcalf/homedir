@@ -449,6 +449,9 @@ call plug#begin('~/.vim-plugged')
   Plug 'lrampa/vim-apib'
   Plug 'davidoc/taskpaper.vim'
 
+  " Docker
+  Plug 'kevinhui/vim-docker-tools'
+
   " Completion
   Plug 'ervandew/supertab'
   Plug 'davidhalter/jedi-vim'
