@@ -16,17 +16,7 @@ for file in $HOME/.zsh/rc/*; do
   source $file
 done
 
-# Host-specific configurations
-if [ -f $HOME/.zsh/host/`hostname -s` ]; then
-    source $HOME/.zsh/host/`hostname -s`
-fi
-
 # Local, non-scm controlled configs. Loaded last to overload any other settings
 if [ -f $HOME/.zshrc.local ]; then
     source $HOME/.zshrc.local
 fi
-
-# added by travis gem
-[ -f /Users/metcalf/.travis/travis.sh ] && source /Users/metcalf/.travis/travis.sh
-
-[ -f $HOME/.fzf.zsh ] && source $HOME/.fzf.zsh
