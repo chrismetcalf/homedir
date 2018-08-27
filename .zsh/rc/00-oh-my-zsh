@@ -26,7 +26,7 @@ ZSH_THEME="gianu-custom"
 COMPLETION_WAITING_DOTS="true"
 
 # tmux stuff
-ZSH_TMUX_AUTOSTART="true"
+#ZSH_TMUX_AUTOSTART="true"
 
 # For Jira
 JIRA_URL="https://amperity.atlassian.net/"
