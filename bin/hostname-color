@@ -1,0 +1,32 @@
+#!/usr/bin/env zsh
+
+colnames=(
+  blue
+  cyan
+  green
+  magenta
+  red
+  yellow
+)
+zsh_colors=(
+  '\e[0;34m'  # Blue
+  '\e[0;36m'  # Cyan
+  '\e[0;32m'  # Green
+  '\e[0;35m'  # Purple
+  '\e[0;31m'  # Red
+  '\e[0;33m'  # Yellow
+)
+
+local chash=0
+foreach letter ( ${(ws::)HOST[(ws:.:)1]} )
+  (( chash += #letter ))
+end
+local crand=$(( $chash % $#colnames ))
+
+if [[ $1 == "--zsh" ]]; then
+  echo $zsh_colors[$crand]
+elif [[ $1 == "--tmux" ]]; then
+  tmux set -g @themepack "powerline/block/$colnames[$crand]"
+else 
+  echo $colnames[$crand]
+fi
