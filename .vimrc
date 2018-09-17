@@ -439,6 +439,9 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-speeddating'
   Plug 'tpope/vim-jdaddy'
 
+  " Capitalization
+  Plug 'arthurxavierx/vim-caser'
+
   " Syntax
   Plug 'vim-scripts/vim-json-bundle'
   Plug 'tclem/vim-arduino'
