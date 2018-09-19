@@ -1,8 +1,0 @@
-let g:netrw_dirhistmax  =10
-let g:netrw_dirhist_cnt =6
-let g:netrw_dirhist_1='/Users/metcalf/Documents/Customers/NYC Comptroller/PensionData/2011-01-25/completed'
-let g:netrw_dirhist_2='/Users/metcalf/Sites/seattle-public-art/.git'
-let g:netrw_dirhist_3='/Users/metcalf/src/git.poppinfresh.net/gitosis-admin'
-let g:netrw_dirhist_4='/Users/metcalf/src/git.poppinfresh.net/snuffleupadata'
-let g:netrw_dirhist_5='/Users/metcalf/src/git.poppinfresh.net/wait-metcalf.com/config'
-let g:netrw_dirhist_6='/Users/metcalf/.homedir'
