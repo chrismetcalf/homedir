@@ -1,3 +1,0 @@
-#!/bin/bash
-
-~/.rvm/bin/ruby-1.9.2-p320@otask ~/bin/otask.git/bin/otask "$*"

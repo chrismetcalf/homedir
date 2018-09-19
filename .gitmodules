@@ -4,21 +4,9 @@
 [submodule ".tmux/tmux-powerline.git"]
 	path = .tmux/tmux-powerline.git
 	url = https://github.com/erikw/tmux-powerline.git
-[submodule "bin/otask.git"]
-	path = bin/otask.git
-	url = https://github.com/chrismetcalf/OTask.git
-[submodule "bin/gcalcli.git"]
-	path = bin/gcalcli.git
-	url = https://github.com/insanum/gcalcli.git
 [submodule "bin/ansiweather.git"]
 	path = bin/ansiweather.git
 	url = https://github.com/fcambus/ansiweather.git
-[submodule "bin/hr.git"]
-	path = bin/hr.git
-	url = https://github.com/LuRsT/hr.git
-[submodule "bin/spl.git"]
-	path = bin/spl.git
-	url = https://gist.github.com/11476891.git
 [submodule "bin/recordstream.git"]
 	path = bin/recordstream.git
 	url = https://github.com/benbernard/RecordStream.git
