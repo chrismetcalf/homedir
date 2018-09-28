@@ -46,7 +46,7 @@ set backspace=indent,eol,start
 let c_comment_strings=1
 
 " Tab-completion options
-set completeopt=menuone,longest
+set completeopt+=menuone,noselect
 syntax on
 
 " Always show the status line
@@ -101,8 +101,7 @@ command! StripTrail call <SID>StripTrailingWhitespaces()
 command! DeleteBlank :g/^$/d
 
 function! HtmlEntities()
-  silent %s/À/\&Agrave;/e
-  silent %s/Á/\&Aacute;/e
+  silent %s/À/\&Agrave;/e silent %s/Á/\&Aacute;/e
   silent %s/Â/\&Acirc;/e
   silent %s/Ã/\&Atilde;/e
   silent %s/Ä/\&Auml;/e
@@ -381,7 +380,7 @@ call plug#begin('~/.vim-plugged')
 
   " Quick Dash search
   Plug 'rizzatti/dash.vim'
-  nnoremap <leader>d :Dash
+  nnoremap <leader>d :Dash 
 
   " Funcoo is a Dependency
   Plug 'rizzatti/funcoo.vim'
@@ -402,8 +401,6 @@ call plug#begin('~/.vim-plugged')
   " vim-airline
   Plug 'vim-airline/vim-airline'
   Plug 'vim-airline/vim-airline-themes'
-  "let g:airline_left_sep = ''
-  "let g:airline_right_sep = ''
   let g:airline_powerline_fonts = 1
   let g:airline_theme='jellybeans'
   let g:airline#extensions#bufferline#enabled = 1
@@ -415,6 +412,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'junegunn/goyo.vim'
   Plug 'gcmt/wildfire.vim'
   Plug 'benmills/vimux'
+  Plug 'AndrewRadev/splitjoin.vim'
 
   " Snipmate and its friends
   Plug 'MarcWeber/vim-addon-mw-utils'
@@ -451,17 +449,29 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-markdown'
   Plug 'lrampa/vim-apib'
   Plug 'davidoc/taskpaper.vim'
+  Plug 'nikvdp/ejs-syntax'
 
   " Docker
   Plug 'kevinhui/vim-docker-tools'
 
   " Completion
   Plug 'ervandew/supertab'
-  Plug 'davidhalter/jedi-vim'
+  if has('nvim')
+    Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+  else
+    Plug 'Shougo/deoplete.nvim'
+    Plug 'roxma/nvim-yarp'
+    Plug 'roxma/vim-hug-neovim-rpc'
+  endif
+  Plug 'zchee/deoplete-jedi'
+  let g:deoplete#enable_at_startup = 1
 
-  Plug 'AndrewRadev/splitjoin.vim'
+  " Python folding
+  Plug 'kalekundert/vim-coiled-snake'
+  Plug 'Konfekt/FastFold'
+
+  " Tmux
   Plug 'christoomey/vim-tmux-navigator'
-  Plug 'nikvdp/ejs-syntax'
   Plug 'tmux-plugins/tpm'
   Plug 'tmux-plugins/vim-tmux'
   Plug 'tmux-plugins/vim-tmux-focus-events'
@@ -469,15 +479,29 @@ call plug#begin('~/.vim-plugged')
   " Open current selection in Github
   Plug 'prakashdanish/vim-githubinator'
 
+  " incsearch
+  Plug 'haya14busa/incsearch.vim'
+  map /  <Plug>(incsearch-forward)
+  map ?  <Plug>(incsearch-backward)
+  map g/ <Plug>(incsearch-stay)
+
   " Syntastic!
-  Plug 'vim-syntastic/syntastic'
-  set statusline+=%#warningmsg#
-  set statusline+=%{SyntasticStatuslineFlag()}
-  set statusline+=%*
-  let g:syntastic_always_populate_loc_list = 1
-  let g:syntastic_auto_loc_list = 1
-  let g:syntastic_check_on_open = 1
-  let g:syntastic_check_on_wq = 0
+  " Plug 'vim-syntastic/syntastic'
+  " set statusline+=%#warningmsg#
+  " set statusline+=%{SyntasticStatuslineFlag()}
+  " set statusline+=%*
+  " let g:syntastic_always_populate_loc_list = 1
+  " let g:syntastic_auto_loc_list = 1
+  " let g:syntastic_check_on_open = 1
+  " let g:syntastic_check_on_wq = 0
+  Plug 'w0rp/ale'
+  let g:airline#extensions#ale#enabled = 1
+  nmap <silent> <C-s-k> <Plug>(ale_previous_wrap)
+  nmap <silent> <C-s-j> <Plug>(ale_next_wrap)
+
+  " Keymapping pop-up
+  Plug 'liuchengxu/vim-which-key'
+  nnoremap <silent> <leader> :WhichKey ','<CR>
 
   " DevIcons always needs to be last
   Plug 'ryanoasis/vim-devicons'
