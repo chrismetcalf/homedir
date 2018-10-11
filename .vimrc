@@ -293,6 +293,9 @@ inoremap jj <Esc>
 inoremap jjw <Esc>:w<CR>
 inoremap jjwq <Esc>:wq<CR>
 
+" Quick save
+nnoremap <leader>w :w!<CR>
+
 " Vimux
 map <leader>vp :VimuxPromptCommand<CR>
 map <leader>vl :VimuxRunLastCommand<CR>
