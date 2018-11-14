@@ -506,6 +506,9 @@ call plug#begin('~/.vim-plugged')
   Plug 'liuchengxu/vim-which-key'
   nnoremap <silent> <leader> :WhichKey ','<CR>
 
+  " Startup screen, why not?
+  Plug 'mhinz/vim-startify'
+
   " DevIcons always needs to be last
   Plug 'ryanoasis/vim-devicons'
 call plug#end()
