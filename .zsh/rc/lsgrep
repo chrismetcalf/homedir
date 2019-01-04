@@ -1,0 +1,7 @@
+# Convert simplified wildcard pattern to regex and grep a file listing using
+# Silver Searcher (`brew install the_silver_searcher`)
+lsgrep ()
+{
+    NEEDLE="$(echo $@|sed -E 's/\.([a-z0-9]+)$/\\.\1/'|sed -E 's/\?/./'| sed -E 's/[ *]/.*?/g')";
+    ag --depth 3 -S -g "$NEEDLE" 2> /dev/null
+}

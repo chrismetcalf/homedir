@@ -488,6 +488,9 @@ call plug#begin('~/.vim-plugged')
   map ?  <Plug>(incsearch-backward)
   map g/ <Plug>(incsearch-stay)
 
+  " illuminates word matches in movement modes
+  Plug 'RRethy/vim-illuminate'
+
   " Syntastic!
   " Plug 'vim-syntastic/syntastic'
   " set statusline+=%#warningmsg#
