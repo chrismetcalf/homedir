@@ -274,7 +274,7 @@ nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
 nnoremap <leader>m :Make<CR>
 
 " Fold at tag
-nnoremap <leader>ft Vatzf
+nnoremap <leader>tf Vatzf
 
 " Reselect just pasted
 nnoremap <leader>v V`]
@@ -508,6 +508,9 @@ call plug#begin('~/.vim-plugged')
   " Keymapping pop-up
   Plug 'liuchengxu/vim-which-key'
   nnoremap <silent> <leader> :WhichKey ','<CR>
+
+  " REPL magic
+  Plug 'rhysd/reply.vim'
 
   " Startup screen, why not?
   Plug 'mhinz/vim-startify'
