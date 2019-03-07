@@ -469,10 +469,6 @@ call plug#begin('~/.vim-plugged')
   Plug 'zchee/deoplete-jedi'
   let g:deoplete#enable_at_startup = 1
 
-  " Python folding
-  Plug 'kalekundert/vim-coiled-snake'
-  Plug 'Konfekt/FastFold'
-
   " Tmux
   Plug 'christoomey/vim-tmux-navigator'
   Plug 'tmux-plugins/tpm'
