@@ -25,6 +25,9 @@ ZSH_THEME="gianu-custom"
 # Uncomment following line if you want red dots to be displayed while waiting for completion
 COMPLETION_WAITING_DOTS="true"
 
+# Disable security checks to speed startup
+ZSH_DISABLE_COMPFIX="true"
+
 # tmux stuff
 #ZSH_TMUX_AUTOSTART="true"
 
@@ -34,6 +37,6 @@ JIRA_URL="https://amperity.atlassian.net/"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(osx ruby bundler rbenv autojump jira mosh thefuck python tmux zsh-syntax-highlighting)
+plugins=(osx autojump jira mosh thefuck tmux zsh-syntax-highlighting python ruby fzf) # ruby bundler rbenv pyenv
 
 source $ZSH/oh-my-zsh.sh

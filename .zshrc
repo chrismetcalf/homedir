@@ -1,5 +1,5 @@
 ######################### zsh options ################################
-setopt ALWAYS_TO_END	       # Push that cursor on completions.
+setopt ALWAYS_TO_END           # Push that cursor on completions.
 setopt AUTO_NAME_DIRS          # change directories  to variable names
 setopt AUTO_PUSHD              # push directories on every cd
 setopt NO_BEEP                 # self explanatory

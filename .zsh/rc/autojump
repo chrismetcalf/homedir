@@ -1,6 +1,0 @@
-if type brew > /dev/null; then
-  [[ -s $(brew --prefix)/etc/profile.d/autojump.sh ]] && . $(brew --prefix)/etc/profile.d/autojump.sh
-elif [[ -s /usr/local/share/autojump/autojump.zsh ]]; then
-  source /usr/local/share/autojump/autojump.zsh
-fi
-

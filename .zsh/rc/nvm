@@ -1,4 +1,11 @@
 if type brew > /dev/null; then
   export NVM_DIR=~/.nvm
-  source $(brew --prefix nvm)/nvm.sh
+
+  nvm() {
+    echo "🚨 NVM not loaded! Loading now..."
+    unset -f nvm
+    export NVM_PREFIX=$(brew --prefix nvm)
+    [ -s "$NVM_PREFIX/nvm.sh" ] && . "$NVM_PREFIX/nvm.sh"
+    nvm "$@"
+  }
 fi

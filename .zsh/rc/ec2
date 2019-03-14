@@ -1,1 +1,0 @@
-ec2ssh='ssh -i ~/.ssh/Chris_Metcalf -l root -o UserKnownHostsFile=/dev/null -o CheckHostIP=no -o StrictHostKeyChecking=no -o ForwardAgent=yes'
