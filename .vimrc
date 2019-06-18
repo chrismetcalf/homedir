@@ -83,6 +83,9 @@ set history=500
 " Menus Gone Wild!
 set wildmenu
 
+" Commands start with ,
+let mapleader = ","
+
 """"""""""""""""""""""""""""""""""""""""""
 " Functions
 """"""""""""""""""""""""""""""""""""""""""
@@ -211,6 +214,15 @@ if has("autocmd")
   " Syntax options
   au FileType java :set shiftwidth=4
 
+
+  function! SetPythonOptions()
+    set expandtab
+    set tabstop=4
+    set softtabstop=4
+    set shiftwidth=4
+  endfunction
+  au FileType python call SetPythonOptions()
+
   " Delimitmate
   function! SetGitOptions()
     set spell
@@ -242,117 +254,6 @@ endfunction
 command! HtmlUnEscape call <SID>HtmlUnEscape()
 
 command! PreviewHTML :!open %<CR>
-""""""""""""""""""""""""""""""""""""""""""
-" Key Mappings
-""""""""""""""""""""""""""""""""""""""""""
-" Commands start with ,
-let mapleader = ","
-
-" Mappings for window keys
-nmap <silent> <C-k> :wincmd k<CR>
-nmap <silent> <C-j> :wincmd j<CR>
-nmap <silent> <C-h> :wincmd h<CR>
-nmap <silent> <C-l> :wincmd l<CR>
-nmap <silent> <C-down> :wincmd k<CR>
-nmap <silent> <C-up> :wincmd j<CR>
-nmap <silent> <C-left> :wincmd h<CR>
-nmap <silent> <C-right> :wincmd l<CR>
-
-" Toggle through buffers
-nmap <silent> <C-Tab> :bprevious<CR>
-
-" Quick search clear
-nnoremap <leader><space> :noh<cr>
-
-" MultiMarkdown the selection
-vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
-
-" Open in marked
-nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
-
-" Make
-nnoremap <leader>m :Make<CR>
-
-" Fold at tag
-nnoremap <leader>tf Vatzf
-
-" Reselect just pasted
-nnoremap <leader>v V`]
-
-" <leader>y copys yank to Clipper
-nnoremap <leader>y :call system('nc -N localhost 8377', @0)<CR>
-
-" Move one screen line at a time while wrapped
-nnoremap j gj
-nnoremap k gk
-vnoremap j gj
-vnoremap k gk
-
-" Quick exit out of insert mode
-inoremap jj <Esc>
-inoremap jjw <Esc>:w<CR>
-inoremap jjwq <Esc>:wq<CR>
-
-" Quick save
-nnoremap <leader>w :w!<CR>
-
-" Vimux
-map <leader>vp :VimuxPromptCommand<CR>
-map <leader>vl :VimuxRunLastCommand<CR>
-map <leader><leader> :VimuxRunLastCommand<CR>
-map <leader>vi :VimuxInspectRunner<CR>
-
-" Duplicate the line below
-vmap D y'>p
-
-" Reverse the selected lines
-vnoremap <leader>r !tac<CR>
-
-" Disable help, since its annoying as hell
-inoremap <F1> <ESC>
-nnoremap <F1> <ESC>
-vnoremap <F1> <ESC>
-
-" Pressing ,sp will toggle and untoggle spell checking
-map <leader>sp :setlocal spell!<cr>
-
-" Shortcuts using <leader>
-map <leader>sn ]s
-map <leader>sp [s
-map <leader>sa zg
-map <leader>s? z=
-
-" Tab skips
-map <leader>] :tabn<CR>
-map <leader>[ :tabp<CR>
-
-" Copy to PB
-map <leader>c :w !pbcopy<CR>
-
-" Jekyll magic
-nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
-nnoremap <leader>mw :silent !tmux split-window -b -l 8 'cd $(pwd); make watch<cr>
-
-" Quick search/replace from
-" http://sheerun.net/2014/03/21/how-to-boost-your-vim-productivity/
-vnoremap <silent> s //e<C-r>=&selection=='exclusive'?'+1':'<CR><CR>
-    \:<C-u>call histdel('search',-1)<Bar>let @/=histget('search',-1)<CR>gv
-omap s :normal vs<CR>
-
-" Sudo to write
-cmap w!! w !sudo tee % >/dev/null
-
-" Don't replace the buffer when you put
-" vp doesn't replace paste buffer
-function! RestoreRegister()
-  let @" = s:restore_reg
-  return ''
-endfunction
-function! s:Repl()
-  let s:restore_reg = @"
-  return "p@=RestoreRegister()\<cr>"
-endfunction
-vmap <silent> <expr> p <sid>Repl()
 
 """""""""""""""""""""""""""""""""""""""
 " Plugins!
@@ -410,12 +311,24 @@ call plug#begin('~/.vim-plugged')
 
   " Misc fun stuff
   Plug 'timcharper/gitosis.vim'
+  Plug 'rhysd/git-messenger.vim'
   Plug 'godlygeek/tabular'
   Plug 'airblade/vim-rooter'
   Plug 'junegunn/goyo.vim'
   Plug 'gcmt/wildfire.vim'
   Plug 'benmills/vimux'
   Plug 'AndrewRadev/splitjoin.vim'
+
+  " Color Scheme
+  Plug 'NLKNguyen/papercolor-theme'
+
+  " vim-test
+  Plug 'janko/vim-test'
+  let test#strategy='vimux'
+  nnoremap <leader>tn :TestNearest<CR>
+  nnoremap <leader>tf :TestFile<CR>
+  nnoremap <leader>ta :TestSuite<CR>
+  nnoremap <leader>tt :TestLast<CR>
 
   " Snipmate and its friends
   Plug 'MarcWeber/vim-addon-mw-utils'
@@ -439,6 +352,11 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-heroku'
   Plug 'tpope/vim-speeddating'
   Plug 'tpope/vim-jdaddy'
+
+  " Easy Align
+  Plug 'junegunn/vim-easy-align'
+  xmap ga <Plug>(EasyAlign) 
+  nmap ga <Plug>(EasyAlign)
 
   " Capitalization
   Plug 'arthurxavierx/vim-caser'
@@ -516,11 +434,116 @@ call plug#begin('~/.vim-plugged')
 call plug#end()
 """"" END Plugins """""""""""""""""""""
 
-" Color scheme must be set after plugin initialization
-colorscheme jellybeans
-highlight Normal guibg=NONE ctermbg=NONE
-highlight LineNr guibg=NONE ctermbg=NONE
-highlight NonText guibg=NONE ctermbg=NONE
+" Set colorscheme 
+set background=dark
+colorscheme PaperColor
+
+""""""""""""""""""""""""""""""""""""""""""
+" Key Mappings
+""""""""""""""""""""""""""""""""""""""""""
+
+" Mappings for window keys
+nmap <silent> <C-k> :wincmd k<CR>
+nmap <silent> <C-j> :wincmd j<CR>
+nmap <silent> <C-h> :wincmd h<CR>
+nmap <silent> <C-l> :wincmd l<CR>
+nmap <silent> <C-down> :wincmd k<CR>
+nmap <silent> <C-up> :wincmd j<CR>
+nmap <silent> <C-left> :wincmd h<CR>
+nmap <silent> <C-right> :wincmd l<CR>
+
+" Toggle through buffers
+nmap <silent> <C-Tab> :bprevious<CR>
+
+" Quick search clear
+nnoremap <leader><space> :noh<cr>
+
+" MultiMarkdown the selection
+vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
+
+" Open in marked
+nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
+
+" Make
+nnoremap <leader>m :Make<CR>
+
+" Reselect just pasted
+nnoremap <leader>v V`]
+
+" <leader>y copys yank to Clipper
+nnoremap <leader>y :call system('nc -N localhost 8377', @0)<CR>
+
+" Move one screen line at a time while wrapped
+nmap j gj
+nmap k gk
+vmap j gj
+vmap k gk
+
+" Quick exit out of insert mode
+inoremap jj <Esc>
+inoremap jjw <Esc>:w<CR>
+inoremap jjwq <Esc>:wq<CR>
+
+" Quick save
+nnoremap <leader>w :w!<CR>
+
+" Vimux
+map <leader>vp :VimuxPromptCommand<CR>
+map <leader>vl :VimuxRunLastCommand<CR>
+map <leader><leader> :VimuxRunLastCommand<CR>
+map <leader>vi :VimuxInspectRunner<CR>
+
+" Duplicate the line below
+vmap D y'>p
+
+" Reverse the selected lines
+vnoremap <leader>r !tac<CR>
+
+" Disable help, since its annoying as hell
+inoremap <F1> <ESC>
+nnoremap <F1> <ESC>
+vnoremap <F1> <ESC>
+
+" Pressing ,sp will toggle and untoggle spell checking
+map <leader>sp :setlocal spell!<cr>
+
+" Shortcuts using <leader>
+map <leader>sn ]s
+map <leader>sp [s
+map <leader>sa zg
+map <leader>s? z=
+
+" Tab skips
+map <leader>] :tabn<CR>
+map <leader>[ :tabp<CR>
+
+" Copy to PB
+map <leader>c :w !pbcopy<CR>
+
+" Jekyll magic
+nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
+nnoremap <leader>mw :silent !tmux split-window -b -l 8 'cd $(pwd); make watch<cr>
+
+" Quick search/replace from
+" http://sheerun.net/2014/03/21/how-to-boost-your-vim-productivity/
+vnoremap <silent> s //e<C-r>=&selection=='exclusive'?'+1':'<CR><CR>
+    \:<C-u>call histdel('search',-1)<Bar>let @/=histget('search',-1)<CR>gv
+omap s :normal vs<CR>
+
+" Sudo to write
+cmap w!! w !sudo tee % >/dev/null
+
+" Don't replace the buffer when you put
+" vp doesn't replace paste buffer
+function! RestoreRegister()
+  let @" = s:restore_reg
+  return ''
+endfunction
+function! s:Repl()
+  let s:restore_reg = @"
+  return "p@=RestoreRegister()\<cr>"
+endfunction
+vmap <silent> <expr> p <sid>Repl()
 
 " Ignore these files when completing names and in Explorer
 set wildignore=.svn,CVS,.git,.hg,*.o,*.a,*.class,*.mo,*.la,*.so,*.obj,*.swp,*.jpg,*.png,*.xpm,*.gif
