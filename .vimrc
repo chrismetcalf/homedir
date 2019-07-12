@@ -277,6 +277,8 @@ call plug#begin('~/.vim-plugged')
   nnoremap <leader>F :Files<CR>
   nnoremap <leader>a :Ag<CR>
   nnoremap <leader>h :Helptags<CR>
+  nnoremap <leader>c :Commands<CR>
+  nnoremap <leader>l :Lines<CR>
 
   " Gundo
   Plug 'sjl/gundo.vim'
@@ -516,9 +518,6 @@ map <leader>s? z=
 " Tab skips
 map <leader>] :tabn<CR>
 map <leader>[ :tabp<CR>
-
-" Copy to PB
-map <leader>c :w !pbcopy<CR>
 
 " Jekyll magic
 nnoremap <leader>jw :silent !tmux split-window -d -l 8 'cd $(pwd); jekyll build --watch --safe'<cr>
