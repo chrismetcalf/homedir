@@ -180,14 +180,6 @@ function! SoftWrap()
 endfunction
 command! SoftWrap :call SoftWrap()
 
-" Write this to a new note file
-function! WNote()
-  let filename = fnameescape(substitute(getline(1), '^#\s\+', '', '') . ".txt")
-  exe "save " . filename
-  set filetype=markdown
-endfunction
-command! WNote :call WNote()
-
 """"""""""""""""""""""""""""""""""""""""""
 " Filetype-Specific Config
 """"""""""""""""""""""""""""""""""""""""""
@@ -376,6 +368,7 @@ call plug#begin('~/.vim-plugged')
 
   " Docker
   Plug 'kevinhui/vim-docker-tools'
+
 
   " Completion
   Plug 'ervandew/supertab'
