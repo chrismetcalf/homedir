@@ -171,15 +171,6 @@ function! HtmlEntities()
 endfunction
 command! HtmlEntities :call HtmlEntities()
 
-function! SoftWrap()
-  set formatoptions=1
-  set linebreak
-  set wrap
-  set nolist
-  set breakat=\ |@-+;:,./?^I
-endfunction
-command! SoftWrap :call SoftWrap()
-
 """"""""""""""""""""""""""""""""""""""""""
 " Filetype-Specific Config
 """"""""""""""""""""""""""""""""""""""""""
@@ -187,6 +178,15 @@ command! SoftWrap :call SoftWrap()
 " AutoCmds
 if has("autocmd")
   filetype plugin indent on
+  
+  function! SoftWrap()
+    set formatoptions=1
+    set linebreak
+    set wrap
+    set nolist
+    set breakat=\ |@-+;:,./?
+  endfunction
+  command! SoftWrap :call SoftWrap()
 
   function! SetMkdOptions()
     set filetype=markdown
@@ -194,7 +194,6 @@ if has("autocmd")
     set wrapmargin=0
     set spell
     call SoftWrap()
-    " :NeoComplCacheDisable()<CR>
   endfunction
   au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
 
@@ -205,7 +204,6 @@ if has("autocmd")
 
   " Syntax options
   au FileType java :set shiftwidth=4
-
 
   function! SetPythonOptions()
     set expandtab
@@ -313,6 +311,12 @@ call plug#begin('~/.vim-plugged')
   Plug 'benmills/vimux'
   Plug 'AndrewRadev/splitjoin.vim'
 
+  " Note taking
+  Plug 'https://github.com/alok/notational-fzf-vim'
+  let g:nv_search_paths = ['~/Dropbox/Notes/']
+  let g:nv_ignore_pattern = ['_Archive']
+  nnoremap <leader>n :NV<CR>
+
   " Color Scheme
   Plug 'NLKNguyen/papercolor-theme'
 
@@ -328,6 +332,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'MarcWeber/vim-addon-mw-utils'
   Plug 'tomtom/tlib_vim'
   Plug 'garbas/vim-snipmate'
+  Plug 'honza/vim-snippets'
 
   " tpope is my spirit animal
   Plug 'tpope/vim-haml'
