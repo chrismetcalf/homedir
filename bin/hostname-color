@@ -26,7 +26,7 @@ local crand=$(( $chash % $#colnames ))
 if [[ $1 == "--zsh" ]]; then
   echo $zsh_colors[$crand]
 elif [[ $1 == "--tmux" ]]; then
-  tmux set -g @themepack "powerline/block/$colnames[$crand]"
+  tmux set -g @themepack "powerline/double/$colnames[$crand]"
 else 
   echo $colnames[$crand]
 fi
