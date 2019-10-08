@@ -83,6 +83,10 @@ set history=500
 " Menus Gone Wild!
 set wildmenu
 
+" Use system clipboard with yank. I don't know why I never knew this was
+" a thing...
+set clipboard=unnamed
+
 " Commands start with ,
 let mapleader = ","
 
@@ -374,7 +378,6 @@ call plug#begin('~/.vim-plugged')
   " Docker
   Plug 'kevinhui/vim-docker-tools'
 
-
   " Completion
   Plug 'ervandew/supertab'
   if has('nvim')
@@ -386,6 +389,9 @@ call plug#begin('~/.vim-plugged')
   endif
   Plug 'zchee/deoplete-jedi'
   let g:deoplete#enable_at_startup = 1
+
+  " Pretty-printing
+  Plug 'prettier/vim-prettier', { 'do': 'yarn install' }
 
   " Tmux
   Plug 'christoomey/vim-tmux-navigator'
@@ -470,9 +476,6 @@ nnoremap <leader>m :Make<CR>
 " Reselect just pasted
 nnoremap <leader>v V`]
 
-" <leader>y copys yank to Clipper
-nnoremap <leader>y :call system('nc -N localhost 8377', @0)<CR>
-
 " Move one screen line at a time while wrapped
 nmap j gj
 nmap k gk
@@ -552,8 +555,8 @@ endif
 if filewritable($HOME) && ! filewritable($HOME . "/.vimswap")
  silent call mkdir($HOME . "/.vimswap", "p", 0700)
 endif
-set backupdir=./.backup,~/.vimbackup,$TEMP,$TMP
-set directory=./.backup,~/.vimswap,$TEMP,$TMP
+set backupdir=~/.vimbackup,$TEMP,$TMP
+set directory=~/.vimswap,$TEMP,$TMP
 
 " Source local configs
 if filereadable("$HOME/.vimrc.local")
