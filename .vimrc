@@ -355,6 +355,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-heroku'
   Plug 'tpope/vim-speeddating'
   Plug 'tpope/vim-jdaddy'
+  Plug 'tpope/vim-vinegar'
 
   " Easy Align
   Plug 'junegunn/vim-easy-align'
