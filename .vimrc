@@ -345,6 +345,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'tpope/vim-repeat'
   Plug 'tpope/vim-git'
   Plug 'tpope/vim-fugitive'
+  Plug 'tpope/vim-rhubarb'
   Plug 'tpope/vim-pastie'
   Plug 'tpope/vim-eunuch'
   Plug 'tpope/vim-commentary'
