@@ -314,6 +314,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'gcmt/wildfire.vim'
   Plug 'benmills/vimux'
   Plug 'AndrewRadev/splitjoin.vim'
+  Plug 'Yggdroot/indentLine'
 
   " Note taking
   Plug 'https://github.com/alok/notational-fzf-vim'
