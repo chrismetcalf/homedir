@@ -19,3 +19,6 @@
 [submodule "bin/multi-git-status.git"]
 	path = bin/multi-git-status.git
 	url = https://github.com/fboender/multi-git-status.git
+[submodule ".oh-my-zsh-custom/themes/powerlevel10k"]
+	path = .oh-my-zsh-custom/themes/powerlevel10k
+	url = https://github.com/romkatv/powerlevel10k.git
