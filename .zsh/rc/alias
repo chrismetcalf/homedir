@@ -21,3 +21,15 @@ alias speed-test="docker run --rm -it jariasl/speed-test"
 alias mosh-cleanup='kill $(ps --no-headers --sort=start_time -C mosh-server -o pid | head -n -1)'
 
 alias ls="ls --color=always"
+
+alias trim="awk '{\$1=\$1};1'"
+
+pull-homedir() {
+  pushd $HOME/.homedir
+
+  echo "Updating ~/.homedir ..."
+  git stash && git pull --rebase && git stash pop && git submodule update --init
+  echo "Done!"
+
+  popd
+}
