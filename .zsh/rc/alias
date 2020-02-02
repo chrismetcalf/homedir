@@ -29,6 +29,7 @@ pull-homedir() {
 
   echo "Updating ~/.homedir ..."
   git stash && git pull --rebase && git stash pop && git submodule update --init
+  $HOME/bin/gitfix
   echo "Done!"
 
   popd
