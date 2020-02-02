@@ -183,24 +183,6 @@ command! HtmlEntities :call HtmlEntities()
 if has("autocmd")
   filetype plugin indent on
   
-  function! SoftWrap()
-    set formatoptions=1
-    set linebreak
-    set wrap
-    set nolist
-    set breakat=\ |@-+;:,./?
-  endfunction
-  command! SoftWrap :call SoftWrap()
-
-  function! SetMkdOptions()
-    set filetype=markdown
-    set nolinebreak
-    set wrapmargin=0
-    set spell
-    call SoftWrap()
-  endfunction
-  au BufNewFile,BufRead *.md,*.mkd,*.txt call SetMkdOptions()
-
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
   au BufNewFile,BufRead *.json setfiletype json
@@ -373,10 +355,14 @@ call plug#begin('~/.vim-plugged')
   Plug 'honza/dockerfile.vim'
   Plug 'tpope/vim-bundler'
   Plug 'tpope/vim-liquid'
-  Plug 'tpope/vim-markdown'
   Plug 'lrampa/vim-apib'
   Plug 'davidoc/taskpaper.vim'
   Plug 'nikvdp/ejs-syntax'
+
+  " Markdown
+  Plug 'plasticboy/vim-markdown'
+  "let g:vim_markdown_folding_disabled = 1
+  let g:vim_markdown_frontmatter = 1
 
   " Docker
   Plug 'kevinhui/vim-docker-tools'
