@@ -1,7 +1,8 @@
 xrdb -merge $HOME/.Xresources
-PATH=/usr/local/bin:$PATH
-xsetroot -solid '#4a525a'
-xmodmap -e 'remove Mod2 = Meta_L' -e 'add Mod1 = Meta_L' &
 
-xmobar &
-exec $HOME/.cabal/bin/xmonad
+/usr/bin/trayer --edge top --align right --SetDockType true --SetPartialStrut true --expand true --width 10 --transparent true --tint 0x191970 --height 12 &
+
+/usr/bin/kitty &
+
+#exec /usr/bin/xmonad
+exec /usr/bin/xmonad

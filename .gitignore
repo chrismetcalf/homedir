@@ -25,3 +25,4 @@ known
 .vim/.netrwhist
 .config/thefuck/__pycache__/
 .vim/autoload/plug.vim.old
+.xmonad/xmonad-arm-linux
