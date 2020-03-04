@@ -1,6 +1,5 @@
 ############### Vim style line editing
 #bindkey -v
-bindkey "" history-incremental-search-backward
 bindkey "^/" vi-history-search-backward
 bindkey '' end-of-line
 bindkey '' beginning-of-line
