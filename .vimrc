@@ -273,6 +273,7 @@ call plug#begin('~/.vim-plugged')
   highlight SignColumn guibg=NONE ctermbg=NONE
 
   " Gist
+  Plug 'mattn/webapi-vim'
   Plug 'mattn/gist-vim'
   let g:gist_open_browser_after_post = 1
   let g:gist_show_privates = 1
@@ -378,9 +379,6 @@ call plug#begin('~/.vim-plugged')
   endif
   Plug 'zchee/deoplete-jedi'
   let g:deoplete#enable_at_startup = 1
-
-  " Pretty-printing
-  Plug 'prettier/vim-prettier', { 'do': 'yarn install' }
 
   " Tmux
   Plug 'christoomey/vim-tmux-navigator'
