@@ -83,9 +83,16 @@ set history=500
 " Menus Gone Wild!
 set wildmenu
 
-" Use system clipboard with yank. I don't know why I never knew this was
-" a thing...
-set clipboard=unnamed
+" isomorphic-copy clipboard magic
+if has('nvim')
+  " use unnamedplus only! or else will double set
+  set clipboard=unnamedplus
+  if getenv('DISPLAY') == v:null
+    exe setenv('DISPLAY', 'FAKE')
+  endif
+else
+  autocmd TextYankPost * call system("c", getreg('"'))
+endif
 
 " Commands start with ,
 let mapleader = ","

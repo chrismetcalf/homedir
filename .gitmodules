@@ -22,3 +22,6 @@
 [submodule ".oh-my-zsh-custom/themes/powerlevel10k"]
 	path = .oh-my-zsh-custom/themes/powerlevel10k
 	url = https://github.com/romkatv/powerlevel10k.git
+[submodule "bin/isomorphic-copy.git"]
+	path = bin/isomorphic-copy.git
+	url = https://github.com/ms-jpq/isomorphic-copy.git
