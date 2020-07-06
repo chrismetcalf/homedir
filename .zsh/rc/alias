@@ -32,3 +32,28 @@ pull-homedir() {
 
   popd
 }
+
+# ffmpeg shortcuts
+ffmpeg-stabalize() {
+  echo "Stabalizing $1 into $2..."
+  TMPDIR=`mktemp -d`
+  echo "Analizing, using temporary directory $TMPDIR..."
+  ffmpeg -i "$1" -vf vidstabdetect=shakiness=5:accuracy=15:result="$TMPDIR/log.trf" -f null NUL 
+  echo "Processing..."
+  ffmpeg -i "$1" -vf vidstabtransform=input="$TMPDIR/log.trf",unsharp=5:5:0.8:3:3:0.4 -c:v libx264 -level 3.1  -c:a copy "$2"
+}
+
+ffmpeg-concat() {
+  TMPDIR=`mktemp -d`
+  LISTING=$TMPDIR/files.txt
+  echo "Using listing file $LISTING..."
+  echo "# Remove or comment out any files you don't want to concatenate" > $LISTING 
+  for f in $*; do echo "file '`pwd`/$f'" >> $LISTING; done
+  vim $LISTING
+  ffmpeg -f concat -safe 0 -i $LISTING -c copy output.mov
+}
+
+ffmpeg-timelapse() {
+  echo "Generating timelapse from $1 using a PTS of $2 as $3..."
+  ffmpeg -i $1 -filter:v "setpts=$2*PTS" -an $3
+}
