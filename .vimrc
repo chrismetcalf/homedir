@@ -263,6 +263,9 @@ call plug#begin('~/.vim-plugged')
   nnoremap <leader>c :Commands<CR>
   nnoremap <leader>l :Lines<CR>
 
+  " AnyJump
+  Plug 'pechorin/any-jump.vim'
+
   " Gundo
   Plug 'sjl/gundo.vim'
   nnoremap <leader>G :GundoToggle<CR>
