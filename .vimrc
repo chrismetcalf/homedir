@@ -439,7 +439,7 @@ call plug#end()
 
 " Set colorscheme 
 set background=dark
-colorscheme PaperColor
+silent! colorscheme PaperColor
 
 """"""""""""""""""""""""""""""""""""""""""
 " Key Mappings
