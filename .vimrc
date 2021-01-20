@@ -194,6 +194,7 @@ if has("autocmd")
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
   au BufNewFile,BufRead *.json setfiletype json
   au BufNewFile,BufRead *.mst set filetype=mustache
+  au BufNewFile,BufRead Supfile,*.sup setfiletype yaml
 
   " Syntax options
   au FileType java :set shiftwidth=4
