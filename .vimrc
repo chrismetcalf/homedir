@@ -265,6 +265,7 @@ call plug#begin('~/.vim-plugged')
 
   " AnyJump
   Plug 'pechorin/any-jump.vim'
+  let g:any_jump_search_prefered_engine = 'ag'
 
   " Gundo
   Plug 'sjl/gundo.vim'
@@ -372,7 +373,8 @@ call plug#begin('~/.vim-plugged')
 
   " Markdown
   Plug 'plasticboy/vim-markdown'
-  "let g:vim_markdown_folding_disabled = 1
+  let g:vim_markdown_conceal = 0
+  let g:vim_markdown_folding_disabled = 1
   let g:vim_markdown_frontmatter = 1
 
   " Docker
