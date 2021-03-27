@@ -315,6 +315,7 @@ call plug#begin('~/.vim-plugged')
   let g:nv_search_paths = ['~/Dropbox/Notes/']
   let g:nv_ignore_pattern = ['_Archive']
   nnoremap <leader>n :NV<CR>
+  nnoremap <leader>naa :silent! Rename! _Archive/<CR>
 
   " Color Scheme
   Plug 'NLKNguyen/papercolor-theme'
@@ -373,7 +374,7 @@ call plug#begin('~/.vim-plugged')
 
   " Markdown
   Plug 'plasticboy/vim-markdown'
-  "let g:vim_markdown_folding_disabled = 1
+  let g:vim_markdown_folding_disabled = 1
   let g:vim_markdown_frontmatter = 1
 
   " Docker
