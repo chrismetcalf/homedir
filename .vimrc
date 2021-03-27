@@ -334,6 +334,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'MarcWeber/vim-addon-mw-utils'
   Plug 'tomtom/tlib_vim'
   Plug 'garbas/vim-snipmate'
+  let g:snipMate = { 'snippet_version' : 1 }
   Plug 'honza/vim-snippets'
 
   " tpope is my spirit animal
