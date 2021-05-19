@@ -192,7 +192,7 @@ if has("autocmd")
   
   au BufNewFile,BufRead *.rss,*.atom setfiletype xml
   au BufNewFile,BufRead Gemfile,Rakefile,*.ru,*.thor setfiletype ruby
-  au BufNewFile,BufRead *.json setfiletype json
+  au BufNewFile,BufRead *.json,*.draftsSyntax setfiletype json
   au BufNewFile,BufRead *.mst set filetype=mustache
   au BufNewFile,BufRead Supfile,*.sup setfiletype yaml
 
