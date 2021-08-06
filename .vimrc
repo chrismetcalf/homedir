@@ -283,6 +283,12 @@ call plug#begin('~/.vim-plugged')
   highlight clear SignColumn
   highlight SignColumn guibg=NONE ctermbg=NONE
 
+  " MiniMap
+  Plug 'wfxr/minimap.vim'
+  let g:minimap_width = 10
+  let g:minimap_auto_start = 1
+  let g:minimap_auto_start_win_enter = 1
+
   " Gist
   Plug 'mattn/webapi-vim'
   Plug 'mattn/gist-vim'
