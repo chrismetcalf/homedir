@@ -108,7 +108,7 @@ defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
 defaults write com.apple.finder CreateDesktop -bool false
 
 # Empty Trash securely by default
-defaults write com.apple.finder EmptyTrashSecurely -bool false
+defaults write com.apple.finder EmptyTrashSecurely -bool true
 
 # Disable tap to click (Trackpad)
 defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool false
@@ -175,6 +175,9 @@ defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
 defaults write NSGlobalDomain KeyRepeat -int 1
 defaults write NSGlobalDomain InitialKeyRepeat -int 20
 
+# Make notifications hang out longer
+defaults write com.apple.notificationcenterui bannerTime -int 5
+
 ###############################################################################
 # Energy saving                                                               #
 ###############################################################################
@@ -237,3 +240,4 @@ defaults write com.apple.screencapture disable-shadow -bool true
 killall Dock
 killall Finder
 killall iTunes
+killall NotificationCenter
