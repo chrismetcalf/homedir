@@ -316,13 +316,6 @@ call plug#begin('~/.vim-plugged')
   Plug 'AndrewRadev/splitjoin.vim'
   Plug 'Yggdroot/indentLine'
 
-  " Note taking
-  Plug 'https://github.com/alok/notational-fzf-vim'
-  let g:nv_search_paths = ['~/Dropbox/Notes/']
-  let g:nv_ignore_pattern = ['_Archive']
-  nnoremap <leader>n :NV<CR>
-  nnoremap <leader>naa :silent! Rename! _Archive/<CR>
-
   " Color Scheme
   Plug 'NLKNguyen/papercolor-theme'
   Plug 'sheerun/vim-polyglot'
