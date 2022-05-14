@@ -1,6 +1,5 @@
-# Make sure /usr/local/bin is in the path
-export PATH=/usr/local/bin:$PATH
-export PATH=/usr/local/share/npm/bin:$PATH
+# Make sure brew is in the path
+export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/local/share/npm/bin:$PATH
 
 export MANPATH=/opt/local/share/man:$MANPATH
 
