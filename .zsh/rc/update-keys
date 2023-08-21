@@ -1,0 +1,3 @@
+# Update keys each time we load ZSH
+echo "Fetching keys..."
+~/bin/update-keys
