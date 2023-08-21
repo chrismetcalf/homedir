@@ -45,10 +45,6 @@ set backspace=indent,eol,start
 " I like highlighting strings inside C comments
 let c_comment_strings=1
 
-" Tab-completion options
-set completeopt+=menuone,noselect
-syntax on
-
 " Always show the status line
 set laststatus=2
 
@@ -266,6 +262,11 @@ call plug#begin('~/.vim-plugged')
 
   " AnyJump
   Plug 'pechorin/any-jump.vim'
+  let g:any_jump_disable_default_keybindings = 1
+  nnoremap <leader>aj :AnyJump<CR>
+  xnoremap <leader>aj :AnyJumpVisual<CR>
+  nnoremap <leader>ajb :AnyJumpBack<CR>
+  nnoremap <leader>ajl :AnyJumpLastResults<CR>
 
   " Gundo
   Plug 'sjl/gundo.vim'
@@ -298,6 +299,9 @@ call plug#begin('~/.vim-plugged')
   let g:gist_clip_command = 'pbcopy'
   let g:github_user = "chrismetcalf"
 
+  " GH Line
+  Plug 'ruanyl/vim-gh-line'
+
   " vim-airline
   Plug 'vim-airline/vim-airline'
   Plug 'vim-airline/vim-airline-themes'
@@ -312,7 +316,6 @@ call plug#begin('~/.vim-plugged')
   Plug 'airblade/vim-rooter'
   Plug 'junegunn/goyo.vim'
   Plug 'gcmt/wildfire.vim'
-  Plug 'benmills/vimux'
   Plug 'AndrewRadev/splitjoin.vim'
   Plug 'Yggdroot/indentLine'
 
@@ -323,6 +326,7 @@ call plug#begin('~/.vim-plugged')
 
   " vim-test
   Plug 'janko/vim-test'
+  Plug 'benmills/vimux'
   let test#strategy='vimux'
   nnoremap <leader>tn :TestNearest<CR>
   nnoremap <leader>tf :TestFile<CR>
@@ -438,6 +442,25 @@ call plug#begin('~/.vim-plugged')
 
   " DevIcons always needs to be last
   Plug 'ryanoasis/vim-devicons'
+
+  " EasyMotion
+  Plug 'easymotion/vim-easymotion'
+  let g:EasyMotion_do_mapping = 0 " Disable default mappings
+
+  " Jump to anywhere you want with minimal keystrokes, with just one key binding.
+  " `s{char}{label}`
+  nmap s <Plug>(easymotion-overwin-f)
+  " or
+  " `s{char}{char}{label}`
+  " Need one more keystroke, but on average, it may be more comfortable.
+  nmap s <Plug>(easymotion-overwin-f2)
+
+  " Turn on case-insensitive feature
+  let g:EasyMotion_smartcase = 1
+
+  " JK motions: Line motions
+  map <Leader>j <Plug>(easymotion-j)
+  map <Leader>k <Plug>(easymotion-k)
 call plug#end()
 """"" END Plugins """""""""""""""""""""
 
@@ -471,12 +494,6 @@ nmap <silent> <C-Tab> :bprevious<CR>
 " Quick search clear
 nnoremap <leader><space> :noh<cr>
 
-" MultiMarkdown the selection
-vmap <leader>mm :!sed 's/^ *//' \| multimarkdown --nolabels --nosmart --nonotes<CR>
-
-" Open in marked
-nnoremap <leader>md :silent !open -a Marked\ 2.app '%:p'<cr>
-
 " Make
 nnoremap <leader>m :Make<CR>
 
@@ -500,7 +517,6 @@ nnoremap <leader>w :w!<CR>
 " Vimux
 map <leader>vp :VimuxPromptCommand<CR>
 map <leader>vl :VimuxRunLastCommand<CR>
-map <leader><leader> :VimuxRunLastCommand<CR>
 map <leader>vi :VimuxInspectRunner<CR>
 
 " Duplicate the line below
