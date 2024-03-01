@@ -64,10 +64,11 @@ mas 'Location Helper for Applescript', id: 488536386
 
 # SetApp stuff
 brew 'setapp'
-setapp 'NotePlan'
-setapp 'Bartender'
-setapp '24 Hour Wallpaper'
-setapp 'Path Finder'
-setapp 'Soulver'
-setapp 'iStat Menus'
-setapp 'Nitro PDF Pro'
+# Wishful thinking. This doesn't work
+# setapp 'NotePlan'
+# setapp 'Bartender'
+# setapp '24 Hour Wallpaper'
+# setapp 'Path Finder'
+# setapp 'Soulver'
+# setapp 'iStat Menus'
+# setapp 'Nitro PDF Pro'
