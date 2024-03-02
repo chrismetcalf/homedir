@@ -90,6 +90,9 @@ else
   autocmd TextYankPost * call system("c", getreg('"'))
 endif
 
+" I guess I have to do this to make my cursor wrap lines?
+set whichwrap+=<,h,l,[,]
+
 " Commands start with ,
 let mapleader = ","
 
@@ -216,6 +219,9 @@ if has("autocmd")
 
   " Crontab
   autocmd filetype crontab setlocal nobackup nowritebackup
+
+  " Latex
+  autocmd filetype tex set conceallevel=0 spell
 endif
 
 " HTML Escaping
