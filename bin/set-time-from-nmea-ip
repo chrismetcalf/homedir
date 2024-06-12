@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+import socket
+import pynmea2
+import ntplib
+import os
+import argparse
+from time import strftime, gmtime
+
+def set_system_time(time_str, date_str):
+    ntp_time = f'{date_str[4:6]}-{date_str[2:4]}-{date_str[0:2]} {time_str[:2]}:{time_str[2:4]}:{time_str[4:6]}'
+    os.system(f'date -s "{ntp_time}"')
+
+def main(hostname, port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((hostname, port))
+        with s.makefile('r') as stream:
+            for line in stream:
+                if line.startswith('$GPRMC'):
+                    msg = pynmea2.parse(line)
+                    if msg.status == 'A':  # Data valid
+                        set_system_time(msg.timestamp.strftime('%H%M%S'), msg.datestamp.strftime('%d%m%y'))
+                        break
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Set system time from NMEA TCP stream")
+    parser.add_argument("hostname", type=str, help="Hostname or IP address of the NMEA TCP stream")
+    parser.add_argument("port", type=int, help="Port number of the NMEA TCP stream")
+
+    args = parser.parse_args()
+    main(args.hostname, args.port)
