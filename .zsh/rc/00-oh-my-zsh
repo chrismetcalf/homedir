@@ -46,7 +46,7 @@ fi
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 zstyle :omz:plugins:ssh-agent agent-forwarding on
-plugins=(macos brew autojump jira mosh thefuck tmux python ruby fzf ssh-agent)
+plugins=(mac brew autojump jira mosh thefuck tmux python ruby fzf ssh-agent)
 
 source $ZSH/oh-my-zsh.sh
 
