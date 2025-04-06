@@ -291,10 +291,10 @@ call plug#begin('~/.vim-plugged')
   highlight SignColumn guibg=NONE ctermbg=NONE
 
   " MiniMap
-  Plug 'wfxr/minimap.vim'
-  let g:minimap_width = 10
-  let g:minimap_auto_start = 1
-  let g:minimap_auto_start_win_enter = 1
+  " Plug 'wfxr/minimap.vim'
+  " let g:minimap_width = 10
+  " let g:minimap_auto_start = 1
+  " let g:minimap_auto_start_win_enter = 1
 
   " Gist
   Plug 'mattn/webapi-vim'
@@ -306,7 +306,7 @@ call plug#begin('~/.vim-plugged')
   let g:github_user = "chrismetcalf"
 
   " GH Line
-  Plug 'ruanyl/vim-gh-line'
+  " Plug 'ruanyl/vim-gh-line'
 
   " vim-airline
   Plug 'vim-airline/vim-airline'
@@ -340,28 +340,28 @@ call plug#begin('~/.vim-plugged')
   nnoremap <leader>tt :TestLast<CR>
 
   " Snipmate and its friends
-  Plug 'MarcWeber/vim-addon-mw-utils'
-  Plug 'tomtom/tlib_vim'
-  Plug 'garbas/vim-snipmate'
-  let g:snipMate = { 'snippet_version' : 1 }
-  Plug 'honza/vim-snippets'
+  " Plug 'MarcWeber/vim-addon-mw-utils'
+  " Plug 'tomtom/tlib_vim'
+  " Plug 'garbas/vim-snipmate'
+  " let g:snipMate = { 'snippet_version' : 1 }
+  " Plug 'honza/vim-snippets'
 
   " tpope is my spirit animal
-  Plug 'tpope/vim-haml'
+  " Plug 'tpope/vim-haml'
   Plug 'tpope/vim-endwise'
-  Plug 'tpope/vim-surround'
+  " Plug 'tpope/vim-surround'
   Plug 'tpope/vim-repeat'
   Plug 'tpope/vim-git'
   Plug 'tpope/vim-fugitive'
   Plug 'tpope/vim-rhubarb'
-  Plug 'tpope/vim-pastie'
+  " Plug 'tpope/vim-pastie'
   Plug 'tpope/vim-eunuch'
   Plug 'tpope/vim-commentary'
   Plug 'tpope/vim-rake'
   Plug 'tpope/vim-rvm'
   Plug 'tpope/vim-tbone'
   Plug 'tpope/vim-dispatch'
-  Plug 'tpope/vim-heroku'
+  " Plug 'tpope/vim-heroku'
   Plug 'tpope/vim-speeddating'
   Plug 'tpope/vim-jdaddy'
   Plug 'tpope/vim-vinegar'
@@ -376,13 +376,13 @@ call plug#begin('~/.vim-plugged')
 
   " Syntax
   Plug 'vim-scripts/vim-json-bundle'
-  Plug 'tclem/vim-arduino'
+  " Plug 'tclem/vim-arduino'
   Plug 'honza/dockerfile.vim'
   Plug 'tpope/vim-bundler'
-  Plug 'tpope/vim-liquid'
-  Plug 'lrampa/vim-apib'
-  Plug 'davidoc/taskpaper.vim'
-  Plug 'nikvdp/ejs-syntax'
+  " Plug 'tpope/vim-liquid'
+  " Plug 'lrampa/vim-apib'
+  " Plug 'davidoc/taskpaper.vim'
+  " Plug 'nikvdp/ejs-syntax'
 
   " Markdown
   Plug 'plasticboy/vim-markdown'
@@ -403,6 +403,7 @@ call plug#begin('~/.vim-plugged')
   endif
   Plug 'zchee/deoplete-jedi'
   let g:deoplete#enable_at_startup = 1
+  let g:deoplete#enable_syntax_highlighting = 1
 
   " Tmux
   Plug 'christoomey/vim-tmux-navigator'
@@ -411,7 +412,7 @@ call plug#begin('~/.vim-plugged')
   Plug 'tmux-plugins/vim-tmux-focus-events'
 
   " Open current selection in Github
-  Plug 'prakashdanish/vim-githubinator'
+  " Plug 'prakashdanish/vim-githubinator'
 
   " incsearch
   Plug 'haya14busa/incsearch.vim'
@@ -467,6 +468,20 @@ call plug#begin('~/.vim-plugged')
   " JK motions: Line motions
   map <Leader>j <Plug>(easymotion-j)
   map <Leader>k <Plug>(easymotion-k)
+
+  " Copilot
+  Plug 'github/copilot.vim'
+
+  " ChatGPT
+  Plug 'CoderCookE/vim-chatgpt'
+  let g:chat_gpt_max_tokens=2000
+  let g:chat_gpt_model='gpt-4o'
+  let g:chat_gpt_session_mode=0
+  let g:chat_gpt_temperature = 0.7
+  let g:chat_gpt_lang = 'English'
+  let g:chat_gpt_split_direction = 'horizontal'
+  let g:split_ratio=4 
+  vmap <silent> <leader>0 <Plug>(chatgpt-menu)
 call plug#end()
 """"" END Plugins """""""""""""""""""""
 
