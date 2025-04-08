@@ -129,7 +129,7 @@ if [ -z "$TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS" ]; then
 		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery 137 127")
 
 	# Raspberry Pi with PiSugar (detect via installed power manager)
-	elif command -v pisugar-power-manager >/dev/null 2>&1; then
+	elif command -v pisugar-server >/dev/null 2>&1; then
 		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery_pisugar 137 127")
 
 	# Otherwise: headless server or unsupported config – no battery segment
