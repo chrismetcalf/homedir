@@ -11,6 +11,13 @@ if [[ ! -d .ssh ]]; then
 fi
 dircombine '.*' .ssh $HOME/.homedir/.ssh
 
+echo "Setting up .config directory"
+if [[ ! -d .config ]]; then
+  echo ".config doesn't exist yet, creating..."
+  mkdir .config
+fi
+dircombine '.*' .config $HOME/.homedir/.config
+
 echo "Linking in .dotfiles..."
 dircombine '.*' . $HOME/.homedir
 
