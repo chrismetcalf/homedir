@@ -51,10 +51,10 @@
 	export TMUX_POWERLINE_SEG_AIR_JSON="jq"
 	# Your location
 	# Latitude and Longitude:
-	TMUX_POWERLINE_SEG_AIR_LAT=47.70"
-	TMUX_POWERLINE_SEG_AIR_LON="-122.35"
+	TMUX_POWERLINE_SEG_AIR_LAT=""
+	TMUX_POWERLINE_SEG_AIR_LON=""
 	# Your Open Weather API Key:
-	TMUX_POWERLINE_SEG_AIR_OPEN_WEATHER_API_KEY="672a78b8bcd30baeb9550df579be4b57"
+	TMUX_POWERLINE_SEG_AIR_OPEN_WEATHER_API_KEY=""
 # }
 
 # battery.sh {
@@ -410,7 +410,7 @@
 	# The data provider to use. Currently only "yahoo" is supported.
 	export TMUX_POWERLINE_SEG_WEATHER_DATA_PROVIDER="yrno"
 	# What unit to use. Can be any of {c,f,k}.
-	export TMUX_POWERLINE_SEG_WEATHER_UNIT="f"
+	export TMUX_POWERLINE_SEG_WEATHER_UNIT="c"
 	# How often to update the weather in seconds.
 	export TMUX_POWERLINE_SEG_WEATHER_UPDATE_PERIOD="600"
 	# Name of GNU grep binary if in PATH, or path to it.
@@ -419,8 +419,8 @@
 	export TMUX_POWERLINE_SEG_WEATHER_JSON="jq"
 	# Your location
 	# Latitude and Longtitude for use with yr.no
-	TMUX_POWERLINE_SEG_WEATHER_LAT="47.70"
-	TMUX_POWERLINE_SEG_WEATHER_LON="-122.35"
+	TMUX_POWERLINE_SEG_WEATHER_LAT=""
+	TMUX_POWERLINE_SEG_WEATHER_LON=""
 # }
 
 # xkb_layout.sh {
