@@ -12,7 +12,7 @@ send_command() {
 run_segment() {
     # Retrieve battery percentage (strip everything but the number)
     battery_raw=$(send_command "get battery")
-    battery_percentage=$(echo "$battery_raw" | grep -o '[0-9]\+')
+    battery_percentage=$(echo "$battery_raw" | awk -F': ' '{printf "%.0f", $2}')
 
     # Get and parse charging status
     charging_raw=$(send_command "get battery_charging")
