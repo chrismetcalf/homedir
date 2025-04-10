@@ -10,18 +10,24 @@ send_command() {
 }
 
 run_segment() {
-    # Retrieve battery percentage (strip everything but the number)
+    # Get clean numeric battery percentage from "battery: 73.428"
     battery_raw=$(send_command "get battery")
-    battery_percentage=$(echo "$battery_raw" | awk -F': ' '{printf "%.0f", $2}')
+    battery_percentage=$(echo "$battery_raw" | awk -F': ' '{ split($2, parts, "."); print parts[1] }' | tr -cd '[:digit:]')
 
     # Get and parse charging status
     charging_raw=$(send_command "get battery_charging")
-    charging_status=$(echo "$charging_raw" | awk -F': ' '{print $2}')
+    charging_status=$(echo "$charging_raw" | awk -F': ' '{print tolower($2)}' | tr -cd 'a-zA-Z')
 
     # Determine the icon based on charging status and battery percentage
     if [[ "$charging_status" == "true" ]]; then
-        icon="󰂄" # Charging
-    elif (( battery_percentage > 99 )); then
+        charging_icon=" "
+    else
+        charging_icon=""
+    fi
+
+    if (( battery_percentage > 99 && "$charging_status" == "true" )); then
+        icon=""
+    elif (( battery_percentage > 98 )); then
         icon="󰁹"
     elif (( battery_percentage > 80 )); then
         icon="󰂁"
@@ -36,6 +42,6 @@ run_segment() {
     fi
 
     # Output the icon and battery percentage
-    echo "$icon $battery_percentage%"
+    echo "$charging_icon$icon $battery_percentage%"
     exit 0
 }

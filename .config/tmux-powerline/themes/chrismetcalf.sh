@@ -110,7 +110,7 @@ if [ -z "$TMUX_POWERLINE_LEFT_STATUS_SEGMENTS" ]; then
 		# "lan_ip 24 255 ${TMUX_POWERLINE_SEPARATOR_RIGHT_THIN}"
 		#"vpn 24 255 ${TMUX_POWERLINE_SEPARATOR_RIGHT_THIN}"
 		# "wan_ip 24 255"
-		"vcs_branch 29 88"
+		"vcs_branch 29 0"
 		#"vcs_compare 60 255"
 		#"vcs_staged 64 255"
 		#"vcs_modified 9 255"
@@ -126,11 +126,11 @@ if [ -z "$TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS" ]; then
 
 	# macOS
 	if [[ "$(uname)" == "Darwin" ]]; then
-		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery 137 127")
+		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery 148 0")
 
 	# Raspberry Pi with PiSugar (detect via installed power manager)
 	elif command -v pisugar-server >/dev/null 2>&1; then
-		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery_pisugar 137 127")
+		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery_pisugar 148 0")
 
 	# Otherwise: headless server or unsupported config – no battery segment
 	fi
