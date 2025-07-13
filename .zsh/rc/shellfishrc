@@ -214,7 +214,7 @@ EOF
 Usage: setbarcolor <css-style color>
 
 Set color of terminal toolbar color with values such as
-   red, #f00, #ff0000, rgb(255,0,0), color(p3 1.0 0.0 0.0)
+   red, '#f00', '#ff0000', rgb(255,0,0), color(p3 1.0 0.0 0.0)
 EOF
     else
       OUTPUT=$(
