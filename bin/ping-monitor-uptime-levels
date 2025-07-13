@@ -1,0 +1,43 @@
+#!/bin/bash
+
+DB="$HOME/connectivity.db"
+
+# Check DB exists
+if [ ! -f "$DB" ]; then
+  echo "N/A, N/A, N/A (no data)"
+  exit 0
+fi
+
+# Time windows in minutes
+for MIN in 5 15 60; do
+  QUERY=$(sqlite3 "$DB" <<EOF
+.headers off
+SELECT
+  CASE
+    WHEN COUNT(*) = 0 THEN 'N/A'
+    ELSE printf('%.1f', 100.0 * SUM(status = 'OFFLINE') / COUNT(*))
+  END
+FROM log
+WHERE timestamp >= datetime('now', '-$MIN minutes', 'utc');
+EOF
+)
+  OUTPUT+=("$QUERY")
+done
+
+# Calculate time since last ping
+LAST_TIMESTAMP=$(sqlite3 "$DB" "SELECT timestamp FROM log ORDER BY timestamp DESC LIMIT 1;")
+if [ -z "$LAST_TIMESTAMP" ]; then
+  AGE_STR="(no data)"
+else
+  NOW_EPOCH=$(date -u +%s)
+  LAST_EPOCH=$(date -u -d "$LAST_TIMESTAMP" +%s)
+  DIFF=$((NOW_EPOCH - LAST_EPOCH))
+
+  MINS=$((DIFF / 60))
+  SECS=$((DIFF % 60))
+
+  AGE_STR="(${MINS}m ${SECS}s)"
+fi
+
+# Output
+echo "${OUTPUT[0]}, ${OUTPUT[1]}, ${OUTPUT[2]} $AGE_STR"

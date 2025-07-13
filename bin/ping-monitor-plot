@@ -1,0 +1,56 @@
+#!/bin/bash
+
+DB="$HOME/connectivity.db"
+TMP="/tmp/downtime_summary_sqlite.csv"
+
+# Export downtime percent per 15-min bucket over past 24 hours
+sqlite3 "$DB" <<EOF > "$TMP"
+.headers off
+.mode csv
+WITH rounded AS (
+  SELECT
+    strftime('%Y-%m-%dT%H:%M', timestamp, 'localtime') AS ts,
+    status
+  FROM log
+  WHERE timestamp >= datetime('now', '-24 hours', 'utc')
+),
+bucketed AS (
+  SELECT
+    substr(ts, 1, 13) || ':' ||
+      CASE
+        WHEN cast(substr(ts, 15, 2) as int) < 15 THEN '00'
+        WHEN cast(substr(ts, 15, 2) as int) < 30 THEN '15'
+        WHEN cast(substr(ts, 15, 2) as int) < 45 THEN '30'
+        ELSE '45'
+      END AS bucket,
+    status
+  FROM rounded
+),
+aggregated AS (
+  SELECT
+    bucket,
+    count(*) AS total,
+    sum(status = 'OFFLINE') AS offline
+  FROM bucketed
+  GROUP BY bucket
+)
+SELECT bucket, round(100.0 * offline / total, 1)
+FROM aggregated
+ORDER BY bucket;
+EOF
+
+# Plot the results with local time on X-axis
+gnuplot -persist <<EOF
+set terminal dumb size 100,25
+set datafile separator ','
+set xdata time
+set timefmt '%Y-%m-%dT%H:%M'
+set format x '%H:%M'
+set xlabel 'Local Time (past 24h)'
+set ylabel '% Downtime'
+set yrange [0:20]
+set title '15-min Downtime % (Local Time)'
+plot \
+  '$TMP' using 1:2:(\$2 > 0 ? \$2 : 1/0) with boxes title 'Downtime > 0', \
+  '$TMP' using 1:2:(\$2 == 0 ? \$2 : 1/0) with boxes title 'No Downtime'
+EOF

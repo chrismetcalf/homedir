@@ -1,0 +1,53 @@
+#!/bin/bash
+
+LOGFILE="$HOME/connectivity-log.csv"
+DBFILE="$HOME/connectivity.db"
+TARGET="8.8.8.8"
+
+# Create CSV log file if needed
+if [ ! -f "$LOGFILE" ]; then
+    echo "timestamp,status,ping_ms" > "$LOGFILE"
+fi
+
+# Create SQLite DB and table if not present
+sqlite3 "$DBFILE" <<EOF
+CREATE TABLE IF NOT EXISTS log (
+  timestamp TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  ping_ms REAL
+);
+EOF
+
+while true; do
+    # Get current timestamp in clean UTC
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S")
+
+    # Try one ping using fping
+    PING_RESULT=$(fping -C1 -q "$TARGET" 2>&1)
+
+    if [[ $? -eq 0 ]]; then
+        # Extract ping time (e.g., "8.8.8.8 : 10.23")
+        PING_MS=$(echo "$PING_RESULT" | awk -F: '{print $2}' | xargs)
+
+        # Log to CSV
+        echo "$TIMESTAMP,ONLINE,$PING_MS" >> "$LOGFILE"
+
+        # Log to SQLite
+        sqlite3 "$DBFILE" <<EOF
+INSERT OR IGNORE INTO log (timestamp, status, ping_ms)
+VALUES ('$TIMESTAMP', 'ONLINE', $PING_MS);
+EOF
+
+    else
+        # Log to CSV
+        echo "$TIMESTAMP,OFFLINE,N/A" >> "$LOGFILE"
+
+        # Log to SQLite
+        sqlite3 "$DBFILE" <<EOF
+INSERT OR IGNORE INTO log (timestamp, status, ping_ms)
+VALUES ('$TIMESTAMP', 'OFFLINE', NULL);
+EOF
+    fi
+
+    sleep 10
+done

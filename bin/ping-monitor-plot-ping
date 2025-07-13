@@ -1,0 +1,53 @@
+#!/bin/bash
+
+DB="$HOME/connectivity.db"
+TMP="/tmp/ping_avg_summary.csv"
+
+# Export average ping per 15-min bucket over past 24 hours
+sqlite3 "$DB" <<EOF > "$TMP"
+.headers off
+.mode csv
+WITH valid_pings AS (
+  SELECT
+    strftime('%Y-%m-%dT%H:%M', timestamp, 'localtime') AS ts,
+    ping_ms
+  FROM log
+  WHERE ping_ms IS NOT NULL
+    AND timestamp >= datetime('now', '-24 hours', 'utc')
+),
+bucketed AS (
+  SELECT
+    substr(ts, 1, 13) || ':' ||
+      CASE
+        WHEN cast(substr(ts, 15, 2) as int) < 15 THEN '00'
+        WHEN cast(substr(ts, 15, 2) as int) < 30 THEN '15'
+        WHEN cast(substr(ts, 15, 2) as int) < 45 THEN '30'
+        ELSE '45'
+      END AS bucket,
+    ping_ms
+  FROM valid_pings
+),
+aggregated AS (
+  SELECT
+    bucket,
+    round(avg(ping_ms), 2) AS avg_ping
+  FROM bucketed
+  GROUP BY bucket
+)
+SELECT bucket, avg_ping
+FROM aggregated
+ORDER BY bucket;
+EOF
+
+# Plot the results (no grid)
+gnuplot -persist <<EOF
+set terminal dumb size 100,25
+set datafile separator ','
+set xdata time
+set timefmt '%Y-%m-%dT%H:%M'
+set format x '%H:%M'
+set xlabel 'Local Time (past 24h)'
+set ylabel 'Ping (ms)'
+set title '15-min Average Ping Time'
+plot '$TMP' using 1:2 with lines title 'Avg Ping'
+EOF
