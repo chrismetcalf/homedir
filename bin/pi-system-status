@@ -1,0 +1,83 @@
+#!/bin/bash
+
+HOST="127.0.0.1"
+PORT="8423"
+
+send_command() {
+    echo "$1" | nc -q 0 "$HOST" "$PORT" | tr -d '\r'
+}
+
+# -- Battery Status --
+battery_pct=$(send_command "get battery" | awk -F': ' '{ split($2, p, "."); print p[1] }' | tr -cd '[:digit:]')
+
+# Check if enhanced charging detection is supported
+plugged_supported=$(send_command "help get battery_power_plugged" | grep -qv "Unknown" && echo yes)
+charging_supported=$(send_command "help get battery_allow_charging" | grep -qv "Unknown" && echo yes)
+
+if [[ "$plugged_supported" == "yes" && "$charging_supported" == "yes" ]]; then
+    power_plugged=$(send_command "get battery_power_plugged" | awk -F': ' '{print tolower($2)}' | tr -d '\r')
+    allow_charging=$(send_command "get battery_allow_charging" | awk -F': ' '{print tolower($2)}' | tr -d '\r')
+
+    if [[ "$power_plugged" == "true" && "$allow_charging" == "true" ]]; then
+        battery_status="Charging (${battery_pct}%)"
+    else
+        battery_status="Discharging (${battery_pct}%)"
+    fi
+else
+    # Fallback for older firmware
+    charging_val=$(send_command "get battery_charging" | awk -F': ' '{print tolower($2)}' | tr -d '\r')
+    if [[ "$charging_val" == "true" ]]; then
+        battery_status="Charging (${battery_pct}%)"
+    else
+        battery_status="Discharging (${battery_pct}%)"
+    fi
+fi
+
+# -- CPU Load --
+load_avgs=$(uptime | awk -F'load average: ' '{print $2}' | xargs)
+
+# -- CPU Temp --
+if command -v vcgencmd &>/dev/null; then
+    cpu_temp=$(vcgencmd measure_temp | grep -o '[0-9.]\+' | cut -d'.' -f1)
+elif [[ -f /sys/class/thermal/thermal_zone0/temp ]]; then
+    cpu_temp=$(($(cat /sys/class/thermal/thermal_zone0/temp) / 1000))
+else
+    cpu_temp="?"
+fi
+
+# -- IPv4 addresses --
+ipv4=$(hostname -I | tr ' ' '\n' | grep -Eo '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | paste -sd ' ' -)
+ipv4=${ipv4:-n/a}
+
+# -- Public IP + location --
+if command -v curl &>/dev/null; then
+    public_ip=$(curl -s ipinfo.io/ip)
+    location=$(curl -s ipinfo.io/json | awk -F'"' '
+        /"city"/     { city=$4 }
+        /"region"/   { region=$4 }
+        /"country"/  { country=$4 }
+        END { printf("%s, %s, %s", city, region, country) }')
+else
+    public_ip="n/a"
+    location="n/a"
+fi
+
+# -- Tailscale Status --
+if command -v tailscale &>/dev/null && command -v jq &>/dev/null; then
+    ts_online=$(tailscale status --json 2>/dev/null | jq -r '.Self.Online')
+    if [[ "$ts_online" == "true" ]]; then
+        ts_status="Connected"
+    else
+        ts_status="Not connected"
+    fi
+else
+    ts_status="Unknown"
+fi
+
+# -- Final Output --
+printf "🔋 %-12s %s\n" "Battery:"    "$battery_status"
+printf "🖥️  %-12s %s\n" "CPU Load:"   "$load_avgs"
+printf "🌡️  %-12s %s°C\n" "CPU Temp:"   "$cpu_temp"
+printf "🌐 %-12s %s\n" "IPv4 Addr:" "$ipv4"
+printf "🌍 %-12s %s (%s)\n" "Public IP:" "$public_ip" "$location"
+printf "🔐 %-12s %s\n" "Tailscale:" "$ts_status"
