@@ -42,6 +42,23 @@ set ch=2
 " Allow deleting previously entered charecters in insert mode
 set backspace=indent,eol,start
 
+" Use the latest clipboard magic
+set clipboard+=unnamedplus
+
+function! CopyOSC52(text) abort
+  let l:base64 = substitute(system('base64 | tr -d "\n"', a:text), '\n', '', 'g')
+  let l:esc = "\033Ptmux;\033]52;c;" . l:base64 . "\a\033\\"
+  call system(printf("printf '%s'", substitute(l:esc, "'", "'\\''", 'g')))
+endfunction
+
+nnoremap <leader>ya :call CopyOSC52(join(getline(1, '$'), "\n"))<CR>
+
+" Optional: show yank messages
+augroup YankHighlight
+  autocmd!
+  autocmd TextYankPost * silent! lua vim.highlight.on_yank()
+augroup END
+
 " I like highlighting strings inside C comments
 let c_comment_strings=1
 
@@ -79,17 +96,6 @@ set history=500
 " Menus Gone Wild!
 set wildmenu
 
-" isomorphic-copy clipboard magic
-if has('nvim')
-  " use unnamedplus only! or else will double set
-  set clipboard=unnamedplus
-  if getenv('DISPLAY') == v:null
-    exe setenv('DISPLAY', 'FAKE')
-  endif
-else
-  autocmd TextYankPost * call system("c", getreg('"'))
-endif
-
 " I guess I have to do this to make my cursor wrap lines?
 set whichwrap+=<,h,l,[,]
 
@@ -112,74 +118,6 @@ endfunction
 command! StripTrail call <SID>StripTrailingWhitespaces()
 
 command! DeleteBlank :g/^$/d
-
-function! HtmlEntities()
-  silent %s/À/\&Agrave;/e silent %s/Á/\&Aacute;/e
-  silent %s/Â/\&Acirc;/e
-  silent %s/Ã/\&Atilde;/e
-  silent %s/Ä/\&Auml;/e
-  silent %s/Å/\&Aring;/e
-  silent %s/Æ/\&AElig;/e
-  silent %s/Ç/\&Ccedil;/e
-  silent %s/È/\&Egrave;/e
-  silent %s/É/\&Eacute;/e
-  silent %s/Ê/\&Ecirc;/e
-  silent %s/Ë/\&Euml;/e
-  silent %s/Ì/\&Igrave;/e
-  silent %s/Í/\&Iacute;/e
-  silent %s/Î/\&Icirc;/e
-  silent %s/Ï/\&Iuml;/e
-  silent %s/Ð/\&ETH;/e
-  silent %s/Ñ/\&Ntilde;/e
-  silent %s/Ò/\&Ograve;/e
-  silent %s/Ó/\&Oacute;/e
-  silent %s/Ô/\&Ocirc;/e
-  silent %s/Õ/\&Otilde;/e
-  silent %s/Ö/\&Ouml;/e
-  silent %s/Ø/\&Oslash;/e
-  silent %s/Ù/\&Ugrave;/e
-  silent %s/Ú/\&Uacute;/e
-  silent %s/Û/\&Ucirc;/e
-  silent %s/Ü/\&Uuml;/e
-  silent %s/Ý/\&Yacute;/e
-  silent %s/Þ/\&THORN;/e
-  silent %s/ß/\&szlig;/e
-  silent %s/à/\&agrave;/e
-  silent %s/á/\&aacute;/e
-  silent %s/â/\&acirc;/e
-  silent %s/ã/\&atilde;/e
-  silent %s/ä/\&auml;/e
-  silent %s/å/\&aring;/e
-  silent %s/æ/\&aelig;/e
-  silent %s/ç/\&ccedil;/e
-  silent %s/è/\&egrave;/e
-  silent %s/é/\&eacute;/e
-  silent %s/ê/\&ecirc;/e
-  silent %s/ë/\&euml;/e
-  silent %s/ì/\&igrave;/e
-  silent %s/í/\&iacute;/e
-  silent %s/î/\&icirc;/e
-  silent %s/ï/\&iuml;/e
-  silent %s/ð/\&eth;/e
-  silent %s/ñ/\&ntilde;/e
-  silent %s/ò/\&ograve;/e
-  silent %s/ó/\&oacute;/e
-  silent %s/ô/\&ocirc;/e
-  silent %s/õ/\&otilde;/e
-  silent %s/ö/\&ouml;/e
-  silent %s/ø/\&oslash;/e
-  silent %s/ù/\&ugrave;/e
-  silent %s/ú/\&uacute;/e
-  silent %s/û/\&ucirc;/e
-  silent %s/ü/\&uuml;/e
-  silent %s/ý/\&yacute;/e
-  silent %s/þ/\&thorn;/e
-  silent %s/ÿ/\&yuml;/e
-  silent %s/“/"/e
-  silent %s/”/"/e
-  silent %s/’/'/e
-endfunction
-command! HtmlEntities :call HtmlEntities()
 
 """"""""""""""""""""""""""""""""""""""""""
 " Filetype-Specific Config
@@ -216,6 +154,8 @@ if has("autocmd")
   " Autoload vimrc and gvimrc
   au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
   au! BufWritePost .gvimrc source ~/.gvimrc
+  au! BufWritePost .config/nvim/init.vim source ~/.config/nvim/init.vim
+  au! BufWritePost .vim/init.vim source ~/.vim/init.vim
 
   " Crontab
   autocmd filetype crontab setlocal nobackup nowritebackup
@@ -223,23 +163,6 @@ if has("autocmd")
   " Latex
   autocmd filetype tex set conceallevel=0 spell
 endif
-
-" HTML Escaping
-function! <SID>HtmlEscape()
-  silent '<,'>s/&/\&amp;/eg
-  silent '<,'>s/</\&lt;/eg
-  silent '<,'>s/>/\&gt;/eg
-endfunction
-command! HtmlEscape call <SID>HtmlEscape()
-
-function! <SID>HtmlUnEscape()
-  silent '<,'>s/&lt;/</eg
-  silent '<,'>s/&gt;/>/eg
-  silent '<,'>s/&amp;/\&/eg
-endfunction
-command! HtmlUnEscape call <SID>HtmlUnEscape()
-
-command! PreviewHTML :!open %<CR>
 
 """""""""""""""""""""""""""""""""""""""
 " Plugins!
@@ -278,10 +201,6 @@ call plug#begin('~/.vim-plugged')
   Plug 'sjl/gundo.vim'
   nnoremap <leader>G :GundoToggle<CR>
 
-  " Quick Dash search
-  Plug 'rizzatti/dash.vim'
-  nnoremap <leader>d :Dash 
-
   " Funcoo is a Dependency
   Plug 'rizzatti/funcoo.vim'
 
@@ -304,9 +223,6 @@ call plug#begin('~/.vim-plugged')
   let g:gist_detect_filetype = 1
   let g:gist_clip_command = 'pbcopy'
   let g:github_user = "chrismetcalf"
-
-  " GH Line
-  " Plug 'ruanyl/vim-gh-line'
 
   " vim-airline
   Plug 'vim-airline/vim-airline'
@@ -339,29 +255,18 @@ call plug#begin('~/.vim-plugged')
   nnoremap <leader>ta :TestSuite<CR>
   nnoremap <leader>tt :TestLast<CR>
 
-  " Snipmate and its friends
-  " Plug 'MarcWeber/vim-addon-mw-utils'
-  " Plug 'tomtom/tlib_vim'
-  " Plug 'garbas/vim-snipmate'
-  " let g:snipMate = { 'snippet_version' : 1 }
-  " Plug 'honza/vim-snippets'
-
   " tpope is my spirit animal
-  " Plug 'tpope/vim-haml'
   Plug 'tpope/vim-endwise'
-  " Plug 'tpope/vim-surround'
   Plug 'tpope/vim-repeat'
   Plug 'tpope/vim-git'
   Plug 'tpope/vim-fugitive'
   Plug 'tpope/vim-rhubarb'
-  " Plug 'tpope/vim-pastie'
   Plug 'tpope/vim-eunuch'
   Plug 'tpope/vim-commentary'
   Plug 'tpope/vim-rake'
   Plug 'tpope/vim-rvm'
   Plug 'tpope/vim-tbone'
   Plug 'tpope/vim-dispatch'
-  " Plug 'tpope/vim-heroku'
   Plug 'tpope/vim-speeddating'
   Plug 'tpope/vim-jdaddy'
   Plug 'tpope/vim-vinegar'
@@ -379,10 +284,6 @@ call plug#begin('~/.vim-plugged')
   " Plug 'tclem/vim-arduino'
   Plug 'honza/dockerfile.vim'
   Plug 'tpope/vim-bundler'
-  " Plug 'tpope/vim-liquid'
-  " Plug 'lrampa/vim-apib'
-  " Plug 'davidoc/taskpaper.vim'
-  " Plug 'nikvdp/ejs-syntax'
 
   " Markdown
   Plug 'plasticboy/vim-markdown'
@@ -411,9 +312,6 @@ call plug#begin('~/.vim-plugged')
   Plug 'tmux-plugins/vim-tmux'
   Plug 'tmux-plugins/vim-tmux-focus-events'
 
-  " Open current selection in Github
-  " Plug 'prakashdanish/vim-githubinator'
-
   " incsearch
   Plug 'haya14busa/incsearch.vim'
   map /  <Plug>(incsearch-forward)
@@ -423,15 +321,6 @@ call plug#begin('~/.vim-plugged')
   " illuminates word matches in movement modes
   Plug 'RRethy/vim-illuminate'
 
-  " Syntastic!
-  " Plug 'vim-syntastic/syntastic'
-  " set statusline+=%#warningmsg#
-  " set statusline+=%{SyntasticStatuslineFlag()}
-  " set statusline+=%*
-  " let g:syntastic_always_populate_loc_list = 1
-  " let g:syntastic_auto_loc_list = 1
-  " let g:syntastic_check_on_open = 1
-  " let g:syntastic_check_on_wq = 0
   Plug 'w0rp/ale'
   let g:airline#extensions#ale#enabled = 1
   nmap <silent> <C-s-k> <Plug>(ale_previous_wrap)
@@ -471,18 +360,17 @@ call plug#begin('~/.vim-plugged')
 
   " Copilot
   Plug 'github/copilot.vim'
-
-  " ChatGPT
-  Plug 'CoderCookE/vim-chatgpt'
-  let g:chat_gpt_max_tokens=2000
-  let g:chat_gpt_model='gpt-4o'
-  let g:chat_gpt_session_mode=0
-  let g:chat_gpt_temperature = 0.7
-  let g:chat_gpt_lang = 'English'
-  let g:chat_gpt_split_direction = 'horizontal'
-  let g:split_ratio=4 
-  vmap <silent> <leader>0 <Plug>(chatgpt-menu)
+  
+  " ChatGPT.nvim
+  Plug 'jackMort/ChatGPT.nvim'
+  Plug 'nvim-lua/plenary.nvim'
+  Plug 'nvim-telescope/telescope.nvim'
+  Plug 'MunifTanjim/nui.nvim' 
+  nnoremap <leader>cg :ChatGPT<CR>
+  vnoremap <leader>ce :ChatGPTEditWithInstructions<CR>
 call plug#end()
+
+lua require("chatgpt_config")
 """"" END Plugins """""""""""""""""""""
 
 " Set colorscheme 
