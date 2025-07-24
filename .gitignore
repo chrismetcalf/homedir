@@ -27,3 +27,4 @@ known
 .vim/autoload/plug.vim.old
 .xmonad/xmonad-arm-linux
 .fonts/.uuid
+bin/nvim

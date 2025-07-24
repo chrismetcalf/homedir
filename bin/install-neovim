@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+INSTALL_DIR="$HOME/bin"
+INSTALL_PATH="$INSTALL_DIR/nvim"
+
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64)
+    ARCH_SUFFIX="x86_64"
+    ;;
+  aarch64 | arm64)
+    ARCH_SUFFIX="arm64"
+    ;;
+  *)
+    echo "❌ Unsupported architecture: $ARCH"
+    exit 1
+    ;;
+esac
+
+echo "🔍 Fetching latest Neovim release info..."
+API_URL="https://api.github.com/repos/neovim/neovim/releases/latest"
+RELEASE_JSON=$(curl -fsSL "$API_URL")
+
+TAG_NAME=$(echo "$RELEASE_JSON" | grep -oP '"tag_name":\s*"\K[^"]+')
+FILENAME="nvim-linux-$ARCH_SUFFIX.appimage"
+DOWNLOAD_URL="https://github.com/neovim/neovim/releases/download/$TAG_NAME/$FILENAME"
+
+echo "🔎 Found latest release: $TAG_NAME"
+echo "🌐 Download URL: $DOWNLOAD_URL"
+
+echo "📦 Downloading $FILENAME..."
+curl -fLo "$FILENAME" "$DOWNLOAD_URL"
+
+echo "🔐 Making it executable..."
+chmod u+x "$FILENAME"
+
+echo "📂 Creating $INSTALL_DIR if it doesn't exist..."
+mkdir -p "$INSTALL_DIR"
+
+echo "🚚 Moving to $INSTALL_PATH"
+mv "$FILENAME" "$INSTALL_PATH"
+
+echo "✅ Neovim $TAG_NAME installed to $INSTALL_PATH"
+
+if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+  echo "⚠️ $INSTALL_DIR is not in your PATH."
+  echo "👉 Add this to your ~/.bashrc or ~/.zshrc:"
+  echo "   export PATH=\"\$HOME/bin:\$PATH\""
+else
+  echo "🚀 Verifying:"
+  "$INSTALL_PATH" --version
+fi
+
