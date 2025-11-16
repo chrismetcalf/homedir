@@ -166,9 +166,14 @@ endif
 
 """""""""""""""""""""""""""""""""""""""
 " Plugins!
-" Managed with https://github.com/junegunn/vim-plug
+" Managed with https://github.com/folke/lazy.nvim
 """""""""""""""""""""""""""""""""""""""
-call plug#begin('~/.vim-plugged')
+
+" Bootstrap and load lazy.nvim plugin manager
+lua require('lazy-bootstrap')
+
+" OLD vim-plug configuration (COMMENTED OUT - migrated to lazy.nvim)
+" call plug#begin('~/.vim-plugged')
 
   " Color Schemes
   Plug 'vim-scripts/Colour-Sampler-Pack'
@@ -197,6 +202,12 @@ call plug#begin('~/.vim-plugged')
   nnoremap <leader>ajb :AnyJumpBack<CR>
   nnoremap <leader>ajl :AnyJumpLastResults<CR>
 
+  " File Explorer
+  Plug 'nvim-tree/nvim-web-devicons'
+  Plug 'nvim-tree/nvim-tree.lua'
+  nnoremap <leader>n :NvimTreeToggle<CR>
+  nnoremap <leader>nf :NvimTreeFindFile<CR>
+
   " Gundo
   Plug 'sjl/gundo.vim'
   nnoremap <leader>G :GundoToggle<CR>
@@ -204,10 +215,14 @@ call plug#begin('~/.vim-plugged')
   " Funcoo is a Dependency
   Plug 'rizzatti/funcoo.vim'
 
-  " Gitgutter
-  Plug 'airblade/vim-gitgutter'
-  highlight clear SignColumn
-  highlight SignColumn guibg=NONE ctermbg=NONE
+  " Gitgutter (keeping for compatibility, but gitsigns is better)
+  " Plug 'airblade/vim-gitgutter'
+  " highlight clear SignColumn
+  " highlight SignColumn guibg=NONE ctermbg=NONE
+
+  " Modern Git Integration
+  Plug 'lewis6991/gitsigns.nvim'
+  Plug 'sindrets/diffview.nvim'
 
   " MiniMap
   " Plug 'wfxr/minimap.vim'
@@ -294,17 +309,41 @@ call plug#begin('~/.vim-plugged')
   Plug 'kevinhui/vim-docker-tools'
 
   " Completion
-  Plug 'ervandew/supertab'
-  if has('nvim')
-    Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-  else
-    Plug 'Shougo/deoplete.nvim'
-    Plug 'roxma/nvim-yarp'
-    Plug 'roxma/vim-hug-neovim-rpc'
-  endif
-  Plug 'zchee/deoplete-jedi'
-  let g:deoplete#enable_at_startup = 1
-  let g:deoplete#enable_syntax_highlighting = 1
+  " Plug 'ervandew/supertab'
+  " if has('nvim')
+  "   Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+  " else
+  "   Plug 'Shougo/deoplete.nvim'
+  "   Plug 'roxma/nvim-yarp'
+  "   Plug 'roxma/vim-hug-neovim-rpc'
+  " endif
+  " Plug 'zchee/deoplete-jedi'
+  " let g:deoplete#enable_at_startup = 1
+  " let g:deoplete#enable_syntax_highlighting = 1
+
+  " LSP Configuration
+  Plug 'neovim/nvim-lspconfig'
+  Plug 'williamboman/mason.nvim', { 'do': ':MasonUpdate' }
+  Plug 'williamboman/mason-lspconfig.nvim'
+
+  " LSP UI Enhancements
+  Plug 'nvim-lua/plenary.nvim'
+  Plug 'stevearc/dressing.nvim'
+  Plug 'ray-x/lsp_signature.nvim'
+  Plug 'folke/trouble.nvim'
+
+  " Modern Completion - order matters!
+  Plug 'L3MON4D3/LuaSnip'
+  Plug 'hrsh7th/nvim-cmp'
+  Plug 'hrsh7th/cmp-nvim-lsp'
+  Plug 'hrsh7th/cmp-buffer'
+  Plug 'hrsh7th/cmp-path'
+  Plug 'hrsh7th/cmp-cmdline'
+  Plug 'saadparwaiz1/cmp_luasnip'
+
+  " Auto-pairs and Surround
+  Plug 'windwp/nvim-autopairs'
+  Plug 'kylechui/nvim-surround'
 
   " Tmux
   Plug 'christoomey/vim-tmux-navigator'
@@ -321,10 +360,11 @@ call plug#begin('~/.vim-plugged')
   " illuminates word matches in movement modes
   Plug 'RRethy/vim-illuminate'
 
-  Plug 'w0rp/ale'
-  let g:airline#extensions#ale#enabled = 1
-  nmap <silent> <C-s-k> <Plug>(ale_previous_wrap)
-  nmap <silent> <C-s-j> <Plug>(ale_next_wrap)
+  " ALE - Disabled in favor of native LSP
+  " Plug 'w0rp/ale'
+  " let g:airline#extensions#ale#enabled = 1
+  " nmap <silent> <C-s-k> <Plug>(ale_previous_wrap)
+  " nmap <silent> <C-s-j> <Plug>(ale_next_wrap)
 
   " Keymapping pop-up
   Plug 'liuchengxu/vim-which-key'
@@ -360,18 +400,12 @@ call plug#begin('~/.vim-plugged')
 
   " Copilot
   Plug 'github/copilot.vim'
-  
-  " ChatGPT.nvim
-  Plug 'jackMort/ChatGPT.nvim'
-  Plug 'nvim-lua/plenary.nvim'
-  Plug 'nvim-telescope/telescope.nvim'
-  Plug 'MunifTanjim/nui.nvim' 
-  nnoremap <leader>cg :ChatGPT<CR>
-  vnoremap <leader>ce :ChatGPTEditWithInstructions<CR>
-call plug#end()
-
-lua require("chatgpt_config")
+" call plug#end()
 """"" END Plugins """""""""""""""""""""
+" NOTE: vim-plug configuration above is commented out - now using lazy.nvim
+" See ~/.vim/lua/plugins/init.lua for plugin specs
+
+" Note: LSP and Completion are auto-loaded from ~/.vim/plugin/lsp-setup.lua
 
 " Set colorscheme 
 if exists('+termguicolors')
@@ -386,6 +420,14 @@ let g:airline_theme = 'spaceduck'
 """"""""""""""""""""""""""""""""""""""""""
 " Key Mappings
 """"""""""""""""""""""""""""""""""""""""""
+
+" Trouble keybindings (LSP diagnostics viewer)
+nnoremap <leader>xx :TroubleToggle<CR>
+nnoremap <leader>xw :TroubleToggle workspace_diagnostics<CR>
+nnoremap <leader>xd :TroubleToggle document_diagnostics<CR>
+nnoremap <leader>xq :TroubleToggle quickfix<CR>
+nnoremap <leader>xl :TroubleToggle loclist<CR>
+nnoremap <leader>xr :TroubleToggle lsp_references<CR>
 
 " Mappings for window keys
 nmap <silent> <C-k> :wincmd k<CR>

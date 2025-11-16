@@ -1,0 +1,11 @@
+-- This file is no longer needed with lazy.nvim
+-- All plugin configurations are now loaded through lazy.nvim plugin specs
+-- See ~/.vim/lua/plugins/init.lua
+
+-- The following configurations are loaded by lazy.nvim:
+-- - lsp (loaded by mason-lspconfig.nvim config)
+-- - completion (loaded by nvim-cmp config)
+-- - lsp-ui-config (loaded by trouble.nvim config)
+-- - autopairs-surround-config (loaded by nvim-autopairs config)
+-- - nvim-tree-config (loaded by nvim-tree.lua config)
+-- - git-config (loaded by gitsigns.nvim config)

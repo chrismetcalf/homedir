@@ -1,0 +1,167 @@
+-- LSP UI Enhancement Plugin Configurations
+-- Extracted from lsp-ui-config.lua for lazy.nvim best practices
+
+return {
+  -- Dressing - Better UI for vim.ui.select and vim.ui.input
+  {
+    "stevearc/dressing.nvim",
+    event = "VeryLazy",
+    opts = {
+      input = {
+        enabled = true,
+        default_prompt = 'Input:',
+        title_pos = 'left',
+        insert_only = true,
+        start_in_insert = true,
+        border = 'rounded',
+        relative = 'cursor',
+        prefer_width = 40,
+        width = nil,
+        max_width = { 140, 0.9 },
+        min_width = { 20, 0.2 },
+        buf_options = {},
+        win_options = {
+          wrap = false,
+          list = true,
+          listchars = 'precedes:…,extends:…',
+          sidescrolloff = 0,
+        },
+        mappings = {
+          n = {
+            ['<Esc>'] = 'Close',
+            ['<CR>'] = 'Confirm',
+          },
+          i = {
+            ['<C-c>'] = 'Close',
+            ['<CR>'] = 'Confirm',
+            ['<Up>'] = 'HistoryPrev',
+            ['<Down>'] = 'HistoryNext',
+          },
+        },
+      },
+      select = {
+        enabled = true,
+        backend = { 'telescope', 'fzf_lua', 'fzf', 'builtin', 'nui' },
+        trim_prompt = true,
+        builtin = {
+          show_numbers = true,
+          border = 'rounded',
+          relative = 'editor',
+          win_options = {
+            cursorline = true,
+            cursorlineopt = 'both',
+          },
+          max_width = { 140, 0.8 },
+          min_width = { 40, 0.2 },
+          max_height = 0.9,
+          min_height = { 10, 0.2 },
+          mappings = {
+            ['<Esc>'] = 'Close',
+            ['<C-c>'] = 'Close',
+            ['<CR>'] = 'Confirm',
+          },
+        },
+      },
+    },
+  },
+
+  -- LSP Signature - Show function signatures as you type
+  {
+    "ray-x/lsp_signature.nvim",
+    event = "InsertEnter",
+    opts = {
+      bind = true,
+      doc_lines = 10,
+      max_height = 12,
+      max_width = 80,
+      wrap = true,
+      floating_window = true,
+      floating_window_above_cur_line = true,
+      floating_window_off_x = 1,
+      floating_window_off_y = 0,
+      close_timeout = 4000,
+      fix_pos = false,
+      hint_enable = true,
+      hint_prefix = ' ',
+      hint_scheme = 'String',
+      hi_parameter = 'LspSignatureActiveParameter',
+      handler_opts = {
+        border = 'rounded'
+      },
+      always_trigger = false,
+      auto_close_after = nil,
+      extra_trigger_chars = {},
+      zindex = 200,
+      padding = '',
+      transparency = nil,
+      shadow_blend = 36,
+      shadow_guibg = 'Black',
+      timer_interval = 200,
+      toggle_key = nil,
+      toggle_key_flip_floatwin_setting = false,
+      select_signature_key = nil,
+      move_cursor_key = nil,
+    },
+  },
+
+  -- Trouble - Better diagnostics viewer
+  {
+    "folke/trouble.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    cmd = { "Trouble", "TroubleToggle" },
+    opts = {
+      position = 'bottom',
+      height = 10,
+      width = 50,
+      icons = true,
+      mode = 'workspace_diagnostics',
+      severity = nil,
+      fold_open = '',
+      fold_closed = '',
+      group = true,
+      padding = true,
+      action_keys = {
+        close = 'q',
+        cancel = '<esc>',
+        refresh = 'r',
+        jump = {'<cr>', '<tab>'},
+        open_split = { '<c-x>' },
+        open_vsplit = { '<c-v>' },
+        open_tab = { '<c-t>' },
+        jump_close = {'o'},
+        toggle_mode = 'm',
+        switch_severity = 's',
+        toggle_preview = 'P',
+        hover = 'K',
+        preview = 'p',
+        close_folds = {'zM', 'zm'},
+        open_folds = {'zR', 'zr'},
+        toggle_fold = {'zA', 'za'},
+        previous = 'k',
+        next = 'j'
+      },
+      indent_lines = true,
+      auto_open = false,
+      auto_close = false,
+      auto_preview = true,
+      auto_fold = false,
+      auto_jump = {'lsp_definitions'},
+      signs = {
+        error = '',
+        warning = '',
+        hint = '',
+        information = '',
+        other = '',
+      },
+      use_diagnostic_signs = false
+    },
+    keys = {
+      { "<leader>xx", "<cmd>TroubleToggle<cr>", desc = "Toggle Trouble" },
+      { "<leader>xw", "<cmd>TroubleToggle workspace_diagnostics<cr>", desc = "Workspace Diagnostics" },
+      { "<leader>xd", "<cmd>TroubleToggle document_diagnostics<cr>", desc = "Document Diagnostics" },
+      { "<leader>xq", "<cmd>TroubleToggle quickfix<cr>", desc = "Quickfix" },
+      { "<leader>xl", "<cmd>TroubleToggle loclist<cr>", desc = "Location List" },
+      { "<leader>xr", "<cmd>TroubleToggle lsp_references<cr>", desc = "LSP References" },
+    },
+  },
+}
