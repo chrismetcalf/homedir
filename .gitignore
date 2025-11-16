@@ -28,3 +28,4 @@ known
 .xmonad/xmonad-arm-linux
 .fonts/.uuid
 bin/nvim
+*.zwc

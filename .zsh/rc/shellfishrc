@@ -1,3 +1,6 @@
+# Only load if running in ShellFish
+[[ "$LC_TERMINAL" != "ShellFish" ]] && return
+
 # include this from .bashrc, .zshrc or
 # another shell startup file with:
 #   source $HOME/.shellfishrc

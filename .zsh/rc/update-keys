@@ -1,3 +1,5 @@
-# Update keys each time we load ZSH
-echo "Fetching keys..."
-~/bin/update-keys
+# Update keys each time we load ZSH (asynchronously)
+{
+  ~/bin/update-keys && echo "SSH keys updated from Github" || echo "Failed to update SSH keys"
+} &>/dev/null &
+disown

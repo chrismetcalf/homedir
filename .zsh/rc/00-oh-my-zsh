@@ -45,8 +45,15 @@ fi
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
+# Note: brew and macos are loaded via ZSH_MACOS_PLUGINS from .zsh/os/apple when on macOS
+
+# Conditionally load language plugins if installed
+ZSH_LANG_PLUGINS=""
+command -v python3 >/dev/null && ZSH_LANG_PLUGINS="$ZSH_LANG_PLUGINS python"
+command -v ruby >/dev/null && ZSH_LANG_PLUGINS="$ZSH_LANG_PLUGINS ruby"
+
 zstyle :omz:plugins:ssh-agent agent-forwarding on
-plugins=(brew autojump jira mosh thefuck tmux python ruby fzf ssh-agent osx debian docker git gh history safe-paste sudo)
+plugins=(${=ZSH_MACOS_PLUGINS} ${=ZSH_LANG_PLUGINS} autojump tmux fzf ssh-agent debian docker git gh history safe-paste sudo)
 
 source $ZSH/oh-my-zsh.sh
 

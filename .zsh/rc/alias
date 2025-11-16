@@ -57,3 +57,8 @@ ffmpeg-timelapse() {
   echo "Generating timelapse from $1 using a PTS of $2 as $3..."
   ffmpeg -i $1 -filter:v "setpts=$2*PTS" -an $3
 }
+
+ffmpeg-snippet() {
+  echo "Generating snippet of $3 from $1 to $2 as $4..."
+  ffmpeg -ss $1 -to $2 -i $3 -c copy $4
+}

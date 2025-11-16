@@ -1,5 +1,14 @@
+# macOS-specific oh-my-zsh plugins (loaded before 00-oh-my-zsh)
+export ZSH_MACOS_PLUGINS="brew macos"
+
 # Make sure brew is in the path
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/local/share/npm/bin:$PATH
+
+# Homebrew coreutils (if installed)
+if [[ -d "/usr/local/opt/coreutils/libexec/gnubin" ]]; then
+  export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+  export MANPATH="/usr/local/opt/coreutils/libexec/gnuman:$MANPATH"
+fi
 
 export MANPATH=/opt/local/share/man:$MANPATH
 
