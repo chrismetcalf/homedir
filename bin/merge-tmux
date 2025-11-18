@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# merge-tmux-sessions.sh
+# Combine all tmux sessions into a single "main" session and switch to it safely
+
+set -euo pipefail
+
+# Create "main" if it doesn't exist
+if ! tmux has-session -t main 2>/dev/null; then
+  tmux new-session -d -s main
+fi
+
+# Merge all other sessions
+for s in $(tmux list-sessions -F '#S' | grep -v '^main$'); do
+  # Skip if the session vanished
+  if ! tmux has-session -t "$s" 2>/dev/null; then
+    continue
+  fi
+  echo "Merging session: $s"
+
+  # Move each window into main
+  for w in $(tmux list-windows -t "$s" -F '#I' 2>/dev/null || true); do
+    tmux move-window -s "$s:$w" -t main: || true
+  done
+
+  # Clean up the old session
+  tmux kill-session -t "$s" 2>/dev/null || true
+done
+
+# If already in tmux, switch to main; otherwise attach
+if [ -n "${TMUX:-}" ]; then
+  tmux switch-client -t main
+else
+  tmux attach -t main
+fi
