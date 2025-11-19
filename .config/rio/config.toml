@@ -12,7 +12,7 @@
 # Default cursor is Block
 # Other available options are: '_' and '|'
 #
-cursor = '▇'
+# cursor = '▇'
 
 # Blinking Cursor
 #

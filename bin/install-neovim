@@ -5,16 +5,43 @@ set -euo pipefail
 INSTALL_DIR="$HOME/bin"
 INSTALL_PATH="$INSTALL_DIR/nvim"
 
+# Detect OS
+OS=$(uname -s)
 ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64)
-    ARCH_SUFFIX="x86_64"
+
+case "$OS" in
+  Darwin)
+    # macOS
+    case "$ARCH" in
+      x86_64)
+        FILENAME="nvim-macos-x86_64.tar.gz"
+        ;;
+      arm64)
+        FILENAME="nvim-macos-arm64.tar.gz"
+        ;;
+      *)
+        echo "❌ Unsupported macOS architecture: $ARCH"
+        exit 1
+        ;;
+    esac
     ;;
-  aarch64 | arm64)
-    ARCH_SUFFIX="arm64"
+  Linux)
+    # Linux
+    case "$ARCH" in
+      x86_64)
+        FILENAME="nvim-linux64.tar.gz"
+        ;;
+      aarch64 | arm64)
+        FILENAME="nvim-linux-arm64.appimage"
+        ;;
+      *)
+        echo "❌ Unsupported Linux architecture: $ARCH"
+        exit 1
+        ;;
+    esac
     ;;
   *)
-    echo "❌ Unsupported architecture: $ARCH"
+    echo "❌ Unsupported OS: $OS"
     exit 1
     ;;
 esac
@@ -23,8 +50,8 @@ echo "🔍 Fetching latest Neovim release info..."
 API_URL="https://api.github.com/repos/neovim/neovim/releases/latest"
 RELEASE_JSON=$(curl -fsSL "$API_URL")
 
-TAG_NAME=$(echo "$RELEASE_JSON" | grep -oP '"tag_name":\s*"\K[^"]+')
-FILENAME="nvim-linux-$ARCH_SUFFIX.appimage"
+# Use sed instead of grep -P for macOS compatibility
+TAG_NAME=$(echo "$RELEASE_JSON" | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p' | head -n1)
 DOWNLOAD_URL="https://github.com/neovim/neovim/releases/download/$TAG_NAME/$FILENAME"
 
 echo "🔎 Found latest release: $TAG_NAME"
@@ -33,14 +60,29 @@ echo "🌐 Download URL: $DOWNLOAD_URL"
 echo "📦 Downloading $FILENAME..."
 curl -fLo "$FILENAME" "$DOWNLOAD_URL"
 
-echo "🔐 Making it executable..."
-chmod u+x "$FILENAME"
-
 echo "📂 Creating $INSTALL_DIR if it doesn't exist..."
 mkdir -p "$INSTALL_DIR"
 
-echo "🚚 Moving to $INSTALL_PATH"
-mv "$FILENAME" "$INSTALL_PATH"
+# Handle installation based on file type
+if [[ "$FILENAME" == *.tar.gz ]]; then
+  echo "📦 Extracting tarball..."
+  tar xzf "$FILENAME"
+
+  # Find the nvim binary in the extracted directory
+  EXTRACTED_DIR=$(tar tzf "$FILENAME" | head -1 | cut -f1 -d"/")
+
+  echo "🚚 Moving to $INSTALL_PATH"
+  mv "$EXTRACTED_DIR/bin/nvim" "$INSTALL_PATH"
+
+  echo "🧹 Cleaning up..."
+  rm -rf "$EXTRACTED_DIR" "$FILENAME"
+elif [[ "$FILENAME" == *.appimage ]]; then
+  echo "🔐 Making it executable..."
+  chmod u+x "$FILENAME"
+
+  echo "🚚 Moving to $INSTALL_PATH"
+  mv "$FILENAME" "$INSTALL_PATH"
+fi
 
 echo "✅ Neovim $TAG_NAME installed to $INSTALL_PATH"
 

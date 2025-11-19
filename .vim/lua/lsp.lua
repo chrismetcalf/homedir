@@ -1,13 +1,13 @@
 -- LSP Configuration
 -- This file sets up Mason and LSP configurations
+-- Updated for Neovim 0.11+ compatibility
 
 -- Check if required plugins are available
 local ok_mason, mason = pcall(require, "mason")
 local ok_mason_lsp, mason_lsp = pcall(require, "mason-lspconfig")
-local ok_lspconfig, lspconfig = pcall(require, "lspconfig")
 local ok_cmp_lsp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
 
-if not (ok_mason and ok_mason_lsp and ok_lspconfig and ok_cmp_lsp) then
+if not (ok_mason and ok_mason_lsp and ok_cmp_lsp) then
   return
 end
 
@@ -28,9 +28,9 @@ mason_lsp.setup({
   ensure_installed = {
     "lua_ls",        -- Lua
     "pyright",       -- Python
-    "ts_server",     -- TypeScript/JavaScript
+    "ts_ls",         -- TypeScript/JavaScript (renamed from ts_server)
     "rust_analyzer", -- Rust
-    "gopls",         -- Go
+    -- "gopls",      -- Go (requires Go to be installed)
     "bashls",        -- Bash
     "jsonls",        -- JSON
     "yamlls",        -- YAML
@@ -94,74 +94,94 @@ for type, icon in pairs(signs) do
   vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
 end
 
--- Configure each language server
+-- Configure each language server using mason-lspconfig handlers
+-- Compatible with Neovim 0.11+ and mason-lspconfig
 local capabilities = cmp_nvim_lsp.default_capabilities()
 
--- Lua
-lspconfig.lua_ls.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-  settings = {
-    Lua = {
-      diagnostics = {
-        globals = {'vim'}
-      },
-      workspace = {
-        library = vim.api.nvim_get_runtime_file("", true),
-        checkThirdParty = false,
-      },
-      telemetry = {
-        enable = false,
+-- Try to use setup_handlers if available (newer mason-lspconfig)
+-- Otherwise fall back to manual setup
+local has_handlers = pcall(function() return mason_lsp.setup_handlers end)
+
+if has_handlers and mason_lsp.setup_handlers then
+  -- Use the new handler-based approach
+  mason_lsp.setup_handlers({
+    -- Default handler for all servers
+    function(server_name)
+      local server_config = {
+        on_attach = on_attach,
+        capabilities = capabilities,
+      }
+
+      -- Server-specific settings
+      if server_name == "lua_ls" then
+        server_config.settings = {
+          Lua = {
+            diagnostics = { globals = {'vim'} },
+            workspace = {
+              library = vim.api.nvim_get_runtime_file("", true),
+              checkThirdParty = false,
+            },
+            telemetry = { enable = false },
+          },
+        }
+      elseif server_name == "rust_analyzer" then
+        server_config.settings = {
+          ['rust-analyzer'] = {
+            checkOnSave = { command = "clippy" },
+          },
+        }
+      end
+
+      -- Use new Neovim 0.11 API if available, otherwise use lspconfig
+      if vim.lsp.config then
+        vim.lsp.config[server_name] = server_config
+        vim.lsp.enable(server_name)
+      else
+        require('lspconfig')[server_name].setup(server_config)
+      end
+    end,
+  })
+else
+  -- Fallback: Use new Neovim 0.11 vim.lsp.config API directly
+  local servers = {
+    lua_ls = {
+      settings = {
+        Lua = {
+          diagnostics = { globals = {'vim'} },
+          workspace = {
+            library = vim.api.nvim_get_runtime_file("", true),
+            checkThirdParty = false,
+          },
+          telemetry = { enable = false },
+        },
       },
     },
-  },
-})
-
--- Python
-lspconfig.pyright.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
-
--- TypeScript/JavaScript
-lspconfig.ts_server.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
-
--- Rust
-lspconfig.rust_analyzer.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-  settings = {
-    ['rust-analyzer'] = {
-      checkOnSave = {
-        command = "clippy"
+    pyright = {},
+    ts_ls = {},
+    rust_analyzer = {
+      settings = {
+        ['rust-analyzer'] = {
+          checkOnSave = { command = "clippy" },
+        },
       },
     },
-  },
-})
+    -- gopls = {},  -- Requires Go to be installed
+    bashls = {},
+    jsonls = {},
+    yamlls = {},
+  }
 
--- Go
-lspconfig.gopls.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
+  for server_name, server_settings in pairs(servers) do
+    local config = vim.tbl_deep_extend('force', {
+      on_attach = on_attach,
+      capabilities = capabilities,
+    }, server_settings)
 
--- Bash
-lspconfig.bashls.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
-
--- JSON
-lspconfig.jsonls.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
-
--- YAML
-lspconfig.yamlls.setup({
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
+    if vim.lsp.config then
+      vim.lsp.config[server_name] = config
+      vim.lsp.enable(server_name)
+    else
+      require('lspconfig')[server_name].setup(config)
+    end
+  end
+end
