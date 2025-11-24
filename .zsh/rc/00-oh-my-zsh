@@ -56,6 +56,5 @@ zstyle :omz:plugins:ssh-agent agent-forwarding on
 plugins=(${=ZSH_MACOS_PLUGINS} ${=ZSH_LANG_PLUGINS} autojump tmux fzf ssh-agent debian docker git gh history safe-paste sudo)
 
 source $ZSH/oh-my-zsh.sh
-
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
