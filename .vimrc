@@ -172,235 +172,88 @@ endif
 " Bootstrap and load lazy.nvim plugin manager
 lua require('lazy-bootstrap')
 
-" OLD vim-plug configuration (COMMENTED OUT - migrated to lazy.nvim)
-" call plug#begin('~/.vim-plugged')
+" Plugin configuration (plugins loaded via lazy.nvim in ~/.vim/lua/)
 
-  " Color Schemes
-  Plug 'vim-scripts/Colour-Sampler-Pack'
+" ChromeReload
+nnoremap <leader>r :ChromeReload<CR>
+let g:returnApp = "kitty"
 
-  " ChromeReload
-  Plug 'tell-k/vim-browsereload-mac'
-  nnoremap <leader>r :ChromeReload<CR>
-  let g:returnApp = "kitty"
+" FZF keybindings
+nnoremap <leader>b :Buffers<CR>
+nnoremap <leader>f :GFiles<CR>
+nnoremap <leader>F :Files<CR>
+nnoremap <leader>a :Ag<CR>
+nnoremap <leader>h :Helptags<CR>
+nnoremap <leader>c :Commands<CR>
+nnoremap <leader>l :Lines<CR>
 
-  " FZF
-  Plug 'junegunn/fzf'
-  Plug 'junegunn/fzf.vim'
-  nnoremap <leader>b :Buffers<CR>
-  nnoremap <leader>f :GFiles<CR>
-  nnoremap <leader>F :Files<CR>
-  nnoremap <leader>a :Ag<CR>
-  nnoremap <leader>h :Helptags<CR>
-  nnoremap <leader>c :Commands<CR>
-  nnoremap <leader>l :Lines<CR>
+" AnyJump
+let g:any_jump_disable_default_keybindings = 1
+nnoremap <leader>aj :AnyJump<CR>
+xnoremap <leader>aj :AnyJumpVisual<CR>
+nnoremap <leader>ajb :AnyJumpBack<CR>
+nnoremap <leader>ajl :AnyJumpLastResults<CR>
 
-  " AnyJump
-  Plug 'pechorin/any-jump.vim'
-  let g:any_jump_disable_default_keybindings = 1
-  nnoremap <leader>aj :AnyJump<CR>
-  xnoremap <leader>aj :AnyJumpVisual<CR>
-  nnoremap <leader>ajb :AnyJumpBack<CR>
-  nnoremap <leader>ajl :AnyJumpLastResults<CR>
+" File Explorer (nvim-tree)
+nnoremap <leader>n :NvimTreeToggle<CR>
+nnoremap <leader>nf :NvimTreeFindFile<CR>
 
-  " File Explorer
-  Plug 'nvim-tree/nvim-web-devicons'
-  Plug 'nvim-tree/nvim-tree.lua'
-  nnoremap <leader>n :NvimTreeToggle<CR>
-  nnoremap <leader>nf :NvimTreeFindFile<CR>
+" Gundo
+nnoremap <leader>G :GundoToggle<CR>
 
-  " Gundo
-  Plug 'sjl/gundo.vim'
-  nnoremap <leader>G :GundoToggle<CR>
+" Gist
+let g:gist_open_browser_after_post = 1
+let g:gist_show_privates = 1
+let g:gist_detect_filetype = 1
+let g:gist_clip_command = 'pbcopy'
+let g:github_user = "chrismetcalf"
 
-  " Funcoo is a Dependency
-  Plug 'rizzatti/funcoo.vim'
+" vim-airline
+let g:airline_powerline_fonts = 1
+let g:airline_theme='jellybeans'
+let g:airline#extensions#bufferline#enabled = 1
 
-  " Gitgutter (keeping for compatibility, but gitsigns is better)
-  " Plug 'airblade/vim-gitgutter'
-  " highlight clear SignColumn
-  " highlight SignColumn guibg=NONE ctermbg=NONE
+" vim-test
+let test#strategy='vimux'
+nnoremap <leader>tn :TestNearest<CR>
+nnoremap <leader>tf :TestFile<CR>
+nnoremap <leader>ta :TestSuite<CR>
+nnoremap <leader>tt :TestLast<CR>
 
-  " Modern Git Integration
-  Plug 'lewis6991/gitsigns.nvim'
-  Plug 'sindrets/diffview.nvim'
+" Easy Align
+xmap ga <Plug>(EasyAlign)
+nmap ga <Plug>(EasyAlign)
 
-  " MiniMap
-  " Plug 'wfxr/minimap.vim'
-  " let g:minimap_width = 10
-  " let g:minimap_auto_start = 1
-  " let g:minimap_auto_start_win_enter = 1
+" Markdown
+let g:vim_markdown_folding_disabled = 1
+let g:vim_markdown_frontmatter = 1
 
-  " Gist
-  Plug 'mattn/webapi-vim'
-  Plug 'mattn/gist-vim'
-  let g:gist_open_browser_after_post = 1
-  let g:gist_show_privates = 1
-  let g:gist_detect_filetype = 1
-  let g:gist_clip_command = 'pbcopy'
-  let g:github_user = "chrismetcalf"
+" incsearch
+map /  <Plug>(incsearch-forward)
+map ?  <Plug>(incsearch-backward)
+map g/ <Plug>(incsearch-stay)
 
-  " vim-airline
-  Plug 'vim-airline/vim-airline'
-  Plug 'vim-airline/vim-airline-themes'
-  let g:airline_powerline_fonts = 1
-  let g:airline_theme='jellybeans'
-  let g:airline#extensions#bufferline#enabled = 1
+" vim-which-key
+nnoremap <silent> <leader> :WhichKey ','<CR>
 
-  " Misc fun stuff
-  Plug 'timcharper/gitosis.vim'
-  Plug 'rhysd/git-messenger.vim'
-  Plug 'godlygeek/tabular'
-  Plug 'airblade/vim-rooter'
-  Plug 'junegunn/goyo.vim'
-  Plug 'gcmt/wildfire.vim'
-  Plug 'AndrewRadev/splitjoin.vim'
-  Plug 'Yggdroot/indentLine'
+" EasyMotion
+let g:EasyMotion_do_mapping = 0 " Disable default mappings
+nmap s <Plug>(easymotion-overwin-f2)
+let g:EasyMotion_smartcase = 1
+map <Leader>j <Plug>(easymotion-j)
+map <Leader>k <Plug>(easymotion-k)
 
-  " Color Scheme
-  Plug 'NLKNguyen/papercolor-theme'
-  Plug 'sheerun/vim-polyglot'
-  Plug 'pineapplegiant/spaceduck', { 'branch': 'main' }
+" Startify configuration
+let g:startify_session_dir = '~/.vim/sessions'
+let g:startify_change_to_vcs_root = 1
 
-  " vim-test
-  Plug 'janko/vim-test'
-  Plug 'benmills/vimux'
-  let test#strategy='vimux'
-  nnoremap <leader>tn :TestNearest<CR>
-  nnoremap <leader>tf :TestFile<CR>
-  nnoremap <leader>ta :TestSuite<CR>
-  nnoremap <leader>tt :TestLast<CR>
+" ShaDa (Neovim's replacement for viminfo) - Fix for Startify FAQ-02
+if has('nvim')
+  set shada='100,n$HOME/.vim/files/info/shada
+else
+  set viminfo='100,n$HOME/.vim/files/info/viminfo
+endif
 
-  " tpope is my spirit animal
-  Plug 'tpope/vim-endwise'
-  Plug 'tpope/vim-repeat'
-  Plug 'tpope/vim-git'
-  Plug 'tpope/vim-fugitive'
-  Plug 'tpope/vim-rhubarb'
-  Plug 'tpope/vim-eunuch'
-  Plug 'tpope/vim-commentary'
-  Plug 'tpope/vim-rake'
-  Plug 'tpope/vim-rvm'
-  Plug 'tpope/vim-tbone'
-  Plug 'tpope/vim-dispatch'
-  Plug 'tpope/vim-speeddating'
-  Plug 'tpope/vim-jdaddy'
-  Plug 'tpope/vim-vinegar'
-
-  " Easy Align
-  Plug 'junegunn/vim-easy-align'
-  xmap ga <Plug>(EasyAlign) 
-  nmap ga <Plug>(EasyAlign)
-
-  " Capitalization
-  Plug 'arthurxavierx/vim-caser'
-
-  " Syntax
-  Plug 'vim-scripts/vim-json-bundle'
-  " Plug 'tclem/vim-arduino'
-  Plug 'honza/dockerfile.vim'
-  Plug 'tpope/vim-bundler'
-
-  " Markdown
-  Plug 'plasticboy/vim-markdown'
-  let g:vim_markdown_folding_disabled = 1
-  let g:vim_markdown_frontmatter = 1
-
-  " Docker
-  Plug 'kevinhui/vim-docker-tools'
-
-  " Completion
-  " Plug 'ervandew/supertab'
-  " if has('nvim')
-  "   Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-  " else
-  "   Plug 'Shougo/deoplete.nvim'
-  "   Plug 'roxma/nvim-yarp'
-  "   Plug 'roxma/vim-hug-neovim-rpc'
-  " endif
-  " Plug 'zchee/deoplete-jedi'
-  " let g:deoplete#enable_at_startup = 1
-  " let g:deoplete#enable_syntax_highlighting = 1
-
-  " LSP Configuration
-  Plug 'neovim/nvim-lspconfig'
-  Plug 'williamboman/mason.nvim', { 'do': ':MasonUpdate' }
-  Plug 'williamboman/mason-lspconfig.nvim'
-
-  " LSP UI Enhancements
-  Plug 'nvim-lua/plenary.nvim'
-  Plug 'stevearc/dressing.nvim'
-  Plug 'ray-x/lsp_signature.nvim'
-  Plug 'folke/trouble.nvim'
-
-  " Modern Completion - order matters!
-  Plug 'L3MON4D3/LuaSnip'
-  Plug 'hrsh7th/nvim-cmp'
-  Plug 'hrsh7th/cmp-nvim-lsp'
-  Plug 'hrsh7th/cmp-buffer'
-  Plug 'hrsh7th/cmp-path'
-  Plug 'hrsh7th/cmp-cmdline'
-  Plug 'saadparwaiz1/cmp_luasnip'
-
-  " Auto-pairs and Surround
-  Plug 'windwp/nvim-autopairs'
-  Plug 'kylechui/nvim-surround'
-
-  " Tmux
-  Plug 'christoomey/vim-tmux-navigator'
-  Plug 'tmux-plugins/tpm'
-  Plug 'tmux-plugins/vim-tmux'
-  Plug 'tmux-plugins/vim-tmux-focus-events'
-
-  " incsearch
-  Plug 'haya14busa/incsearch.vim'
-  map /  <Plug>(incsearch-forward)
-  map ?  <Plug>(incsearch-backward)
-  map g/ <Plug>(incsearch-stay)
-
-  " illuminates word matches in movement modes
-  Plug 'RRethy/vim-illuminate'
-
-  " ALE - Disabled in favor of native LSP
-  " Plug 'w0rp/ale'
-  " let g:airline#extensions#ale#enabled = 1
-  " nmap <silent> <C-s-k> <Plug>(ale_previous_wrap)
-  " nmap <silent> <C-s-j> <Plug>(ale_next_wrap)
-
-  " Keymapping pop-up
-  Plug 'liuchengxu/vim-which-key'
-  nnoremap <silent> <leader> :WhichKey ','<CR>
-
-  " REPL magic
-  Plug 'rhysd/reply.vim'
-
-  " Startup screen, why not?
-  Plug 'mhinz/vim-startify'
-
-  " DevIcons always needs to be last
-  Plug 'ryanoasis/vim-devicons'
-
-  " EasyMotion
-  Plug 'easymotion/vim-easymotion'
-  let g:EasyMotion_do_mapping = 0 " Disable default mappings
-
-  " Jump to anywhere you want with minimal keystrokes, with just one key binding.
-  " `s{char}{label}`
-  nmap s <Plug>(easymotion-overwin-f)
-  " or
-  " `s{char}{char}{label}`
-  " Need one more keystroke, but on average, it may be more comfortable.
-  nmap s <Plug>(easymotion-overwin-f2)
-
-  " Turn on case-insensitive feature
-  let g:EasyMotion_smartcase = 1
-
-  " JK motions: Line motions
-  map <Leader>j <Plug>(easymotion-j)
-  map <Leader>k <Plug>(easymotion-k)
-
-  " Copilot
-  Plug 'github/copilot.vim'
-" call plug#end()
 """"" END Plugins """""""""""""""""""""
 " NOTE: vim-plug configuration above is commented out - now using lazy.nvim
 " See ~/.vim/lua/plugins/init.lua for plugin specs
