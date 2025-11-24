@@ -1,0 +1,57 @@
+#!/bin/bash
+
+CACHE_FILE="$HOME/.ssh-scan-cache-ips.txt"
+
+# Check dependencies
+command -v nmap >/dev/null || { echo "nmap is required"; exit 1; }
+HAS_SSHPASS=$(command -v sshpass)
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <subnet or IP range> (e.g. 192.168.1.0/24)"
+    exit 1
+fi
+
+RANGE=$1
+
+read -p "Username: " USERNAME
+read -s -p "Password (leave blank to skip password auth): " PASSWORD
+echo ""
+
+# Scan for open SSH hosts
+echo "[*] Scanning for SSH servers in $RANGE..."
+CURRENT_HOSTS=$(nmap -p 22 --open -n "$RANGE" | awk '/Nmap scan report/{print $5}' | sort)
+
+# Show diff from previous run
+if [ -f "$CACHE_FILE" ]; then
+    echo ""
+    echo "[*] Diff from last scan:"
+    diff --unchanged-line-format= --old-line-format='- %L' --new-line-format='+ %L' "$CACHE_FILE" <(echo "$CURRENT_HOSTS") || echo "No changes"
+else
+    echo "[*] No previous scan found to diff against."
+fi
+
+# Save current list for next run
+echo "$CURRENT_HOSTS" > "$CACHE_FILE"
+
+# Attempt SSH login
+echo ""
+echo "[*] Attempting SSH login..."
+for HOST in $CURRENT_HOSTS; do
+    REVERSE_HOSTNAME=$(getent hosts "$HOST" | awk '{print $2}')
+
+    # Try key-based auth first
+    REMOTE_INFO=$(ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o LogLevel=ERROR "$USERNAME@$HOST" "hostname; uptime -p" 2>/dev/null)
+
+    if [[ -z "$REMOTE_INFO" && -n "$PASSWORD" && -n "$HAS_SSHPASS" ]]; then
+        REMOTE_INFO=$(sshpass -p "$PASSWORD" ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no -o LogLevel=ERROR "$USERNAME@$HOST" "hostname; uptime -p" 2>/dev/null)
+    fi
+
+    if [[ -n "$REMOTE_INFO" ]]; then
+        REMOTE_HOSTNAME=$(echo "$REMOTE_INFO" | sed -n 1p)
+        UPTIME=$(echo "$REMOTE_INFO" | sed -n 2p)
+
+        echo "[+] $HOST (${REVERSE_HOSTNAME:-no-reverse-dns}) — $REMOTE_HOSTNAME — $UPTIME"
+    else
+        echo "[-] $HOST (${REVERSE_HOSTNAME:-no-reverse-dns}) — login failed"
+    fi
+done
