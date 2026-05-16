@@ -1,0 +1,9 @@
+#!/bin/sh
+
+icloudpd --directory /mnt/northwest_ripple/media/Photos/_iCloud_Backup \
+  --cookie-directory ~/.icloud-backup/cookies \
+  --folder-structure {:%Y/%m/%d} \
+  --username chris@chrismetcalf.net \
+  --size original \
+  --recent 500 \
+  --auto-delete

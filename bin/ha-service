@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Ensure required environment variables are set
+if [ -z "$HA_ACCESS_TOKEN" ]; then
+  echo "Error: HA_ACCESS_TOKEN environment variable is not set."
+  exit 1
+fi
+
+if [ -z "$HA_URL" ]; then
+  echo "Error: HA_URL environment variable is not set."
+  exit 1
+fi
+
+# Ensure the service argument is provided
+if [ -z "$1" ]; then
+  echo "Error: No service specified. Usage: $0 <service> [json_payload]"
+  exit 1
+fi
+
+# Assign arguments
+SERVICE=$1
+DATA=${2:-"{}"}  # Use provided payload, or default to {}
+
+# Call the Home Assistant API
+curl -X POST "$HA_URL/api/services/$SERVICE" \
+     -H "Authorization: Bearer $HA_ACCESS_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d "$DATA"

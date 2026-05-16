@@ -212,33 +212,3 @@ If plugins aren't loading:
 1. Verify nvim-cmp is loaded: `:lua print(vim.inspect(require('cmp')))`
 2. Check completion sources in insert mode with `<C-Space>`
 
-## Backup
-
-A backup of the pre-lazy.nvim configuration exists at:
-- `.vimrc.backup-lazy`
-
-To restore vim-plug:
-1. Restore the backup
-2. Uncomment the Plug statements
-3. Run `:PlugInstall`
-
-## Performance
-
-With lazy.nvim, Neovim startup time should be significantly faster:
-- Plugins load on-demand
-- LSP loads only for relevant file types
-- Completion loads only in insert mode
-- Git plugins load only for git repositories
-
-To check startup time:
-```bash
-nvim --startuptime startup.log +quit && tail -20 startup.log
-```
-
-## Future Improvements
-
-Potential additions:
-- Treesitter for better syntax highlighting
-- Telescope as a modern alternative to FZF
-- Friendly-snippets collection
-- Format-on-save for LSP

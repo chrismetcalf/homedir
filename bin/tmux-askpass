@@ -1,0 +1,13 @@
+	#!/bin/bash
+# ~/bin/tmux-askpass.sh
+
+PIPE=$(mktemp)
+rm $PIPE
+mkfifo $PIPE
+
+# Pop up a prompt in the current tmux pane
+tmux display-popup -E "read -s -p 'sudo password: ' pw && echo \$pw > $PIPE"
+
+# Read back the password
+cat $PIPE
+rm -f $PIPE
