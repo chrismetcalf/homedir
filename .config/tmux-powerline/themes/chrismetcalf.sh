@@ -121,7 +121,8 @@ fi
 # shellcheck disable=SC1143,SC2128
 if [ -z "$TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS" ]; then
 	TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS=(
-		"pwd 89 211"
+		"tmux_scout 235 255"
+		"pwd 89 211 default_separator no_sep_bg_color no_sep_fg_color right_disable"
 	)
 
 	# macOS
