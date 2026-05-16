@@ -114,9 +114,11 @@ return {
   {
     "vim-airline/vim-airline",
     dependencies = { "vim-airline/vim-airline-themes" },
-    config = function()
+    lazy = false, -- Load immediately
+    init = function()
+      -- These settings must be set BEFORE airline loads
       vim.g.airline_powerline_fonts = 1
-      vim.g.airline_theme = 'spaceduck'
+      vim.g.airline_theme = 'jellybeans'  -- spaceduck airline theme doesn't exist, using jellybeans
       vim.g['airline#extensions#bufferline#enabled'] = 1
     end,
   },
