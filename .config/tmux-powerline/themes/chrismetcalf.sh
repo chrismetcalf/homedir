@@ -26,16 +26,25 @@ TMUX_POWERLINE_DEFAULT_RIGHTSIDE_SEPARATOR=${TMUX_POWERLINE_DEFAULT_RIGHTSIDE_SE
 # See `man tmux` for additional formatting options for the status line.
 # The `format regular` and `format inverse` functions are provided as conveniences
 
+# tmux-scout per-window state tint (driven by @scout-state set by the
+# tmux_scout segment tick). When a window's panes contain an active scout
+# session, override the tab's foreground with a state color so the whole
+# tab text shows wait/busy/done. Empty/idle = no override (default tab
+# coloring). Each #[] block uses a single attribute to avoid commas — tmux's
+# format parser eats commas inside #[] when nested in #{?...}.
+SCOUT_FG='#{?#{==:#{@scout-state},wait},#[fg=colour203],#{?#{==:#{@scout-state},busy},#[fg=colour214],#{?#{==:#{@scout-state},done},#[fg=colour78],}}}'
+
+# Current tab uses the same dark bg as non-current tabs so the powerline
+# arrow transitions don't render light/white edges. Bold + bright fg keeps
+# it visually distinct.
 # shellcheck disable=SC2128
 if [ -z "$TMUX_POWERLINE_WINDOW_STATUS_CURRENT" ]; then
 	TMUX_POWERLINE_WINDOW_STATUS_CURRENT=(
-		"#[$(format inverse)]"
-		"$TMUX_POWERLINE_DEFAULT_LEFTSIDE_SEPARATOR"
-		" #I#F "
+		"#[fg=colour231,bg=colour235,bold,nounderscore]"
+		" ${SCOUT_FG}#I#F "
 		"$TMUX_POWERLINE_SEPARATOR_RIGHT_THIN"
 		" #W "
 		"#[$(format regular)]"
-		"$TMUX_POWERLINE_DEFAULT_LEFTSIDE_SEPARATOR"
 	)
 fi
 
@@ -50,7 +59,7 @@ fi
 if [ -z "$TMUX_POWERLINE_WINDOW_STATUS_FORMAT" ]; then
 	TMUX_POWERLINE_WINDOW_STATUS_FORMAT=(
 		"#[$(format regular)]"
-		"  #I#{?window_flags,#F, } "
+		"  ${SCOUT_FG}#I#{?window_flags,#F, } "
 		"$TMUX_POWERLINE_SEPARATOR_RIGHT_THIN"
 		" #W "
 	)

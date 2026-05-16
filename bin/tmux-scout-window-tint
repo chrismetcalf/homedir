@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+// Reads tmux-scout's active sessions, aggregates them per tmux window
+// (priority: wait > busy > done > idle), and stores the result on each
+// window as the @scout-state user option so window-status-format can
+// render a state-colored marker.
+//
+// Designed to be called once per status-interval (cheap: one JSON read,
+// one tmux list-panes, one batched tmux command).
+
+const { execSync } = require('child_process')
+const path = require('path')
+const fs = require('fs')
+
+function tmux(args) {
+  try {
+    return execSync('tmux ' + args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch (_) {
+    return ''
+  }
+}
+
+const SCOUT_DIR = tmux('show-env -g SCOUT_DIR').replace(/^SCOUT_DIR=/m, '').trim()
+if (!SCOUT_DIR || !fs.existsSync(SCOUT_DIR)) process.exit(0)
+
+let sync, render
+try {
+  sync = require(path.join(SCOUT_DIR, 'scripts/picker/sync'))
+  render = require(path.join(SCOUT_DIR, 'scripts/picker/render'))
+} catch (_) {
+  process.exit(0)
+}
+
+const STATUS_FILE = path.join(process.env.HOME || '', '.tmux-scout/status.json')
+let cached
+try { cached = sync.run(STATUS_FILE) } catch (_) { process.exit(0) }
+if (!cached || !cached.status) process.exit(0)
+
+const active = render.getActiveSessions(cached.status, cached.panes)
+
+const PRIO = { wait: 4, busy: 3, done: 2, idle: 1 }
+const now = Date.now()
+const paneState = new Map()
+
+for (const s of active) {
+  if (!s.tmuxPane) continue
+  let state
+  if (s.needsAttention || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)) {
+    state = 'wait'
+  } else if (s.status === 'working') state = 'busy'
+  else if (s.status === 'completed') state = 'done'
+  else if (s.status === 'idle') state = 'idle'
+  else continue
+
+  const prev = paneState.get(s.tmuxPane)
+  if (!prev || PRIO[state] > PRIO[prev]) paneState.set(s.tmuxPane, state)
+}
+
+const panesRaw = tmux("list-panes -a -F '#{window_id} #{pane_id}'").trim()
+if (!panesRaw) process.exit(0)
+
+const winState = new Map()
+const winIds = new Set()
+for (const line of panesRaw.split('\n')) {
+  const [winId, paneId] = line.split(' ')
+  if (!winId) continue
+  winIds.add(winId)
+  const state = paneState.get(paneId)
+  if (!state) continue
+  const prev = winState.get(winId)
+  if (!prev || PRIO[state] > PRIO[prev]) winState.set(winId, state)
+}
+
+const cmds = []
+for (const winId of winIds) {
+  const state = winState.get(winId)
+  if (state) cmds.push(`set-option -wt ${winId} @scout-state ${state}`)
+  else cmds.push(`set-option -uwt ${winId} @scout-state`)
+}
+if (!cmds.length) process.exit(0)
+
+try {
+  execSync('tmux ' + cmds.join(' \\; '), { stdio: 'ignore' })
+} catch (_) {}

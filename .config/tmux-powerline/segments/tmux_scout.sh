@@ -3,20 +3,12 @@
 # https://github.com/qeesung/tmux-scout
 
 run_segment() {
-	local plugin_dir="$HOME/.tmux/plugins/tmux-scout"
-	local widget="$plugin_dir/scripts/status-widget.sh"
+	local tint="$HOME/bin/tmux-scout-window-tint"
 
-	[ -x "$widget" ] || return 0
-
-	local out
-	out=$("$widget" 2>/dev/null)
-	[ -n "$out" ] || return 0
-
-	# status-widget.sh emits trailing space + #[default] resets; strip them so
-	# the powerline segment's bg/fg drives the surrounding styling.
-	out="${out//#\[default\]/}"
-	out="${out%% }"
-
-	echo "$out"
+	# Silent ticker: each status refresh runs the tint script to update
+	# @scout-state on every tmux window. Backgrounded so node startup adds
+	# no latency to status rendering. Echo nothing → powerline hides the
+	# segment (no visible block / separator).
+	[ -x "$tint" ] && "$tint" >/dev/null 2>&1 &
 	return 0
 }
