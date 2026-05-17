@@ -19,8 +19,7 @@ This is a dotfiles repository that manages shell, editor, and development enviro
 │   │   ├── git-config.lua
 │   │   ├── nvim-tree-config.lua
 │   │   └── autopairs-surround-config.lua
-│   ├── plugin/     # Plugin initialization
-│   └── spell/      # Spell check dictionaries
+│   └── spell/      # Spell check dictionaries (en.utf-8.add)
 ├── .zsh/           # Zsh configuration
 ├── bin/            # User scripts and utilities
 ├── .vimrc          # Main Vim configuration
@@ -33,87 +32,79 @@ This is a dotfiles repository that manages shell, editor, and development enviro
 
 ### Plugin Manager: lazy.nvim
 
-The configuration uses **lazy.nvim** (migrated from vim-plug) for plugin management with the following benefits:
-- Lazy-loading for faster startup
-- Better dependency management
-- Auto-installation on first run
-- Uses `opts` over `config` where possible (best practice)
+Plugins are managed by **lazy.nvim**. The default in `lazy-bootstrap.lua` is `lazy = true` — each plugin opts out via `lazy = false` or opts in to a specific trigger (`event`/`cmd`/`keys`/`ft`). Of ~70 declared plugins, only ~8 load at startup; the rest fire on demand. Startup is ~40 ms cold.
+
+Plugin specs live in `.vim/lua/plugins/init.lua` (main) and `.vim/lua/plugins/ui.lua` (LSP UI). Larger config blocks for individual plugins live in their own modules under `.vim/lua/` and are `require`'d from the spec's `config` function.
+
+### Clipboard via OSC 52
+
+`.vimrc` wires `vim.g.clipboard` to neovim's built-in `vim.ui.clipboard.osc52` provider, so every `y/d/c` pushes to the host terminal's clipboard over SSH. Works on Tabby (Mac/Win) and ShellFish (iOS). No `xclip`/`pbcopy` required — pure terminal escape sequence.
 
 ### Key Plugins
 
-#### Core Functionality
-- **nvim-lspconfig + Mason**: LSP support with automatic language server installation
-- **nvim-cmp**: Completion engine with multiple sources:
-  - cmp-nvim-lsp: LSP completions
-  - cmp-buffer: Buffer completions
-  - cmp-path: Path completions
-  - cmp-cmdline: Command-line completions
-  - cmp_luasnip: Snippet completions
-- **LuaSnip**: Snippet engine
+#### Core
+- **nvim-lspconfig + Mason** (`+ mason-lspconfig`): LSP support; servers auto-installed
+- **nvim-treesitter** (pinned to `master` branch): syntax, indent, folding
+  - **nvim-treesitter-textobjects**: `vif`/`vac`/`vaa`/`val` for inner/around function/class/parameter/loop, `]m`/`[m` to jump between functions
+  - `auto_install = true`, `ignore_install = { "tmux" }` (broken upstream tarball)
+- **nvim-cmp**: completion engine; sources:
+  - `copilot` (via copilot-cmp)
+  - `nvim_lsp`, `luasnip`, `path`, `buffer`, `cmdline`
+- **LuaSnip**: snippet engine
 
 #### File Navigation
-- **nvim-tree.lua**: Modern file explorer (`<leader>n` to toggle)
-- **FZF + fzf.vim**: Fuzzy finder
+- **nvim-tree.lua**: file explorer (`<leader>n` toggle, `<leader>nf` find current file)
+- **FZF + fzf.vim**: fuzzy finder
   - `<leader>f`: Git files
   - `<leader>F`: All files
   - `<leader>b`: Buffers
   - `<leader>a`: Ag search
+  - `<leader>h`: Help tags
+  - `<leader>c`: Commands
 
-#### Git Integration
-- **gitsigns.nvim**: Git signs in gutter with interactive staging
-  - `]c`/`[c`: Navigate hunks
-  - `<leader>hs`: Stage hunk
-  - `<leader>hr`: Reset hunk
-  - `<leader>hp`: Preview hunk
-  - `<leader>hb`: Blame line
-- **diffview.nvim**: Advanced diff viewing
-  - `<leader>dv`: Open diffview
-  - `<leader>dh`: File history
-- **vim-fugitive**: Git commands
-- **vim-rhubarb**: GitHub integration
+#### Git
+- **gitsigns.nvim**: gutter signs + interactive staging
+  - `]c`/`[c`: navigate hunks
+  - `<leader>hs`: stage hunk; `<leader>hr`: reset; `<leader>hp`: preview; `<leader>hb`: blame line
+- **diffview.nvim**: full diff viewer
+  - `<leader>dv` open, `<leader>dc` close, `<leader>dh` file history, `<leader>df` current file history
+- **vim-fugitive** + **vim-rhubarb**: `:Git ...` and GitHub `GBrowse`
+- **git-messenger.vim**: `<leader>gm` for blame popup
 
-#### LSP UI Enhancements
-- **trouble.nvim**: Better diagnostics viewer
-  - `<leader>xx`: Toggle Trouble
-  - `<leader>xw`: Workspace diagnostics
-  - `<leader>xd`: Document diagnostics
-  - `<leader>xr`: LSP references
-- **dressing.nvim**: Better UI for vim.ui.select and vim.ui.input
-- **lsp_signature.nvim**: Function signatures while typing
+#### LSP UI
+- **trouble.nvim**: diagnostics viewer
+  - `<leader>xx`/`xw`/`xd`/`xq`/`xl`/`xr`
+- **dressing.nvim**: better `vim.ui.select` / `vim.ui.input`
+- **lsp_signature.nvim**: function signatures while typing
+- **conform.nvim**: format on save (stylua, prettierd, ruff, rubocop, rustfmt, gofmt, shfmt). `<leader>lf` to format manually.
 
-#### Editing Enhancement
-- **nvim-autopairs**: Auto-close brackets/quotes (integrated with nvim-cmp)
-- **nvim-surround**: Surround text objects
-  - `ys{motion}{char}`: Add surrounding
-  - `ds{char}`: Delete surrounding
-  - `cs{old}{new}`: Change surrounding
-- **vim-commentary**: Comment/uncomment with `gc`
-- **vim-easy-align**: Align text with `ga`
+#### Editing
+- **nvim-autopairs**: bracket/quote autoclose (cmp-aware)
+- **nvim-surround**: `ys{motion}{char}` add, `ds{char}` delete, `cs{old}{new}` change
+- **vim-commentary**: `gc` to comment/uncomment
+- **vim-easy-align**: `ga` to align
+- **vim-illuminate**: highlight word matches under cursor
+- **incsearch / hlsearch**: native (no plugin)
 
 #### Visual
-- **vim-airline**: Status line
-- **spaceduck**: Color scheme
-- **nvim-web-devicons**: File icons
-- **indent Line**: Indent guides
+- **lualine.nvim**: statusline (`jellybeans` theme, globalstatus)
+- **spaceduck**: colorscheme
+- **nvim-web-devicons**: file icons
+- **indent-blankline.nvim**: indent guides (treesitter-aware, replaces indentLine)
+- **vim-devicons**: lualine icons
 
 #### Other
-- **vim-test**: Test runner integration with Vimux
-- **gundo.vim**: Undo tree visualization (`<leader>G`)
-- **vim-tmux-navigator**: Seamless tmux/vim navigation
-- **easymotion**: Fast cursor movement (`s{char}{char}`)
-- **copilot.vim**: GitHub Copilot integration
+- **vim-test** (+ vimux): `<leader>tn`/`tf`/`ta`/`tt` for nearest/file/suite/last
+- **gundo.vim**: `<leader>G` undo tree
+- **vim-tmux-navigator**: seamless `<C-h/j/k/l>` across tmux+vim panes
+- **easymotion**: `s{char}{char}` jump
+- **folke/which-key.nvim**: keybind popup (`VeryLazy`, auto-discovers `desc` from lazy keys)
+- **copilot.lua + copilot-cmp**: Copilot suggestions inline in nvim-cmp menu (replaces copilot.vim)
 
-### LSP Configuration
+### LSP servers (Mason auto-installs)
 
-Language servers are auto-installed via Mason for:
-- Lua (lua_ls)
-- Python (pyright)
-- TypeScript/JavaScript (ts_server)
-- Rust (rust_analyzer)
-- Go (gopls)
-- Bash (bashls)
-- JSON (jsonls)
-- YAML (yamlls)
+- `lua_ls`, `pyright`, `ts_ls`, `rust_analyzer`, `bashls`, `jsonls`, `yamlls`
+- `gopls` is commented out; uncomment if Go is installed
 
 ### Key Mappings
 
@@ -151,45 +142,62 @@ Leader key: `,`
 
 ## Zsh Configuration
 
-- Oh-My-Zsh framework
-- Custom aliases and functions
-- Git integration in prompt
+- **Oh-My-Zsh** framework, custom plugins in `.oh-my-zsh-custom/`
+- **Prompt**: powerlevel10k (configured via `~/.p10k.zsh`)
+- **Per-host HISTFILE** under `~/.zsh-history/$(hostname -s)`
+- **Per-fragment rc files** under `.zsh/rc/` (numbered prefixes order the load: `00-oh-my-zsh`, then alphabetical, then `99-isomorphic-copy`)
+- **NVM lazy-loaded** via wrapper functions in `.zsh/rc/nvm` (first call to `nvm`/`node`/`npm`/`npx` sources nvm.sh, then replaces itself with the real binary)
+- **zsh-syntax-highlighting + zsh-autosuggestions**: fish-style coloring + history suggestions, as oh-my-zsh-custom plugins
+- **Compile on save**: `.zshrc` runs `zcompile` async at end so subsequent loads are faster
+- **`~/.zshrc.local`** (NOT in repo, chmod 600) holds per-host secrets + tmux auto-attach
 
 ## Tmux Configuration
 
-- Powerline theme
-- Vi-mode bindings
-- Pane navigation synchronized with Vim
+- **tmux-powerline** theme: `.config/tmux-powerline/themes/chrismetcalf.sh`
+  - Jewel-tone palette aligned with tmux-scout state colors
+  - Custom segments: `tmux_scout` (silent ticker), `rainbarf`
+- **tmux-scout** (qeesung/tmux-scout): tracks Claude Code / Codex / Gemini / etc. sessions
+  - `prefix + \``: open session picker
+  - `bin/tmux-scout-window-tint` runs every status-interval, sets `@scout-state` on each window so window-status-format tints the tab text (red=wait, orange=busy, teal=done)
+- **OSC 52 copy**: `@override_copy_command 'tmux load-buffer -w -'` routes every yank through tmux's buffer + OSC 52 to the host terminal clipboard (Tabby, ShellFish)
+- **Keybindings**:
+  - `prefix + r`: reload `.tmux.conf`
+  - `prefix + |` / `prefix + -`: vertical / horizontal split
+  - `<C-h/j/k/l>`: pane nav (with vim-tmux-navigator)
+- **Dark theme**: all `*-style` options explicitly set to `bg=colour235` so activity/bell flags don't flip to white
+- `renumber-windows on`, `detach-on-destroy off`
 
 ## Scripts in `bin/`
 
-Various utility scripts for development and system management.
+Utility scripts on `$PATH` (via `.zsh/rc/exports`). Notable ones:
 
-## Gitfix Integration
+- **`gitfix`**: re-runnable symlink installer. Walks `.homedir/`, `.homedir/.ssh/`, `.homedir/.config/` and links matching entries into `~/`, `~/.ssh/`, `~/.config/`. Uses `dircombine` (Joey Hess, perl) which maintains a `known` file per source dir to clean up stale links on re-run. Skips `.git`, `.gitignore`, `.gitmodules`, `.svn`, `_darcs`.
+- **`install-neovim`**: downloads latest Neovim release into `~/bin/nvim` (Linux x86_64/arm64 tarballs, macOS x86_64/arm64).
+- **`setup_osx`**: macOS `defaults write` bootstrap (Sonoma/Sequoia idioms; sections for UI, keyboard, trackpad, Dock, Finder, etc.)
+- **`tmux-scout-window-tint`**: ticker that reads `~/.tmux-scout/status.json` and sets `@scout-state` per window
+- **`tmux-askpass`**: tmux popup for sudo password prompts
+- **`ha`, `ha-service`**: Home Assistant CLI wrappers (use env vars from `~/.zshrc.local`)
+- **`pushover`**: simple notification wrapper (used by `rsnapshot-wrapper.sh`)
+- **`update-keys`**: pull authorized_keys from GitHub
+- **`merge-tmux`**: combine all tmux sessions into "main"
+- **`pi-system-status`**, **`ping-monitor*`**, **`sshscan`**, **`set-time-from-nmea-ip`**: misc system tools
 
-The `gitfix` script creates symlinks from this repo to the home directory.
+Submodules under `bin/` (named `*.git/`): `ansiweather.git`, `multi-git-status.git`, `isomorphic-copy.git`. Top-level symlinks `ansiweather` and `mgitstatus` invoke the binaries inside.
 
-`CLAUDE.md` is linked into `~/CLAUDE.md` so Claude Code sessions started from `~/` pick it up automatically.
+## Gitfix
 
-## Recent Changes
+`gitfix` symlinks repo contents into `~/`:
+- `.ssh/` and `.config/` are kept as real dirs; individual entries from `.homedir/.ssh/` and `.homedir/.config/` are linked into them (so non-repo files like `~/.ssh/known_hosts` coexist).
+- Everything else in `.homedir/` is symlinked top-level (`~/.zsh → .homedir/.zsh`, `~/.vim → .homedir/.vim`, etc.).
+- `~/CLAUDE.md → .homedir/CLAUDE.md` so Claude Code sessions started from `~/` pick up this doc.
 
-### 2025-11-16: Lazy.nvim Migration
-- Migrated from vim-plug to lazy.nvim
-- Configured lazy-loading for ~70+ plugins
-- Improved startup time with event-based loading
-- Moved LSP UI configs to use `opts` instead of `config`
-- Created separate plugin files for better organization:
-  - `plugins/init.lua`: Main plugin specs
-  - `plugins/ui.lua`: UI enhancement plugins (trouble, dressing, lsp_signature)
+## Out-of-repo files referenced by this setup
 
-### Recent Enhancements
-- Added modern git integration (gitsigns, diffview)
-- Replaced gitgutter with gitsigns
-- Added nvim-tree as modern file explorer
-- Added auto-pairs and nvim-surround
-- Added LSP UI enhancements (trouble, dressing, lsp_signature)
-- Added command-line completion (cmp-cmdline)
-- Fixed LSP keybinding conflict (`<C-k>`)
+- `~/.zshrc.local` — per-host secrets + tmux auto-attach (chmod 600)
+- `~/.shellfish-secrets` — Secure ShellFish push key/user, sourced by `.zsh/rc/shellfishrc` (chmod 600)
+- `~/.ssh/config.local` — per-host SSH overrides, `Include`d from `.ssh/config` (chmod 600)
+- `~/.ssh/sockets/` — ControlMaster sockets (chmod 700)
+- `~/.ssh/id_rsa`, `~/.ssh/id_ed25519` — keys (never committed; `.gitignore` defensively blocks `.ssh/id_*`)
 
 ## Troubleshooting
 
