@@ -37,6 +37,16 @@ bin/nvim
 .config/heroku
 .config/hub
 .config/rclone/
+# SSH: defensive — block private keys, per-host configs, and runtime state.
+# .ssh/config IS tracked; everything else here is per-host / secret.
+.ssh/id_*
+.ssh/*.key
+.ssh/*.pem
+.ssh/config.local
+.ssh/known_hosts*
+.ssh/authorized_keys*
+.ssh/sockets/
+.ssh/environment-*
 
 # Old / unused app configs
 .config/gqrx
