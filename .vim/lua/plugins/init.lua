@@ -1,107 +1,116 @@
--- Plugin specifications for lazy.nvim
--- Migrated from vim-plug configuration
+-- Plugin specifications for lazy.nvim.
+-- Default is lazy = true (see lazy-bootstrap.lua); plugins below opt out via
+-- lazy = false when they need to load at startup (e.g. statusline, colorscheme,
+-- always-on keybinds). Everything else loads on event/cmd/keys/ft.
 
 return {
-  -- Color Schemes
-  { "vim-scripts/Colour-Sampler-Pack" },
-  { "NLKNguyen/papercolor-theme" },
-  { "sheerun/vim-polyglot" },
+  ---------------------------------------------------------------------------
+  -- Color schemes
+  ---------------------------------------------------------------------------
+  { "vim-scripts/Colour-Sampler-Pack", lazy = true },
+  { "NLKNguyen/papercolor-theme",      lazy = true },
   {
     "pineapplegiant/spaceduck",
     branch = "main",
-    priority = 1000, -- Load colorscheme early
+    lazy = false,
+    priority = 1000, -- ensure colorscheme is available before plugins
   },
 
-  -- ChromeReload
+  ---------------------------------------------------------------------------
+  -- Statusline / icons / startup screen (eager)
+  ---------------------------------------------------------------------------
   {
-    "tell-k/vim-browsereload-mac",
-    config = function()
-      vim.g.returnApp = "kitty"
-      vim.keymap.set('n', '<leader>r', ':ChromeReload<CR>', { noremap = true })
+    "vim-airline/vim-airline",
+    dependencies = { "vim-airline/vim-airline-themes" },
+    lazy = false,
+    init = function()
+      vim.g.airline_powerline_fonts = 1
+      vim.g.airline_theme = 'jellybeans'
+      vim.g['airline#extensions#bufferline#enabled'] = 1
     end,
   },
+  { "vim-airline/vim-airline-themes",  lazy = true }, -- pulled in as dep
+  { "ryanoasis/vim-devicons",          lazy = false }, -- needed by airline
+  { "nvim-tree/nvim-web-devicons",     lazy = true },  -- pulled in by deps
+  { "mhinz/vim-startify",              lazy = false }, -- splash screen
 
-  -- FZF
-  { "junegunn/fzf" },
+  ---------------------------------------------------------------------------
+  -- Navigation / tmux (eager keybinds)
+  ---------------------------------------------------------------------------
+  { "christoomey/vim-tmux-navigator",  lazy = false }, -- C-h/j/k/l bindings
+  { "tmux-plugins/vim-tmux",           ft  = "tmux" },
+  { "tmux-plugins/vim-tmux-focus-events", lazy = false },
+
+  ---------------------------------------------------------------------------
+  -- File / fuzzy navigation
+  ---------------------------------------------------------------------------
+  { "junegunn/fzf", lazy = true }, -- dep
   {
     "junegunn/fzf.vim",
     dependencies = { "junegunn/fzf" },
-    config = function()
-      vim.keymap.set('n', '<leader>b', ':Buffers<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>f', ':GFiles<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>F', ':Files<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>a', ':Ag<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>h', ':Helptags<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>c', ':Commands<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>l', ':Lines<CR>', { noremap = true })
-    end,
+    cmd = { "Buffers", "GFiles", "Files", "Ag", "Helptags", "Commands", "Lines" },
+    keys = {
+      { "<leader>b", ":Buffers<CR>",  desc = "FZF buffers" },
+      { "<leader>f", ":GFiles<CR>",   desc = "FZF git files" },
+      { "<leader>F", ":Files<CR>",    desc = "FZF all files" },
+      { "<leader>a", ":Ag<CR>",       desc = "FZF Ag search" },
+      { "<leader>h", ":Helptags<CR>", desc = "FZF help tags" },
+      { "<leader>c", ":Commands<CR>", desc = "FZF commands" },
+      { "<leader>l", ":Lines<CR>",    desc = "FZF lines" },
+    },
   },
-
-  -- AnyJump
   {
     "pechorin/any-jump.vim",
-    config = function()
-      vim.g.any_jump_disable_default_keybindings = 1
-      vim.keymap.set('n', '<leader>aj', ':AnyJump<CR>', { noremap = true })
-      vim.keymap.set('x', '<leader>aj', ':AnyJumpVisual<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>ajb', ':AnyJumpBack<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>ajl', ':AnyJumpLastResults<CR>', { noremap = true })
-    end,
+    cmd = { "AnyJump", "AnyJumpVisual", "AnyJumpBack", "AnyJumpLastResults" },
+    keys = {
+      { "<leader>aj",  ":AnyJump<CR>",            desc = "AnyJump" },
+      { "<leader>aj",  ":AnyJumpVisual<CR>",      mode = "x", desc = "AnyJump (visual)" },
+      { "<leader>ajb", ":AnyJumpBack<CR>",        desc = "AnyJump back" },
+      { "<leader>ajl", ":AnyJumpLastResults<CR>", desc = "AnyJump last results" },
+    },
+    init = function() vim.g.any_jump_disable_default_keybindings = 1 end,
   },
-
-  -- File Explorer
-  { "nvim-tree/nvim-web-devicons" },
   {
     "nvim-tree/nvim-tree.lua",
     dependencies = { "nvim-tree/nvim-web-devicons" },
-    config = function()
-      require('nvim-tree-config')
-    end,
+    cmd = { "NvimTreeToggle", "NvimTreeFindFile", "NvimTreeOpen", "NvimTreeClose" },
+    config = function() require('nvim-tree-config') end,
     keys = {
-      { "<leader>n", ":NvimTreeToggle<CR>", desc = "Toggle NvimTree" },
+      { "<leader>n",  ":NvimTreeToggle<CR>",   desc = "Toggle NvimTree" },
       { "<leader>nf", ":NvimTreeFindFile<CR>", desc = "Find file in NvimTree" },
     },
   },
 
-  -- Gundo
-  {
-    "sjl/gundo.vim",
-    cmd = { "GundoToggle", "GundoShow", "GundoHide" },
-    keys = {
-      { "<leader>G", ":GundoToggle<CR>", desc = "Toggle Gundo" },
-    },
-  },
-
-  -- Funcoo is a Dependency
-  { "rizzatti/funcoo.vim" },
-
-  -- Modern Git Integration
+  ---------------------------------------------------------------------------
+  -- Git
+  ---------------------------------------------------------------------------
   {
     "lewis6991/gitsigns.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     event = { "BufReadPre", "BufNewFile" },
-    config = function()
-      require('git-config')
-    end,
+    config = function() require('git-config') end,
   },
   {
     "sindrets/diffview.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewFileHistory" },
     keys = {
-      { "<leader>dv", ":DiffviewOpen<CR>", desc = "Open Diffview" },
-      { "<leader>dc", ":DiffviewClose<CR>", desc = "Close Diffview" },
-      { "<leader>dh", ":DiffviewFileHistory<CR>", desc = "File History" },
+      { "<leader>dv", ":DiffviewOpen<CR>",          desc = "Open Diffview" },
+      { "<leader>dc", ":DiffviewClose<CR>",         desc = "Close Diffview" },
+      { "<leader>dh", ":DiffviewFileHistory<CR>",   desc = "File History" },
       { "<leader>df", ":DiffviewFileHistory %<CR>", desc = "Current File History" },
     },
   },
-
-  -- Gist
-  { "mattn/webapi-vim" },
+  { "tpope/vim-fugitive",      cmd = { "Git", "Gstatus", "Gblame", "Gdiff", "Gcommit", "Gpush", "Gpull" } },
+  { "tpope/vim-rhubarb",       dependencies = { "tpope/vim-fugitive" }, cmd = { "GBrowse" } },
+  { "tpope/vim-git",           ft = { "gitcommit", "gitrebase", "gitconfig" } },
+  { "rhysd/git-messenger.vim", cmd = "GitMessenger", keys = { { "<leader>gm", ":GitMessenger<CR>", desc = "Git Messenger" } } },
+  { "timcharper/gitosis.vim",  ft = { "gitosis" } },
   {
     "mattn/gist-vim",
     dependencies = { "mattn/webapi-vim" },
-    config = function()
+    cmd = "Gist",
+    init = function()
       vim.g.gist_open_browser_after_post = 1
       vim.g.gist_show_privates = 1
       vim.g.gist_detect_filetype = 1
@@ -109,115 +118,25 @@ return {
       vim.g.github_user = "chrismetcalf"
     end,
   },
+  { "mattn/webapi-vim", lazy = true }, -- dep
 
-  -- vim-airline
-  {
-    "vim-airline/vim-airline",
-    dependencies = { "vim-airline/vim-airline-themes" },
-    lazy = false, -- Load immediately
-    init = function()
-      -- These settings must be set BEFORE airline loads
-      vim.g.airline_powerline_fonts = 1
-      vim.g.airline_theme = 'jellybeans'  -- spaceduck airline theme doesn't exist, using jellybeans
-      vim.g['airline#extensions#bufferline#enabled'] = 1
-    end,
-  },
-  { "vim-airline/vim-airline-themes" },
-
-  -- Misc fun stuff
-  { "timcharper/gitosis.vim" },
-  { "rhysd/git-messenger.vim" },
-  { "godlygeek/tabular" },
-  { "airblade/vim-rooter" },
-  { "junegunn/goyo.vim" },
-  { "gcmt/wildfire.vim" },
-  { "AndrewRadev/splitjoin.vim" },
-  { "Yggdroot/indentLine" },
-
-  -- vim-test
-  { "benmills/vimux" },
-  {
-    "janko/vim-test",
-    dependencies = { "benmills/vimux" },
-    config = function()
-      vim.g['test#strategy'] = 'vimux'
-      vim.keymap.set('n', '<leader>tn', ':TestNearest<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>tf', ':TestFile<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>ta', ':TestSuite<CR>', { noremap = true })
-      vim.keymap.set('n', '<leader>tt', ':TestLast<CR>', { noremap = true })
-    end,
-  },
-
-  -- tpope is my spirit animal
-  { "tpope/vim-endwise" },
-  { "tpope/vim-repeat" },
-  { "tpope/vim-git" },
-  { "tpope/vim-fugitive" },
-  { "tpope/vim-rhubarb" },
-  { "tpope/vim-eunuch" },
-  { "tpope/vim-commentary" },
-  { "tpope/vim-rake" },
-  { "tpope/vim-rvm" },
-  { "tpope/vim-tbone" },
-  { "tpope/vim-dispatch" },
-  { "tpope/vim-speeddating" },
-  { "tpope/vim-jdaddy" },
-  { "tpope/vim-vinegar" },
-
-  -- Easy Align
-  {
-    "junegunn/vim-easy-align",
-    config = function()
-      vim.keymap.set('x', 'ga', '<Plug>(EasyAlign)', {})
-      vim.keymap.set('n', 'ga', '<Plug>(EasyAlign)', {})
-    end,
-  },
-
-  -- Capitalization
-  { "arthurxavierx/vim-caser" },
-
-  -- Syntax
-  { "vim-scripts/vim-json-bundle" },
-  { "honza/dockerfile.vim" },
-  { "tpope/vim-bundler" },
-
-  -- Markdown
-  {
-    "plasticboy/vim-markdown",
-    config = function()
-      vim.g.vim_markdown_folding_disabled = 1
-      vim.g.vim_markdown_frontmatter = 1
-    end,
-  },
-
-  -- Docker
-  { "kevinhui/vim-docker-tools" },
-
-  -- LSP Configuration
-  { "neovim/nvim-lspconfig" },
-  {
-    "williamboman/mason.nvim",
-    build = ":MasonUpdate",
-  },
+  ---------------------------------------------------------------------------
+  -- LSP + completion
+  ---------------------------------------------------------------------------
+  { "neovim/nvim-lspconfig",     event = { "BufReadPre", "BufNewFile" } },
+  { "williamboman/mason.nvim",   cmd = { "Mason", "MasonInstall", "MasonUninstall", "MasonUpdate" }, build = ":MasonUpdate", opts = {} },
   {
     "williamboman/mason-lspconfig.nvim",
     dependencies = { "williamboman/mason.nvim", "neovim/nvim-lspconfig" },
-    config = function()
-      require('lsp')
-    end,
+    event = { "BufReadPre", "BufNewFile" },
+    config = function() require('lsp') end,
   },
+  { "nvim-lua/plenary.nvim", lazy = true }, -- pulled in by deps
 
-  -- LSP UI Enhancements (moved to plugins/ui.lua for better organization)
-  { "nvim-lua/plenary.nvim" },
-
-  -- Modern Completion - order matters!
-  {
-    "L3MON4D3/LuaSnip",
-    event = "InsertEnter",
-  },
+  { "L3MON4D3/LuaSnip", event = "InsertEnter" },
   {
     "hrsh7th/nvim-cmp",
-    event = "InsertEnter",
+    event = { "InsertEnter", "CmdlineEnter" },
     dependencies = {
       "L3MON4D3/LuaSnip",
       "hrsh7th/cmp-nvim-lsp",
@@ -226,79 +145,175 @@ return {
       "hrsh7th/cmp-cmdline",
       "saadparwaiz1/cmp_luasnip",
     },
-    config = function()
-      require('completion')
-    end,
+    config = function() require('completion') end,
   },
-  { "hrsh7th/cmp-nvim-lsp" },
-  { "hrsh7th/cmp-buffer" },
-  { "hrsh7th/cmp-path" },
-  { "hrsh7th/cmp-cmdline" },
-  { "saadparwaiz1/cmp_luasnip" },
+  { "hrsh7th/cmp-nvim-lsp", lazy = true },
+  { "hrsh7th/cmp-buffer",   lazy = true },
+  { "hrsh7th/cmp-path",     lazy = true },
+  { "hrsh7th/cmp-cmdline",  lazy = true },
+  { "saadparwaiz1/cmp_luasnip", lazy = true },
 
-  -- Auto-pairs and Surround
+  ---------------------------------------------------------------------------
+  -- Editing helpers
+  ---------------------------------------------------------------------------
   {
     "windwp/nvim-autopairs",
     event = "InsertEnter",
     dependencies = { "hrsh7th/nvim-cmp" },
-    config = function()
-      require('autopairs-surround-config')
-    end,
+    config = function() require('autopairs-surround-config') end,
   },
+  { "kylechui/nvim-surround",   event = "VeryLazy", opts = {} },
+  { "tpope/vim-endwise",        event = "InsertEnter" },
+  { "tpope/vim-commentary",     keys = { { "gc", mode = { "n", "x", "o" } } }, cmd = "Commentary" },
+  { "tpope/vim-repeat",         event = "VeryLazy" },
+  { "tpope/vim-speeddating",    event = "VeryLazy" },
+  { "tpope/vim-eunuch",         cmd = { "Remove", "Delete", "Move", "Rename", "Chmod", "Mkdir", "Cfind", "Clocate", "Lfind", "Llocate", "SudoEdit", "SudoWrite" } },
+  { "tpope/vim-vinegar",        keys = { "-" } },
+  { "tpope/vim-tbone",          cmd = { "Tmux", "Tyank", "Tput", "Twrite", "Tattach" } },
+  { "tpope/vim-dispatch",       cmd = { "Make", "Dispatch", "Start", "Spawn", "Focus", "Copen" } },
+  { "tpope/vim-jdaddy",         ft = "json" },
+  { "tpope/vim-bundler",        ft = "ruby", cmd = "Bundle" },
+  { "tpope/vim-rake",           ft = "ruby", cmd = "Rake" },
+  { "tpope/vim-rvm",            ft = "ruby" },
+  { "godlygeek/tabular",        cmd = { "Tabularize", "AddTabularPattern", "AddTabularPipeline" } },
+  { "airblade/vim-rooter",      event = "BufReadPre" },
+  { "junegunn/goyo.vim",        cmd = "Goyo" },
+  { "gcmt/wildfire.vim",        event = "VeryLazy" },
+  { "AndrewRadev/splitjoin.vim", keys = { "gS", "gJ" } },
+  { "Yggdroot/indentLine",      event = "BufReadPre" },
+  { "arthurxavierx/vim-caser",  keys = { "gc" }, cmd = { "CaserSnakeCase", "CaserCamelCase" } },
+  { "rizzatti/funcoo.vim",      lazy = true }, -- dep
   {
-    "kylechui/nvim-surround",
-    event = "VeryLazy",
-    opts = {}, -- Config is in autopairs-surround-config.lua, but opts triggers setup
+    "junegunn/vim-easy-align",
+    keys = {
+      { "ga", "<Plug>(EasyAlign)", mode = { "n", "x" }, desc = "EasyAlign" },
+    },
   },
-
-  -- Tmux
-  { "christoomey/vim-tmux-navigator" },
-  { "tmux-plugins/tpm" },
-  { "tmux-plugins/vim-tmux" },
-  { "tmux-plugins/vim-tmux-focus-events" },
-
-  -- incsearch
   {
     "haya14busa/incsearch.vim",
-    config = function()
-      vim.keymap.set('', '/', '<Plug>(incsearch-forward)', {})
-      vim.keymap.set('', '?', '<Plug>(incsearch-backward)', {})
-      vim.keymap.set('', 'g/', '<Plug>(incsearch-stay)', {})
-    end,
+    keys = {
+      { "/",  "<Plug>(incsearch-forward)" },
+      { "?",  "<Plug>(incsearch-backward)" },
+      { "g/", "<Plug>(incsearch-stay)" },
+    },
   },
-
-  -- illuminates word matches in movement modes
-  { "RRethy/vim-illuminate" },
-
-  -- Keymapping pop-up
-  {
-    "liuchengxu/vim-which-key",
-    config = function()
-      vim.keymap.set('n', '<leader>', ':WhichKey \',\'<CR>', { noremap = true, silent = true })
-    end,
-  },
-
-  -- REPL magic
-  { "rhysd/reply.vim" },
-
-  -- Startup screen, why not?
-  { "mhinz/vim-startify" },
-
-  -- DevIcons always needs to be last
-  { "ryanoasis/vim-devicons" },
-
-  -- EasyMotion
   {
     "easymotion/vim-easymotion",
-    config = function()
+    keys = {
+      { "s",        "<Plug>(easymotion-overwin-f2)" },
+      { "<leader>j", "<Plug>(easymotion-j)" },
+      { "<leader>k", "<Plug>(easymotion-k)" },
+    },
+    init = function()
       vim.g.EasyMotion_do_mapping = 0
-      vim.keymap.set('n', 's', '<Plug>(easymotion-overwin-f2)', {})
       vim.g.EasyMotion_smartcase = 1
-      vim.keymap.set('', '<Leader>j', '<Plug>(easymotion-j)', {})
-      vim.keymap.set('', '<Leader>k', '<Plug>(easymotion-k)', {})
+    end,
+  },
+  { "RRethy/vim-illuminate", event = { "BufReadPost", "BufNewFile" } },
+
+  ---------------------------------------------------------------------------
+  -- Syntax / filetype-specific
+  ---------------------------------------------------------------------------
+  { "vim-scripts/vim-json-bundle", ft = "json" },
+  { "honza/dockerfile.vim",        ft = "dockerfile" },
+  {
+    "plasticboy/vim-markdown",
+    ft = "markdown",
+    init = function()
+      vim.g.vim_markdown_folding_disabled = 1
+      vim.g.vim_markdown_frontmatter = 1
+    end,
+  },
+  { "kevinhui/vim-docker-tools", cmd = { "DockerToolsOpen", "DockerToolsClose", "DockerToolsToggle" } },
+
+  ---------------------------------------------------------------------------
+  -- Testing / REPL / undo
+  ---------------------------------------------------------------------------
+  { "benmills/vimux", cmd = { "VimuxPromptCommand", "VimuxRunCommand", "VimuxRunLastCommand", "VimuxInspectRunner" } },
+  {
+    "janko/vim-test",
+    dependencies = { "benmills/vimux" },
+    cmd = { "TestNearest", "TestFile", "TestSuite", "TestLast", "TestVisit" },
+    keys = {
+      { "<leader>tn", ":TestNearest<CR>", desc = "Test nearest" },
+      { "<leader>tf", ":TestFile<CR>",    desc = "Test file" },
+      { "<leader>ta", ":TestSuite<CR>",   desc = "Test suite" },
+      { "<leader>tt", ":TestLast<CR>",    desc = "Test last" },
+    },
+    init = function() vim.g['test#strategy'] = 'vimux' end,
+  },
+  { "rhysd/reply.vim",  cmd = { "Repl", "ReplAuto", "ReplStop" } },
+  { "sjl/gundo.vim",    cmd = { "GundoToggle", "GundoShow", "GundoHide" }, keys = { { "<leader>G", ":GundoToggle<CR>", desc = "Toggle Gundo" } } },
+
+  ---------------------------------------------------------------------------
+  -- Misc
+  ---------------------------------------------------------------------------
+  {
+    "tell-k/vim-browsereload-mac",
+    cmd = { "ChromeReload", "FirefoxReload", "SafariReload" },
+    keys = { { "<leader>r", ":ChromeReload<CR>", desc = "Chrome reload" } },
+    init = function() vim.g.returnApp = "kitty" end,
+  },
+  { "github/copilot.vim", event = "InsertEnter" },
+
+  ---------------------------------------------------------------------------
+  -- Modern essentials
+  ---------------------------------------------------------------------------
+  -- Treesitter: better syntax highlighting + folding + text objects.
+  -- Replaces vim-polyglot for the languages it knows about.
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+    event = { "BufReadPost", "BufNewFile" },
+    cmd = { "TSInstall", "TSUpdate", "TSBufEnable", "TSBufDisable", "TSEnable", "TSDisable" },
+    config = function()
+      require("nvim-treesitter.configs").setup({
+        ensure_installed = {
+          "bash", "dockerfile", "go", "json", "lua", "markdown", "markdown_inline",
+          "python", "ruby", "rust", "toml", "tsx", "typescript", "vim", "vimdoc", "yaml",
+        },
+        auto_install = true,
+        highlight = { enable = true, additional_vim_regex_highlighting = false },
+        indent = { enable = true },
+      })
     end,
   },
 
-  -- Copilot
-  { "github/copilot.vim" },
+  -- conform.nvim: format-on-save with per-filetype formatters.
+  {
+    "stevearc/conform.nvim",
+    event = { "BufWritePre" },
+    cmd = { "ConformInfo", "Format" },
+    keys = {
+      { "<leader>lf", function() require("conform").format({ async = true, lsp_fallback = true }) end, desc = "Format buffer" },
+    },
+    opts = {
+      formatters_by_ft = {
+        lua        = { "stylua" },
+        python     = { "ruff_format", "black" },
+        javascript = { "prettierd", "prettier", stop_after_first = true },
+        typescript = { "prettierd", "prettier", stop_after_first = true },
+        json       = { "prettierd", "prettier", stop_after_first = true },
+        yaml       = { "prettierd", "prettier", stop_after_first = true },
+        markdown   = { "prettierd", "prettier", stop_after_first = true },
+        ruby       = { "rubocop" },
+        rust       = { "rustfmt" },
+        go         = { "gofmt" },
+        sh         = { "shfmt" },
+      },
+      format_on_save = { timeout_ms = 500, lsp_fallback = true },
+    },
+  },
+
+  -- which-key.nvim: modern lua rewrite of vim-which-key. Auto-discovers the
+  -- leader bindings via lazy.nvim's keys = {...} desc fields.
+  {
+    "folke/which-key.nvim",
+    event = "VeryLazy",
+    opts = {},
+    init = function()
+      vim.o.timeout = true
+      vim.o.timeoutlen = 300
+    end,
+  },
 }

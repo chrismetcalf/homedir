@@ -42,16 +42,21 @@ set ch=2
 " Allow deleting previously entered charecters in insert mode
 set backspace=indent,eol,start
 
-" Use the latest clipboard magic
+" Use the system clipboard for every yank/delete/paste.
+" Neovim 0.10+ ships an OSC 52 clipboard provider; this routes the system
+" clipboard through the terminal escape sequence, so y/d/c reach the host
+" clipboard over SSH on Tabby (Mac/Win) and ShellFish (iOS) without xclip.
 set clipboard+=unnamedplus
-
-function! CopyOSC52(text) abort
-  let l:base64 = substitute(system('base64 | tr -d "\n"', a:text), '\n', '', 'g')
-  let l:esc = "\033Ptmux;\033]52;c;" . l:base64 . "\a\033\\"
-  call system(printf("printf '%s'", substitute(l:esc, "'", "'\\''", 'g')))
-endfunction
-
-nnoremap <leader>ya :call CopyOSC52(join(getline(1, '$'), "\n"))<CR>
+lua <<EOF
+if vim.fn.has('nvim-0.10') == 1 then
+  local osc52 = require('vim.ui.clipboard.osc52')
+  vim.g.clipboard = {
+    name = 'OSC 52',
+    copy  = { ['+'] = osc52.copy('+'),  ['*'] = osc52.copy('*')  },
+    paste = { ['+'] = osc52.paste('+'), ['*'] = osc52.paste('*') },
+  }
+end
+EOF
 
 " Optional: show yank messages
 augroup YankHighlight
@@ -151,11 +156,8 @@ if has("autocmd")
   endfunction
   au FileType gitcommit call SetGitOptions()
 
-  " Autoload vimrc and gvimrc
-  au! BufWritePost .vimrc source ~/.vimrc | source ~/.gvimrc
-  au! BufWritePost .gvimrc source ~/.gvimrc
-  au! BufWritePost .config/nvim/init.vim source ~/.config/nvim/init.vim
-  au! BufWritePost .vim/init.vim source ~/.vim/init.vim
+  " Autoload vimrc on save
+  au! BufWritePost .vimrc source ~/.vimrc
 
   " Crontab
   autocmd filetype crontab setlocal nobackup nowritebackup
@@ -169,81 +171,12 @@ endif
 " Managed with https://github.com/folke/lazy.nvim
 """""""""""""""""""""""""""""""""""""""
 
-" Bootstrap and load lazy.nvim plugin manager
+" Bootstrap and load lazy.nvim plugin manager.
+" Plugin specs + their keybinds live in ~/.vim/lua/plugins/ and the per-plugin
+" config modules in ~/.vim/lua/. Don't add plugin-specific config here.
 lua require('lazy-bootstrap')
 
-" Plugin configuration (plugins loaded via lazy.nvim in ~/.vim/lua/)
-
-" ChromeReload
-nnoremap <leader>r :ChromeReload<CR>
-let g:returnApp = "kitty"
-
-" FZF keybindings
-nnoremap <leader>b :Buffers<CR>
-nnoremap <leader>f :GFiles<CR>
-nnoremap <leader>F :Files<CR>
-nnoremap <leader>a :Ag<CR>
-nnoremap <leader>h :Helptags<CR>
-nnoremap <leader>c :Commands<CR>
-nnoremap <leader>l :Lines<CR>
-
-" AnyJump
-let g:any_jump_disable_default_keybindings = 1
-nnoremap <leader>aj :AnyJump<CR>
-xnoremap <leader>aj :AnyJumpVisual<CR>
-nnoremap <leader>ajb :AnyJumpBack<CR>
-nnoremap <leader>ajl :AnyJumpLastResults<CR>
-
-" File Explorer (nvim-tree)
-nnoremap <leader>n :NvimTreeToggle<CR>
-nnoremap <leader>nf :NvimTreeFindFile<CR>
-
-" Gundo
-nnoremap <leader>G :GundoToggle<CR>
-
-" Gist
-let g:gist_open_browser_after_post = 1
-let g:gist_show_privates = 1
-let g:gist_detect_filetype = 1
-let g:gist_clip_command = 'pbcopy'
-let g:github_user = "chrismetcalf"
-
-" vim-airline
-let g:airline_powerline_fonts = 1
-let g:airline_theme='jellybeans'
-let g:airline#extensions#bufferline#enabled = 1
-
-" vim-test
-let test#strategy='vimux'
-nnoremap <leader>tn :TestNearest<CR>
-nnoremap <leader>tf :TestFile<CR>
-nnoremap <leader>ta :TestSuite<CR>
-nnoremap <leader>tt :TestLast<CR>
-
-" Easy Align
-xmap ga <Plug>(EasyAlign)
-nmap ga <Plug>(EasyAlign)
-
-" Markdown
-let g:vim_markdown_folding_disabled = 1
-let g:vim_markdown_frontmatter = 1
-
-" incsearch
-map /  <Plug>(incsearch-forward)
-map ?  <Plug>(incsearch-backward)
-map g/ <Plug>(incsearch-stay)
-
-" vim-which-key
-nnoremap <silent> <leader> :WhichKey ','<CR>
-
-" EasyMotion
-let g:EasyMotion_do_mapping = 0 " Disable default mappings
-nmap s <Plug>(easymotion-overwin-f2)
-let g:EasyMotion_smartcase = 1
-map <Leader>j <Plug>(easymotion-j)
-map <Leader>k <Plug>(easymotion-k)
-
-" Startify configuration
+" Startify (the only plugin without its own config module)
 let g:startify_session_dir = '~/.vim/sessions'
 let g:startify_change_to_vcs_root = 1
 
@@ -254,13 +187,7 @@ else
   set viminfo='100,n$HOME/.vim/files/info/viminfo
 endif
 
-""""" END Plugins """""""""""""""""""""
-" NOTE: vim-plug configuration above is commented out - now using lazy.nvim
-" See ~/.vim/lua/plugins/init.lua for plugin specs
-
-" Note: LSP and Completion are auto-loaded from ~/.vim/plugin/lsp-setup.lua
-
-" Set colorscheme 
+" True color
 if exists('+termguicolors')
   let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
   let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
@@ -268,19 +195,10 @@ if exists('+termguicolors')
 endif
 
 colorscheme spaceduck
-let g:airline_theme = 'spaceduck'
 
 """"""""""""""""""""""""""""""""""""""""""
 " Key Mappings
 """"""""""""""""""""""""""""""""""""""""""
-
-" Trouble keybindings (LSP diagnostics viewer)
-nnoremap <leader>xx :TroubleToggle<CR>
-nnoremap <leader>xw :TroubleToggle workspace_diagnostics<CR>
-nnoremap <leader>xd :TroubleToggle document_diagnostics<CR>
-nnoremap <leader>xq :TroubleToggle quickfix<CR>
-nnoremap <leader>xl :TroubleToggle loclist<CR>
-nnoremap <leader>xr :TroubleToggle lsp_references<CR>
 
 " Mappings for window keys
 nmap <silent> <C-k> :wincmd k<CR>

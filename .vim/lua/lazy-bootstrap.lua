@@ -22,8 +22,8 @@ vim.g.maplocalleader = ","
 require("lazy").setup("plugins", {
   -- Configuration options
   defaults = {
-    lazy = false, -- Don't lazy load by default (we can enable for specific plugins)
-    version = nil, -- Don't use version by default
+    lazy = true, -- Lazy-load by default; plugins opt out via lazy = false
+    version = nil,
   },
   install = {
     -- Install missing plugins on startup

@@ -18,8 +18,7 @@ This is a dotfiles repository that manages shell, editor, and development enviro
 │   │   ├── completion.lua
 │   │   ├── git-config.lua
 │   │   ├── nvim-tree-config.lua
-│   │   ├── autopairs-surround-config.lua
-│   │   └── lsp-ui-config.lua
+│   │   └── autopairs-surround-config.lua
 │   ├── plugin/     # Plugin initialization
 │   └── spell/      # Spell check dictionaries
 ├── .zsh/           # Zsh configuration
