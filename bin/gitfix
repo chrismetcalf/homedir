@@ -5,17 +5,11 @@ PATH=$HOME/.homedir/bin:$PATH
 pushd $HOME
 
 echo "Setting up .ssh directory"
-if [[ ! -d .ssh ]]; then
-  echo ".ssh doesn't exist yet, creating..."
-  mkdir .ssh
-fi
+mkdir -p .ssh
 dircombine '.*' .ssh $HOME/.homedir/.ssh
 
 echo "Setting up .config directory"
-if [[ ! -d .config ]]; then
-  echo ".config doesn't exist yet, creating..."
-  mkdir .config
-fi
+mkdir -p .config
 dircombine '.*' .config $HOME/.homedir/.config
 
 echo "Linking in .dotfiles..."

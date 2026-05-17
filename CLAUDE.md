@@ -26,7 +26,7 @@ This is a dotfiles repository that manages shell, editor, and development enviro
 ├── .vimrc          # Main Vim configuration
 ├── .zshrc          # Zsh configuration
 ├── .tmux.conf      # Tmux configuration
-└── CLAUDE.md       # This file (excluded from gitfix)
+└── CLAUDE.md       # Symlinked to ~/CLAUDE.md for Claude Code sessions
 ```
 
 ## Neovim Configuration
@@ -169,7 +169,7 @@ Various utility scripts for development and system management.
 
 The `gitfix` script creates symlinks from this repo to the home directory.
 
-**Note**: `CLAUDE.md` should be excluded from gitfix linking as it's documentation only.
+`CLAUDE.md` is linked into `~/CLAUDE.md` so Claude Code sessions started from `~/` pick it up automatically.
 
 ## Recent Changes
 

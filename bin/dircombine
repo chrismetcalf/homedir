@@ -26,7 +26,7 @@ foreach my $dir (@ARGV) {
 # Link in each thing from the dir.
   opendir(DIR, $dir) || die "opendir: $!";
   while ($_=readdir(DIR)) {
-    next if $_ eq '.' || $_ eq '..' || $_ eq 'known' || $_ eq '.svn' || $_ eq '.git' || $_ eq '.gitignore' || $_ eq '_darcs';
+    next if $_ eq '.' || $_ eq '..' || $_ eq 'known' || $_ eq '.svn' || $_ eq '.git' || $_ eq '.gitignore' || $_ eq '.gitmodules' || $_ eq '_darcs';
     next unless /$pattern/;
 
     $known{$_}=1;
