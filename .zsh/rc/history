@@ -3,6 +3,8 @@ setopt EXTENDED_HISTORY        # store time in history
 setopt HIST_EXPIRE_DUPS_FIRST  # unique events are more usefull to me
 setopt HIST_VERIFY	       # Make those history commands nice
 setopt INC_APPEND_HISTORY      # immediatly insert history into history file
+setopt HIST_IGNORE_DUPS        # skip immediate repeats
+setopt HIST_IGNORE_SPACE       # leading space → skip from history (for one-off secrets)
 HISTSIZE=16000                 # spots for duplicates/uniques
 SAVEHIST=15000                 # unique events guarenteed
 

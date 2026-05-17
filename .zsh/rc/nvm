@@ -1,15 +1,25 @@
-if type brew > /dev/null; then
-  export NVM_DIR=~/.nvm
+export NVM_DIR="$HOME/.nvm"
 
-  nvm() {
-    echo "🚨 NVM not loaded! Loading now..."
-    unset -f nvm
-    export NVM_PREFIX=$(brew --prefix nvm)
-    [ -s "$NVM_PREFIX/nvm.sh" ] && . "$NVM_PREFIX/nvm.sh"
-    nvm "$@"
+# Discover where nvm.sh lives so we can lazy-source on first nvm/node/npm
+# call. Homebrew on macOS keeps it under $(brew --prefix nvm); everywhere
+# else it's under $NVM_DIR. Same lazy-loader works on both.
+__nvm_script() {
+  if type brew > /dev/null 2>&1 && [ -s "$(brew --prefix nvm 2>/dev/null)/nvm.sh" ]; then
+    echo "$(brew --prefix nvm)/nvm.sh"
+  elif [ -s "$NVM_DIR/nvm.sh" ]; then
+    echo "$NVM_DIR/nvm.sh"
+  fi
+}
+
+if [ -n "$(__nvm_script)" ]; then
+  __nvm_load() {
+    local script="$(__nvm_script)"
+    unset -f nvm node npm npx __nvm_load __nvm_script
+    . "$script"
+    [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
   }
-else
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+  nvm()  { __nvm_load; nvm  "$@"; }
+  node() { __nvm_load; node "$@"; }
+  npm()  { __nvm_load; npm  "$@"; }
+  npx()  { __nvm_load; npx  "$@"; }
 fi
