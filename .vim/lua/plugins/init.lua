@@ -290,6 +290,10 @@ return {
   -- Replaces vim-polyglot for the languages it knows about.
   {
     "nvim-treesitter/nvim-treesitter",
+    -- Pin to master: nvim-treesitter's main branch (default since late 2024)
+    -- restructured the module layout and removed nvim-treesitter.configs,
+    -- which most setups (including this one) call setup() through.
+    branch = "master",
     build = ":TSUpdate",
     event = { "BufReadPost", "BufNewFile" },
     cmd = { "TSInstall", "TSUpdate", "TSBufEnable", "TSBufDisable", "TSEnable", "TSDisable" },
@@ -324,7 +328,7 @@ return {
       })
     end,
   },
-  { "nvim-treesitter/nvim-treesitter-textobjects", lazy = true },
+  { "nvim-treesitter/nvim-treesitter-textobjects", branch = "master", lazy = true },
 
   -- conform.nvim: format-on-save with per-filetype formatters.
   {
