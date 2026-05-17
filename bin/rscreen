@@ -1,4 +1,0 @@
-#!/bin/sh
-#
-
-ssh -t $1 "screen -D -R"

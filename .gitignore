@@ -6,10 +6,8 @@ known
 
 # Editor state
 .vim/.netrwhist
-.vim/autoload/plug.vim.old
 .vim/files/
 .vim/spell/*.spl
-.vimbundles/__spell/.netrwhist
 bin/nvim
 
 # Stray nvim artifact (literal filename "!")
@@ -46,11 +44,4 @@ bin/nvim
 .config/inkscape
 .config/rtv
 .config/xm1
-.mutt/alias
-.mutt/lists
-.mutt/temp/*
-.offlineimap/Account-*
-.offlineimap/Repository-*
-.offlineimap/*.pyc
-.offlineimap/pid
 .xmonad/xmonad-arm-linux
