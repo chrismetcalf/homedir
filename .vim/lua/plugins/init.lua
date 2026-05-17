@@ -305,6 +305,9 @@ return {
           "python", "ruby", "rust", "toml", "tsx", "typescript", "vim", "vimdoc", "yaml",
         },
         auto_install = true,
+        -- tmux parser's release tarball is malformed upstream; auto_install
+        -- chokes on it whenever a .tmux.conf is opened. Skip it.
+        ignore_install = { "tmux" },
         highlight = { enable = true, additional_vim_regex_highlighting = false },
         indent = { enable = true },
         textobjects = {
