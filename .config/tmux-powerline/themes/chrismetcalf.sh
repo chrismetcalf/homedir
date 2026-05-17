@@ -108,22 +108,14 @@ fi
 # of options to support the spacing_disable and separator_disable features can be used
 # The default_* and no_* can be used to keep the default behaviour.
 
+# Jewel-tone palette aligned with the tmux-scout state colors (203 wait,
+# 214 busy, 78 done). Foreground 234 (very dark) on accent backgrounds.
 # shellcheck disable=SC1143,SC2128
 if [ -z "$TMUX_POWERLINE_LEFT_STATUS_SEGMENTS" ]; then
 	TMUX_POWERLINE_LEFT_STATUS_SEGMENTS=(
-		"tmux_session_info 148 234"
-		"hostname 33 0"
-		#"mode_indicator 165 0"
-		#"ifstat 30 255"
-		#"ifstat_sys 30 255"
-		# "lan_ip 24 255 ${TMUX_POWERLINE_SEPARATOR_RIGHT_THIN}"
-		#"vpn 24 255 ${TMUX_POWERLINE_SEPARATOR_RIGHT_THIN}"
-		# "wan_ip 24 255"
-		"vcs_branch 29 0"
-		#"vcs_compare 60 255"
-		#"vcs_staged 64 255"
-		#"vcs_modified 9 255"
-		#"vcs_others 245 0"
+		"tmux_session_info 178 234"
+		"hostname 67 234"
+		"vcs_branch 78 234"
 	)
 fi
 
@@ -131,21 +123,21 @@ fi
 if [ -z "$TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS" ]; then
 	TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS=(
 		"tmux_scout 235 255"
-		"pwd 89 211 default_separator no_sep_bg_color no_sep_fg_color right_disable"
+		"pwd 60 234 default_separator no_sep_bg_color no_sep_fg_color right_disable"
 	)
 
 	# macOS
 	if [[ "$(uname)" == "Darwin" ]]; then
-		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery 148 0")
+		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery 78 234")
 
 	# Raspberry Pi with PiSugar (detect via installed power manager)
 	elif command -v pisugar-server >/dev/null 2>&1; then
-		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery_pisugar 148 0")
+		TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=("battery_pisugar 78 234")
 
 	# Otherwise: headless server or unsupported config – no battery segment
 	fi
 
 	TMUX_POWERLINE_RIGHT_STATUS_SEGMENTS+=(
-		"load 237 167"
+		"load 237 203"
 	)
 fi
