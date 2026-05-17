@@ -26,13 +26,13 @@ case "$OS" in
     esac
     ;;
   Linux)
-    # Linux
+    # Linux (asset names changed in v0.10.4: nvim-linux64 → nvim-linux-x86_64)
     case "$ARCH" in
       x86_64)
-        FILENAME="nvim-linux64.tar.gz"
+        FILENAME="nvim-linux-x86_64.tar.gz"
         ;;
       aarch64 | arm64)
-        FILENAME="nvim-linux-arm64.appimage"
+        FILENAME="nvim-linux-arm64.tar.gz"
         ;;
       *)
         echo "❌ Unsupported Linux architecture: $ARCH"
@@ -63,26 +63,17 @@ curl -fLo "$FILENAME" "$DOWNLOAD_URL"
 echo "📂 Creating $INSTALL_DIR if it doesn't exist..."
 mkdir -p "$INSTALL_DIR"
 
-# Handle installation based on file type
-if [[ "$FILENAME" == *.tar.gz ]]; then
-  echo "📦 Extracting tarball..."
-  tar xzf "$FILENAME"
+echo "📦 Extracting tarball..."
+tar xzf "$FILENAME"
 
-  # Find the nvim binary in the extracted directory
-  EXTRACTED_DIR=$(tar tzf "$FILENAME" | head -1 | cut -f1 -d"/")
+# Find the nvim binary in the extracted directory
+EXTRACTED_DIR=$(tar tzf "$FILENAME" | head -1 | cut -f1 -d"/")
 
-  echo "🚚 Moving to $INSTALL_PATH"
-  mv "$EXTRACTED_DIR/bin/nvim" "$INSTALL_PATH"
+echo "🚚 Moving to $INSTALL_PATH"
+mv "$EXTRACTED_DIR/bin/nvim" "$INSTALL_PATH"
 
-  echo "🧹 Cleaning up..."
-  rm -rf "$EXTRACTED_DIR" "$FILENAME"
-elif [[ "$FILENAME" == *.appimage ]]; then
-  echo "🔐 Making it executable..."
-  chmod u+x "$FILENAME"
-
-  echo "🚚 Moving to $INSTALL_PATH"
-  mv "$FILENAME" "$INSTALL_PATH"
-fi
+echo "🧹 Cleaning up..."
+rm -rf "$EXTRACTED_DIR" "$FILENAME"
 
 echo "✅ Neovim $TAG_NAME installed to $INSTALL_PATH"
 

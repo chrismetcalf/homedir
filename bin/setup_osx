@@ -1,243 +1,259 @@
-#!/bin/bash -x
+#!/usr/bin/env bash
+#
+# macOS defaults bootstrap.
+# Tested on Sonoma (14) / Sequoia (15). Most lines work back to Big Sur (11)
+# but some of the newer additions (inline predictions, drag-on-gesture) are
+# Sonoma+ only — harmless on older systems, just no-op.
+#
+# Original lineage: skwp/dotfiles → mathiasbynens/.macos → this file.
+# Last major refresh: 2026-05.
+#
+# Run interactively. Many settings only apply after killing affected apps
+# (Dock, Finder, etc.) at the end.
 
-# Stolen from http://skwp.github.com/dotfiles/#section-13-1
-# ... and http://osxdaily.com/2012/10/09/best-defaults-write-commands-mac-os-x/
-# ... and https://github.com/mathiasbynens/dotfiles/blob/master/.macos
+set -uo pipefail
 
-# Close any open System Preferences panes, to prevent them from overriding
-# settings we’re about to change
-osascript -e 'tell application "System Preferences" to quit'
+# Close System Preferences so it doesn't clobber writes
+osascript -e 'tell application "System Settings" to quit' 2>/dev/null || \
+  osascript -e 'tell application "System Preferences" to quit' 2>/dev/null
 
-# Ask for the administrator password upfront
+# Pre-auth sudo + keep alive
 sudo -v
+( while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) 2>/dev/null &
 
-# Keep-alive: update existing `sudo` time stamp until `.macos` has finished
-while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+###############################################################################
+# General UI                                                                  #
+###############################################################################
 
-# Disable the sound effects on boot
+# Disable boot chime
 sudo nvram SystemAudioVolume=" "
 
-# Enable full keyboard access for all controls (e.g. enable Tab in modal dialogs)
+# Default to dark mode
+defaults write -g AppleInterfaceStyle -string "Dark"
+
+# Full keyboard access for all controls (Tab through dialogs)
 defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
-
-# Enable subpixel font rendering on non-Apple LCDs
-defaults write NSGlobalDomain AppleFontSmoothing -int 2
-
-# Enable the 2D Dock
-defaults write com.apple.dock no-glass -bool true
-
-# Automatically hide and show the Dock
-defaults write com.apple.dock autohide -bool true
-
-# Hide and show quickly
-defaults write com.apple.Dock autohide-delay -float 0.02
-
-# Make Dock icons of hidden applications translucent
-defaults write com.apple.dock showhidden -bool true
-
-# Disable menu bar transparency
-defaults write NSGlobalDomain AppleEnableMenuBarTransparency -bool false
 
 # Always show scrollbars
 defaults write NSGlobalDomain AppleShowScrollBars -string "Always"
 
-# Show all filename extensions in Finder
+# Show all filename extensions
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
 
-# Save to disk (not to iCloud) by default
+# Save to disk (not iCloud) by default
 defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
 
-# Expand save panel by default
+# Expand save and print panels by default
 defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
-
-# Expand print panel by default
 defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
 
-# Disable the “Are you sure you want to open this application?” dialog
+# Disable the "Are you sure you want to open this app?" Gatekeeper popup
 defaults write com.apple.LaunchServices LSQuarantine -bool false
-
-# Enable highlight hover effect for the grid view of a stack (Dock)
-defaults write com.apple.dock mouse-over-hilte-stack -bool true
-
-# Enable spring loading for all Dock items
-defaults write enable-spring-load-actions-on-all-items -bool true
-
-# Show indicator lights for open applications in the Dock
-defaults write com.apple.dock show-process-indicators -bool true 
-
-# Don’t animate opening applications from the Dock
-defaults write com.apple.dock launchanim -bool false
-
-# Disable press-and-hold for keys in favor of key repeat
-defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
-
-# Disable auto-correct
-defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
-
-# Disable window animations
-defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
-
-# Disable expose animations
-defaults write com.apple.dock expose-animation-duration -int 0.05
-
-# Enable AirDrop over Ethernet and on unsupported Macs running Lion
-defaults write com.apple.NetworkBrowser BrowseAllInterfaces -bool true
-
-# Disable disk image verification
-defaults write com.apple.frameworks.diskimages skip-verify -bool true
-defaults write com.apple.frameworks.diskimages skip-verify-locked -bool true
-defaults write com.apple.frameworks.diskimages skip-verify-remote -bool true
-
-# Automatically open a new Finder window when a volume is mounted
-defaults write com.apple.frameworks.diskimages auto-open-ro-root -bool true
-defaults write com.apple.frameworks.diskimages auto-open-rw-root -bool true
-
-# Display full POSIX path as Finder window title
-defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
-
-# Increase window resize speed for Cocoa applications
-defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
-
-# Avoid creating .DS_Store files on network volumes
-defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
-
-# Disable the warning when changing a file extension
-defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
-
-# Hide all desktop icons
-defaults write com.apple.finder CreateDesktop -bool false
-
-# Empty Trash securely by default
-defaults write com.apple.finder EmptyTrashSecurely -bool true
-
-# Disable tap to click (Trackpad)
-defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool false
-
-# Enable Safari’s debug menu
-defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
-
-# Remove useless icons from Safari’s bookmarks bar
-defaults write com.apple.Safari ProxiesInBookmarksBar "()"
-
-# Only use UTF-8 in Terminal.app
-defaults write com.apple.terminal StringEncodings -array 4
-
-# Disable send and reply animations in Mail.app
-defaults write com.apple.Mail DisableReplyAnimations -bool true
-defaults write com.apple.Mail DisableSendAnimations -bool true
 
 # Disable Resume system-wide
 defaults write NSGlobalDomain NSQuitAlwaysKeepsWindows -bool false
 
-# Enable Dashboard dev mode (allows keeping widgets on the desktop)
-defaults write com.apple.dashboard devmode -bool true
+# Disable window animations + faster window resize
+defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
+defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 
-# Show the ~/Library folder
-chflags nohidden ~/Library
+# Drag windows with ctrl+cmd+click anywhere on the window (Sonoma+)
+defaults write -g NSWindowShouldDragOnGesture -bool true
 
-# Disable local Time Machine backups
-#hash tmutil &> /dev/null && sudo tmutil disablelocal
+###############################################################################
+# Keyboard / input                                                            #
+###############################################################################
 
-# Enable text selection in Quick Look
-defaults write com.apple.finder QLEnableTextSelection -bool TRUE
-
-# Disable fullscreen transition animation
-defaults write -g NSWindowResizeTime -float 0.001
-
-# Display system info on the login screen
-sudo defaults write /Library/Preferences/com.apple.loginwindow AdminHostInfo HostName
-
-# Automatically quit printer app once the print jobs complete
-defaults write com.apple.print.PrintingPrefs "Quit When Finished" -bool true
-
-# Disable the “Are you sure you want to open this application?” dialog
-defaults write com.apple.LaunchServices LSQuarantine -bool false
-
-# Disable automatic capitalization as it’s annoying when typing code
-defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
-
-# Disable smart dashes as they’re annoying when typing code
-defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
-
-# Disable automatic period substitution as it’s annoying when typing code
-defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
-
-# Disable smart quotes as they’re annoying when typing code
-defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
-
-# Disable auto-correct
-defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
-
-# Disable press-and-hold for keys in favor of key repeat
+# Disable press-and-hold accent picker; let key repeat win
 defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
 
-# Set a blazingly fast keyboard repeat rate
+# Fastest possible key repeat
 defaults write NSGlobalDomain KeyRepeat -int 1
-defaults write NSGlobalDomain InitialKeyRepeat -int 20
+defaults write NSGlobalDomain InitialKeyRepeat -int 15
 
-# Make notifications hang out longer
+# Kill all the "smart" text substitutions — they fight code, JSON, paths
+defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
+# Disable Sonoma's inline word/sentence predictions (gets in the way of typing)
+defaults write -g NSAutomaticInlinePredictionEnabled -bool false
+
+###############################################################################
+# Trackpad                                                                    #
+###############################################################################
+
+# Tap to click on the built-in and any Bluetooth trackpad
+defaults write com.apple.AppleMultitouchTrackpad Clicking -bool true
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
+
+# Three-finger drag (System Settings → Accessibility → Trackpad)
+defaults write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool true
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerDrag -bool true
+
+###############################################################################
+# Dock                                                                        #
+###############################################################################
+
+defaults write com.apple.dock autohide -bool true
+defaults write com.apple.dock autohide-delay -float 0.02
+defaults write com.apple.dock autohide-time-modifier -float 0.2
+defaults write com.apple.dock showhidden -bool true
+defaults write com.apple.dock show-process-indicators -bool true
+defaults write com.apple.dock launchanim -bool false
+defaults write com.apple.dock expose-animation-duration -float 0.1
+defaults write com.apple.dock mineffect -string "scale"
+
+# Spring-loading on Dock items (missing-domain bug in old version of this file)
+defaults write NSGlobalDomain com.apple.springing.enabled -bool true
+
+###############################################################################
+# Menu bar                                                                    #
+###############################################################################
+
+# Battery percentage
+defaults write ~/Library/Preferences/ByHost/com.apple.controlcenter.plist BatteryShowPercentage -bool true
+
+# Show clock with seconds and 24-hour
+defaults write com.apple.menuextra.clock DateFormat -string "EEE MMM d  H:mm:ss"
+
+###############################################################################
+# Finder                                                                      #
+###############################################################################
+
+# Display full POSIX path in Finder title bar
+defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
+
+# Don't warn when changing file extensions
+defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
+
+# No .DS_Store on network volumes
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
+
+# Hide all desktop icons
+defaults write com.apple.finder CreateDesktop -bool false
+
+# Show ~/Library and /Volumes
+chflags nohidden ~/Library
+sudo chflags nohidden /Volumes
+
+# Show status bar + path bar
+defaults write com.apple.finder ShowStatusBar -bool true
+defaults write com.apple.finder ShowPathbar -bool true
+
+# Search current folder by default
+defaults write com.apple.finder FXDefaultSearchScope -string "SCcf"
+
+# List view by default
+defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv"
+
+# Enable text selection in Quick Look
+defaults write com.apple.finder QLEnableTextSelection -bool true
+
+###############################################################################
+# Disk images                                                                 #
+###############################################################################
+
+# Skip slow image verification
+defaults write com.apple.frameworks.diskimages skip-verify -bool true
+defaults write com.apple.frameworks.diskimages skip-verify-locked -bool true
+defaults write com.apple.frameworks.diskimages skip-verify-remote -bool true
+
+# Auto-open Finder when a volume mounts
+defaults write com.apple.frameworks.diskimages auto-open-ro-root -bool true
+defaults write com.apple.frameworks.diskimages auto-open-rw-root -bool true
+
+###############################################################################
+# Network                                                                     #
+###############################################################################
+
+# Allow AirDrop over ethernet
+defaults write com.apple.NetworkBrowser BrowseAllInterfaces -bool true
+
+###############################################################################
+# Safari                                                                      #
+###############################################################################
+
+defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
+defaults write com.apple.Safari IncludeDevelopMenu -bool true
+defaults write com.apple.Safari WebKitDeveloperExtrasEnabledPreferenceKey -bool true
+defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2DeveloperExtrasEnabled -bool true
+defaults write com.apple.Safari ProxiesInBookmarksBar "()"
+
+###############################################################################
+# Terminal                                                                    #
+###############################################################################
+
+# UTF-8 only
+defaults write com.apple.terminal StringEncodings -array 4
+
+###############################################################################
+# Mail                                                                        #
+###############################################################################
+
+defaults write com.apple.Mail DisableReplyAnimations -bool true
+defaults write com.apple.Mail DisableSendAnimations -bool true
+
+###############################################################################
+# Printer                                                                     #
+###############################################################################
+
+# Quit printer app once jobs finish
+defaults write com.apple.print.PrintingPrefs "Quit When Finished" -bool true
+
+###############################################################################
+# Notifications                                                               #
+###############################################################################
+
+# Banner duration (default 4s)
 defaults write com.apple.notificationcenterui bannerTime -int 5
 
 ###############################################################################
-# Energy saving                                                               #
+# Energy / power                                                              #
 ###############################################################################
 
-# Enable lid wakeup
-sudo pmset -a lidwake 1
-
-# Restart automatically on power loss
+# These are harmless on desktop Macs — pmset will warn and skip the laptop-only
+# flags (-b battery branch, lidwake) but the rest still apply.
+sudo pmset -a lidwake 1 2>/dev/null || true
 sudo pmset -a autorestart 1
-
-# Restart automatically if the computer freezes
-sudo systemsetup -setrestartfreeze on
-
-# Sleep the display after 5 minutes
+sudo systemsetup -setrestartfreeze on 2>/dev/null
 sudo pmset -a displaysleep 5
-
-# Disable machine sleep while charging
 sudo pmset -c sleep 0
-
-# Set machine sleep to 5 minutes on battery
-sudo pmset -b sleep 5
-
-# Set standby delay to 24 hours (default is 1 hour)
+sudo pmset -b sleep 5 2>/dev/null || true
 sudo pmset -a standbydelay 86400
-
-# Never go into computer sleep mode
-sudo systemsetup -setcomputersleep Off > /dev/null
-
-# Hibernation mode
-# 0: Disable hibernation (speeds up entering sleep mode)
-# 3: Copy RAM to disk so the system state can still be restored in case of a
-#    power failure.
-sudo pmset -a hibernatemode 3
-
-# Remove the sleep image file to save disk space
-#sudo rm /private/var/vm/sleepimage
-# Create a zero-byte file instead…
-#sudo touch /private/var/vm/sleepimage
-# …and make sure it can’t be rewritten
-#sudo chflags uchg /private/var/vm/sleepimage
+sudo pmset -a hibernatemode 3 2>/dev/null || true
 
 ###############################################################################
-# Screen                                                                      #
+# Lock screen / screensaver                                                   #
 ###############################################################################
 
-# Require password immediately after sleep or screen saver begins
+# Require password immediately after sleep
 defaults write com.apple.screensaver askForPassword -int 1
 defaults write com.apple.screensaver askForPasswordDelay -int 0
 
-# Save screenshots to the desktop
-defaults write com.apple.screencapture location -string "${HOME}/Inbox"
+# Show host info on the login window
+sudo defaults write /Library/Preferences/com.apple.loginwindow AdminHostInfo HostName
 
-# Save screenshots in PNG format (other options: BMP, GIF, JPG, PDF, TIFF)
+###############################################################################
+# Screenshots                                                                 #
+###############################################################################
+
+mkdir -p "$HOME/Inbox"
+defaults write com.apple.screencapture location -string "$HOME/Inbox"
 defaults write com.apple.screencapture type -string "png"
-
-# Disable shadow in screenshots
 defaults write com.apple.screencapture disable-shadow -bool true
+defaults write com.apple.screencapture include-date -bool true
 
-# Kill affected applications
-killall Dock
-killall Finder
-killall iTunes
-killall NotificationCenter
+###############################################################################
+# Apply                                                                       #
+###############################################################################
+
+for app in Dock Finder SystemUIServer NotificationCenter ControlCenter cfprefsd; do
+  killall "$app" 2>/dev/null || true
+done
+
+echo "✅ macOS defaults applied. Some settings require logout/reboot to take effect."
