@@ -58,9 +58,10 @@ cmp.setup({
   }),
 
   sources = cmp.config.sources({
-    { name = 'nvim_lsp' },
-    { name = 'luasnip' },
-    { name = 'path' },
+    { name = 'copilot',  group_index = 2 },
+    { name = 'nvim_lsp', group_index = 2 },
+    { name = 'luasnip',  group_index = 2 },
+    { name = 'path',     group_index = 2 },
   }, {
     { name = 'buffer', keyword_length = 3 },
   }),
@@ -94,6 +95,7 @@ cmp.setup({
         Event = "",
         Operator = "󰆕",
         TypeParameter = "󰅲",
+        Copilot = "",
       }
 
       -- Set icon
@@ -101,10 +103,11 @@ cmp.setup({
 
       -- Set source
       vim_item.menu = ({
+        copilot  = "[Copilot]",
         nvim_lsp = "[LSP]",
-        luasnip = "[Snippet]",
-        buffer = "[Buffer]",
-        path = "[Path]",
+        luasnip  = "[Snippet]",
+        buffer   = "[Buffer]",
+        path     = "[Path]",
       })[entry.source.name]
 
       return vim_item

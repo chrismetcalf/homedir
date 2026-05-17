@@ -98,6 +98,17 @@ set hidden
 " Save up to 500 lines of history
 set history=500
 
+" Persistent undo across sessions
+set undofile
+
+" Keep 8 lines of context above/below + 8 chars left/right of cursor
+set scrolloff=8
+set sidescrolloff=8
+
+" Open new splits in the natural direction
+set splitright
+set splitbelow
+
 " Menus Gone Wild!
 set wildmenu
 

@@ -20,18 +20,29 @@ return {
   -- Statusline / icons / startup screen (eager)
   ---------------------------------------------------------------------------
   {
-    "vim-airline/vim-airline",
-    dependencies = { "vim-airline/vim-airline-themes" },
+    "nvim-lualine/lualine.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
     lazy = false,
-    init = function()
-      vim.g.airline_powerline_fonts = 1
-      vim.g.airline_theme = 'jellybeans'
-      vim.g['airline#extensions#bufferline#enabled'] = 1
-    end,
+    opts = {
+      options = {
+        theme = 'jellybeans',
+        icons_enabled = true,
+        section_separators = { left = '', right = '' },
+        component_separators = { left = '', right = '' },
+        globalstatus = true, -- single statusline shared across splits
+      },
+      sections = {
+        lualine_a = { 'mode' },
+        lualine_b = { 'branch', 'diff', 'diagnostics' },
+        lualine_c = { { 'filename', path = 1 } },
+        lualine_x = { 'encoding', 'fileformat', 'filetype' },
+        lualine_y = { 'progress' },
+        lualine_z = { 'location' },
+      },
+      extensions = { 'fugitive', 'nvim-tree', 'trouble', 'lazy' },
+    },
   },
-  { "vim-airline/vim-airline-themes",  lazy = true }, -- pulled in as dep
-  { "ryanoasis/vim-devicons",          lazy = false }, -- needed by airline
-  { "nvim-tree/nvim-web-devicons",     lazy = true },  -- pulled in by deps
+  { "nvim-tree/nvim-web-devicons", lazy = true }, -- pulled in by deps
   { "mhinz/vim-startify",              lazy = false }, -- splash screen
 
   ---------------------------------------------------------------------------
@@ -144,6 +155,7 @@ return {
       "hrsh7th/cmp-path",
       "hrsh7th/cmp-cmdline",
       "saadparwaiz1/cmp_luasnip",
+      "zbirenbaum/copilot-cmp",
     },
     config = function() require('completion') end,
   },
@@ -180,21 +192,21 @@ return {
   { "junegunn/goyo.vim",        cmd = "Goyo" },
   { "gcmt/wildfire.vim",        event = "VeryLazy" },
   { "AndrewRadev/splitjoin.vim", keys = { "gS", "gJ" } },
-  { "Yggdroot/indentLine",      event = "BufReadPre" },
+  {
+    "lukas-reineke/indent-blankline.nvim",
+    main = "ibl",
+    event = { "BufReadPost", "BufNewFile" },
+    opts = {
+      indent = { char = "│" },
+      scope = { enabled = true, show_start = false, show_end = false },
+    },
+  },
   { "arthurxavierx/vim-caser",  keys = { "gc" }, cmd = { "CaserSnakeCase", "CaserCamelCase" } },
   { "rizzatti/funcoo.vim",      lazy = true }, -- dep
   {
     "junegunn/vim-easy-align",
     keys = {
       { "ga", "<Plug>(EasyAlign)", mode = { "n", "x" }, desc = "EasyAlign" },
-    },
-  },
-  {
-    "haya14busa/incsearch.vim",
-    keys = {
-      { "/",  "<Plug>(incsearch-forward)" },
-      { "?",  "<Plug>(incsearch-backward)" },
-      { "g/", "<Plug>(incsearch-stay)" },
     },
   },
   {
@@ -254,7 +266,22 @@ return {
     keys = { { "<leader>r", ":ChromeReload<CR>", desc = "Chrome reload" } },
     init = function() vim.g.returnApp = "kitty" end,
   },
-  { "github/copilot.vim", event = "InsertEnter" },
+  -- Copilot: lua port with native nvim-cmp integration.
+  {
+    "zbirenbaum/copilot.lua",
+    cmd = "Copilot",
+    event = "InsertEnter",
+    opts = {
+      suggestion = { enabled = false }, -- handled via cmp
+      panel = { enabled = false },
+    },
+  },
+  {
+    "zbirenbaum/copilot-cmp",
+    dependencies = { "zbirenbaum/copilot.lua" },
+    event = "InsertEnter",
+    config = function() require("copilot_cmp").setup() end,
+  },
 
   ---------------------------------------------------------------------------
   -- Modern essentials
@@ -266,6 +293,7 @@ return {
     build = ":TSUpdate",
     event = { "BufReadPost", "BufNewFile" },
     cmd = { "TSInstall", "TSUpdate", "TSBufEnable", "TSBufDisable", "TSEnable", "TSDisable" },
+    dependencies = { "nvim-treesitter/nvim-treesitter-textobjects" },
     config = function()
       require("nvim-treesitter.configs").setup({
         ensure_installed = {
@@ -275,9 +303,28 @@ return {
         auto_install = true,
         highlight = { enable = true, additional_vim_regex_highlighting = false },
         indent = { enable = true },
+        textobjects = {
+          select = {
+            enable = true,
+            lookahead = true,
+            keymaps = {
+              ["af"] = "@function.outer", ["if"] = "@function.inner",
+              ["ac"] = "@class.outer",    ["ic"] = "@class.inner",
+              ["aa"] = "@parameter.outer",["ia"] = "@parameter.inner",
+              ["al"] = "@loop.outer",     ["il"] = "@loop.inner",
+            },
+          },
+          move = {
+            enable = true,
+            set_jumps = true,
+            goto_next_start     = { ["]m"] = "@function.outer", ["]]"] = "@class.outer" },
+            goto_previous_start = { ["[m"] = "@function.outer", ["[["] = "@class.outer" },
+          },
+        },
       })
     end,
   },
+  { "nvim-treesitter/nvim-treesitter-textobjects", lazy = true },
 
   -- conform.nvim: format-on-save with per-filetype formatters.
   {
