@@ -1,0 +1,91 @@
+#!/usr/bin/env node
+// Jump to the next Claude (or other agent) pane that is awaiting input.
+//
+// Reuses tmux-scout's own sync/render modules to classify sessions exactly
+// the way bin/tmux-scout-window-tint does, then collects every pane in the
+// "wait" state (needsAttention, or a tool-use pending >5s) and switches the
+// client to the next one after the current pane — cycling across windows and
+// sessions. Bound to `prefix + ~` in .tmux.conf.
+
+const { execSync } = require('child_process')
+const path = require('path')
+const fs = require('fs')
+
+function tmux(args) {
+  try {
+    return execSync('tmux ' + args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch (_) {
+    return ''
+  }
+}
+
+function notify(msg) {
+  tmux(`display-message ${JSON.stringify(msg)}`)
+}
+
+const SCOUT_DIR = tmux('show-env -g SCOUT_DIR').replace(/^SCOUT_DIR=/m, '').trim()
+if (!SCOUT_DIR || !fs.existsSync(SCOUT_DIR)) {
+  notify('scout: SCOUT_DIR not set')
+  process.exit(0)
+}
+
+let sync, render
+try {
+  sync = require(path.join(SCOUT_DIR, 'scripts/picker/sync'))
+  render = require(path.join(SCOUT_DIR, 'scripts/picker/render'))
+} catch (_) {
+  process.exit(0)
+}
+
+const STATUS_FILE = path.join(process.env.HOME || '', '.tmux-scout/status.json')
+let cached
+try { cached = sync.run(STATUS_FILE) } catch (_) { process.exit(0) }
+if (!cached || !cached.status) process.exit(0)
+
+const active = render.getActiveSessions(cached.status, cached.panes)
+
+// Same wait criterion as tmux-scout-window-tint.
+const now = Date.now()
+const waitPanes = new Set()
+for (const s of active) {
+  if (!s.tmuxPane) continue
+  if (s.needsAttention || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)) {
+    waitPanes.add(s.tmuxPane)
+  }
+}
+
+if (!waitPanes.size) {
+  notify('scout: no agent awaiting input')
+  process.exit(0)
+}
+
+// tmux already lists panes in session -> window -> pane order; use that as the
+// cycle order so repeated presses walk the wait panes deterministically.
+const order = tmux("list-panes -a -F '#{pane_id} #{window_id} #{session_name}'")
+  .trim()
+  .split('\n')
+  .filter(Boolean)
+  .map((line) => {
+    const [paneId, windowId, sessionName] = line.split(' ')
+    return { paneId, windowId, sessionName }
+  })
+
+const waitList = order.filter((p) => waitPanes.has(p.paneId))
+if (!waitList.length) process.exit(0)
+
+const current = tmux("display-message -p '#{pane_id}'").trim()
+const curIdx = order.findIndex((p) => p.paneId === current)
+
+// Pick the first wait pane that comes after the current pane in cycle order,
+// wrapping around to the first wait pane otherwise.
+let target = waitList.find((p) => order.indexOf(p) > curIdx) || waitList[0]
+if (target.paneId === current && waitList.length > 1) {
+  const after = waitList.find((p) => order.indexOf(p) > curIdx && p.paneId !== current)
+  target = after || waitList.find((p) => p.paneId !== current) || target
+}
+
+tmux(
+  `switch-client -t ${JSON.stringify(target.sessionName)} \\; ` +
+    `select-window -t ${target.windowId} \\; ` +
+    `select-pane -t ${target.paneId}`
+)
