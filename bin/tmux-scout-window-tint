@@ -43,9 +43,21 @@ const paneState = new Map()
 
 for (const s of active) {
   if (!s.tmuxPane) continue
+  // tmux-scout >= the 2025 refactor expresses session state via `phase`
+  // (running/idle/completed/waitingForApproval/…); older builds only set
+  // `status`. Map both so tinting survives the upgrade.
+  const phase = s.phase || ''
+  const waiting = s.needsAttention || s.pendingInteraction
+    || phase === 'waitingForApproval' || phase === 'waitingForAnswer'
+    || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)
   let state
-  if (s.needsAttention || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)) {
-    state = 'wait'
+  if (waiting) state = 'wait'
+  else if (phase) {
+    // phase is authoritative when present (status can lag behind it)
+    if (phase === 'running') state = 'busy'
+    else if (phase === 'completed') state = 'done'
+    else if (phase === 'idle') state = 'idle'
+    else continue // crashed/stale/interrupted — leave untinted
   } else if (s.status === 'working') state = 'busy'
   else if (s.status === 'completed') state = 'done'
   else if (s.status === 'idle') state = 'idle'

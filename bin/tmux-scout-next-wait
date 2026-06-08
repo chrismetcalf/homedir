@@ -44,12 +44,16 @@ if (!cached || !cached.status) process.exit(0)
 
 const active = render.getActiveSessions(cached.status, cached.panes)
 
-// Same wait criterion as tmux-scout-window-tint.
+// Same wait criterion as tmux-scout-window-tint (handles both the new `phase`
+// model and the older `status`/pendingToolUse signals).
 const now = Date.now()
 const waitPanes = new Set()
 for (const s of active) {
   if (!s.tmuxPane) continue
-  if (s.needsAttention || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)) {
+  const phase = s.phase || ''
+  if (s.needsAttention || s.pendingInteraction
+    || phase === 'waitingForApproval' || phase === 'waitingForAnswer'
+    || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)) {
     waitPanes.add(s.tmuxPane)
   }
 }
