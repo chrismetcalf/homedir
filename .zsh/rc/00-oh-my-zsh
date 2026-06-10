@@ -51,7 +51,11 @@ ZSH_LANG_PLUGINS=""
 command -v python3 >/dev/null && ZSH_LANG_PLUGINS="$ZSH_LANG_PLUGINS python"
 command -v ruby >/dev/null && ZSH_LANG_PLUGINS="$ZSH_LANG_PLUGINS ruby"
 
-plugins=(${=ZSH_MACOS_PLUGINS} ${=ZSH_LANG_PLUGINS} autojump tmux fzf debian docker git gh history safe-paste sudo zsh-syntax-highlighting zsh-autosuggestions)
+# Conditionally load tool plugins if installed
+ZSH_TOOL_PLUGINS=""
+command -v docker >/dev/null && ZSH_TOOL_PLUGINS="$ZSH_TOOL_PLUGINS docker"
+
+plugins=(${=ZSH_MACOS_PLUGINS} ${=ZSH_LANG_PLUGINS} ${=ZSH_TOOL_PLUGINS} autojump tmux fzf debian git gh history safe-paste sudo zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
