@@ -38,7 +38,6 @@ DURATION=$(( $(date +%s) - START_TIME ))
 
 case $EXIT_CODE in
     0)
-        notify "✓ rsnapshot $LEVEL completed on $HOST"
         otto_event "{\"type\":\"backup.completed\",\"level\":\"$LEVEL\",\"host\":\"$HOST\",\"duration_s\":$DURATION}"
         ;;
     2)
