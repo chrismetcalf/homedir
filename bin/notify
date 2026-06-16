@@ -1,0 +1,3 @@
+#!/bin/bash
+# Wrapper script for notify CLI
+cd "$(dirname "$0")/notify-pkg" && python3 -m notify.cli "$@"
