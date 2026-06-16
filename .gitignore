@@ -4,6 +4,14 @@ known
 .DS_Store
 .netrc
 
+# Compiled Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
 # Editor state
 .vim/.netrwhist
 .vim/files/
