@@ -1,0 +1,26 @@
+#!/bin/bash
+
+CACHE_FILE="$HOME/.nmap-hosts-cache.txt"
+
+# Check dependencies
+command -v nmap >/dev/null || { echo "nmap is required"; exit 1; }
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 <subnet or IP range> (e.g. 192.168.1.0/24)"
+    exit 1
+fi
+
+RANGE=$1
+
+echo "[*] Scanning network $RANGE for live hosts..."
+CURRENT_HOSTS=$(nmap -sn -n "$RANGE" | awk '/Nmap scan report/{print $5}' | sort)
+
+echo ""
+if [ -f "$CACHE_FILE" ]; then
+    echo "[*] Diff from last scan:"
+    diff --unchanged-line-format= --old-line-format='- %L' --new-line-format='+ %L' "$CACHE_FILE" <(echo "$CURRENT_HOSTS") || echo "No changes"
+else
+    echo "[*] No previous scan found to diff against."
+fi
+
+echo "$CURRENT_HOSTS" > "$CACHE_FILE"

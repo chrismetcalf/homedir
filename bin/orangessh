@@ -1,0 +1,9 @@
+#!/bin/bash
+USER="root"
+PASS="1234"
+
+while read IP; do
+    echo "Trying $IP..."
+    sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$USER@$IP" 'hostname' 2>/dev/null && \
+    echo "[SUCCESS] $IP" || echo "[FAIL] $IP"
+done < ssh_hosts.txt
