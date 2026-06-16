@@ -1,0 +1,14 @@
+# Core dependencies
+icmplib>=3.0
+requests>=2.28
+tomli>=2.0; python_version<"3.11"
+tomli-w>=1.0
+
+# Visualization (optional)
+plotext>=5.0
+rich>=13.0
+textual>=0.40
+
+# Development dependencies
+pytest>=7.0
+pytest-cov>=4.0

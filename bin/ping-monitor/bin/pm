@@ -1,0 +1,687 @@
+#!/usr/bin/env python3
+"""
+Ping Monitor - Unified CLI
+
+Usage:
+    pm run              # Start monitoring daemon
+    pm stats            # Show quick stats
+    pm plot             # Show downtime plot
+    pm latency          # Show latency plot
+    pm migrate          # Migrate legacy data
+    pm --init-config    # Create default config
+"""
+
+import sys
+import argparse
+from pathlib import Path
+
+# Add the parent directory to Python path (resolve symlinks)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pingmon.config import Config
+from pingmon.database import Database
+from pingmon.monitor import main as monitor_main
+from pingmon.plot import (
+    plot_downtime_plotext, plot_downtime_gnuplot,
+    plot_latency_plotext, plot_latency_gnuplot,
+    get_quick_stats, format_stats_output
+)
+from pingmon.migrate import main as migrate_main
+from pingmon.targets import (
+    list_targets, add_target, remove_target, format_targets_table
+)
+from pingmon.locations import (
+    get_all_locations, format_locations_table
+)
+from pingmon.export import (
+    export_csv, export_json, export_summary_json
+)
+from pingmon.reporting import (
+    get_daily_report, get_weekly_report, get_monthly_report,
+    format_report, get_outage_summary, format_outages
+)
+from pingmon.analysis import (
+    get_latency_percentiles, format_percentiles,
+    plot_histogram, format_heatmap, get_uptime_heatmap,
+    detect_anomalies, format_anomalies,
+    correlate_targets, format_correlations,
+    plot_hourly_patterns, plot_daily_patterns, plot_jitter
+)
+from pingmon.realtime import (
+    get_current_status, format_status, live_status,
+    watch_pings, compare_targets, plot_waterfall
+)
+from pingmon.alerts import (
+    AlertConfig, format_alerts_config
+)
+
+
+def cmd_run(args):
+    """Run the monitoring daemon"""
+    monitor_main(args.config)
+
+
+def cmd_reload(args):
+    """Reload configuration for running daemon"""
+    import subprocess
+    import os
+    import signal
+
+    # Try to find the running python process for ping-monitor
+    try:
+        # Use pgrep to find the process
+        result = subprocess.run(
+            ['pgrep', '-f', 'pingmon.monitor'],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            print("Error: No running ping-monitor daemon found", file=sys.stderr)
+            print("\nTo start the daemon:", file=sys.stderr)
+            print("  pm run", file=sys.stderr)
+            print("\nTo check if it's running:", file=sys.stderr)
+            print("  ps aux | grep 'pingmon.monitor'", file=sys.stderr)
+            print("  # or", file=sys.stderr)
+            print("  systemctl status ping-monitor  # if using systemd", file=sys.stderr)
+            sys.exit(1)
+
+        pids = result.stdout.strip().split('\n')
+
+        # Send SIGHUP to all matching processes
+        for pid in pids:
+            try:
+                os.kill(int(pid), signal.SIGHUP)
+                print(f"Sent reload signal to process {pid}")
+            except ProcessLookupError:
+                print(f"Warning: Process {pid} no longer exists")
+            except PermissionError:
+                print(f"Error: Permission denied to send signal to process {pid}")
+                sys.exit(1)
+
+        print("Configuration reload requested")
+
+    except FileNotFoundError:
+        print("Error: 'pgrep' command not found")
+        print("You can manually reload by sending SIGHUP to the pm process:")
+        print("  kill -HUP $(pgrep -f pingmon.monitor)")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_stats(args):
+    """Show quick statistics"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    stats = get_quick_stats(db, target_name=args.target)
+    print(format_stats_output(stats))
+
+
+def cmd_plot(args):
+    """Show downtime plot"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+
+    if args.gnuplot:
+        plot_downtime_gnuplot(
+            db,
+            hours=args.hours,
+            bucket_minutes=args.bucket,
+            target_name=args.target,
+            y_max=args.ymax
+        )
+    else:
+        plot_downtime_plotext(
+            db,
+            hours=args.hours,
+            bucket_minutes=args.bucket,
+            target_name=args.target,
+            y_max=args.ymax
+        )
+
+
+def cmd_latency(args):
+    """Show latency plot"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+
+    if args.gnuplot:
+        plot_latency_gnuplot(
+            db,
+            hours=args.hours,
+            bucket_minutes=args.bucket,
+            target_name=args.target
+        )
+    else:
+        plot_latency_plotext(
+            db,
+            hours=args.hours,
+            bucket_minutes=args.bucket,
+            target_name=args.target
+        )
+
+
+def cmd_migrate(args):
+    """Migrate legacy data"""
+    sys.exit(migrate_main())
+
+
+def cmd_targets(args):
+    """Manage targets"""
+    config = Config.load(args.config)
+
+    if args.targets_command == 'list':
+        targets = list_targets(config)
+        print(format_targets_table(targets))
+    elif args.targets_command == 'add':
+        success = add_target(args.config, args.name, args.host, args.description)
+        if success:
+            print(f"Target '{args.name}' added successfully")
+        sys.exit(0 if success else 1)
+    elif args.targets_command == 'remove':
+        success = remove_target(args.config, args.name)
+        if success:
+            print(f"Target '{args.name}' removed successfully")
+        sys.exit(0 if success else 1)
+
+
+def cmd_locations(args):
+    """Show locations"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    locations = get_all_locations(db)
+    print(format_locations_table(locations, db, show_stats=args.stats))
+
+
+def cmd_export(args):
+    """Export data"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    output_path = Path(args.output)
+
+    if args.format == 'csv':
+        count = export_csv(db, output_path, hours=args.hours, target_name=args.target)
+        print(f"Exported {count:,} records to {output_path}")
+    elif args.format == 'json':
+        count = export_json(db, output_path, hours=args.hours,
+                          target_name=args.target, pretty=not args.compact)
+        print(f"Exported {count:,} records to {output_path}")
+    elif args.format == 'summary':
+        export_summary_json(db, output_path, target_name=args.target)
+        print(f"Exported summary to {output_path}")
+
+
+def cmd_report(args):
+    """Generate reports"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+
+    if args.report_type == 'daily':
+        report = get_daily_report(db, target_name=args.target, days=args.days or 7)
+    elif args.report_type == 'weekly':
+        report = get_weekly_report(db, target_name=args.target, weeks=args.weeks or 4)
+    elif args.report_type == 'monthly':
+        report = get_monthly_report(db, target_name=args.target, months=args.months or 3)
+    else:
+        report = get_daily_report(db, target_name=args.target, days=7)
+
+    print(format_report(report))
+
+
+def cmd_timeline(args):
+    """Show outage timeline"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    outages = get_outage_summary(db, target_name=args.target,
+                                 hours=args.hours, min_duration_sec=args.min_duration)
+    print(format_outages(outages))
+
+
+def cmd_percentiles(args):
+    """Show latency percentiles"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    stats = get_latency_percentiles(db, target_name=args.target, hours=args.hours)
+    print(format_percentiles(stats))
+
+
+def cmd_heatmap(args):
+    """Show uptime heatmap"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    heatmap = get_uptime_heatmap(db, target_name=args.target, days=args.days)
+    print(format_heatmap(heatmap))
+
+
+def cmd_histogram(args):
+    """Show latency histogram"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    plot_histogram(db, target_name=args.target, hours=args.hours)
+
+
+def cmd_compare(args):
+    """Compare targets"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    print(compare_targets(db, args.targets, hours=args.hours))
+
+
+def cmd_status(args):
+    """Show current status"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+
+    if args.live:
+        live_status(config, db, interval=args.interval)
+    else:
+        statuses = get_current_status(db, config)
+        print(format_status(statuses))
+
+
+def cmd_watch(args):
+    """Watch pings in real-time"""
+    config = Config.load(args.config)
+    watch_pings(config, continuous=True, interval=args.interval)
+
+
+def cmd_anomalies(args):
+    """Detect anomalies"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+
+    # Get baseline stats
+    stats = get_latency_percentiles(db, target_name=args.target, hours=args.hours)
+
+    if "error" not in stats:
+        anomalies = detect_anomalies(db, target_name=args.target,
+                                     hours=args.hours, threshold_multiplier=args.sigma)
+        print(format_anomalies(anomalies, stats['mean'], stats['stdev']))
+    else:
+        print(stats['error'])
+
+
+def cmd_correlate(args):
+    """Correlate targets"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    corr_data = correlate_targets(db, hours=args.hours)
+    print(format_correlations(corr_data))
+
+
+def cmd_alerts(args):
+    """Manage alerts"""
+    alert_config = AlertConfig()
+
+    if args.alerts_command == 'show':
+        print(format_alerts_config(alert_config))
+
+    elif args.alerts_command == 'enable':
+        if args.notification_type == 'desktop':
+            alert_config.enable_notification('desktop')
+            print("Desktop notifications enabled")
+        elif args.notification_type == 'ntfy':
+            if not args.topic:
+                print("Error: --topic required for ntfy notifications")
+                sys.exit(1)
+            alert_config.enable_notification('ntfy', topic=args.topic)
+            print(f"ntfy notifications enabled (topic: {args.topic})")
+
+    elif args.alerts_command == 'disable':
+        alert_config.disable_notification(args.notification_type)
+        print(f"{args.notification_type} notifications disabled")
+
+    elif args.alerts_command == 'threshold':
+        alert_config.set_threshold(args.threshold_name, args.value)
+        print(f"Threshold '{args.threshold_name}' set to {args.value}")
+
+
+def cmd_patterns(args):
+    """Show time-based patterns"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+
+    if args.pattern_type == 'hourly':
+        plot_hourly_patterns(db, target_name=args.target, days=args.days)
+    elif args.pattern_type == 'daily':
+        plot_daily_patterns(db, target_name=args.target, weeks=args.weeks)
+
+
+def cmd_jitter(args):
+    """Show jitter analysis"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    plot_jitter(db, target_name=args.target, hours=args.hours)
+
+
+def cmd_waterfall(args):
+    """Show waterfall chart"""
+    config = Config.load(args.config)
+    db = Database(config.general.database_path)
+    plot_waterfall(db, hours=args.hours, bucket_minutes=args.bucket)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog='pm',
+        description='Ping Monitor - Network connectivity monitoring',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Commands by Category:
+
+  Monitoring:
+    run                         Start monitoring daemon
+    reload                      Reload config for running daemon
+    stats                       Quick statistics
+    status [--live]             Current status (live updates)
+    watch                       Real-time ping watch
+
+  Charts & Visualization:
+    plot [-H hours]             Downtime chart
+    latency [-H hours]          Latency chart (alias: ping, plot-ping)
+    heatmap [-d days]           Calendar-style uptime heatmap
+    histogram [-H hours]        Latency distribution
+    waterfall [-H hours]        Multi-target stacked view
+    jitter [-H hours]           Latency variance/stability
+    patterns [hourly|daily]     Time-based patterns
+
+  Analysis:
+    percentiles [-H hours]      Latency percentiles (p50/p95/p99)
+    timeline [-H hours]         Discrete outage events
+    anomalies [-H hours]        Detect latency anomalies
+    correlate [-H hours]        Cross-reference target failures
+    compare <target1> <target2> Side-by-side comparison
+
+  Reports & Export:
+    report [daily|weekly|monthly]   Summary reports
+    export <file> [-f csv|json]     Export data
+    locations [--stats]             Show monitoring locations
+
+  Configuration:
+    targets list                List all targets
+    targets add <name> <host>   Add target
+    targets remove <name>       Remove target
+    alerts show                 Show alert configuration
+    alerts enable <type>        Enable notifications
+    alerts threshold <name> <value>  Set threshold
+    --init-config               Create default config
+
+Examples:
+  pm run                        # Start monitoring daemon
+  pm reload                     # Reload config after adding target
+  pm status --live              # Live dashboard
+  pm plot -H 48                 # Last 48 hours downtime
+  pm waterfall -H 12            # Multi-target waterfall chart
+  pm jitter                     # Show latency variance
+  pm patterns hourly            # Hourly patterns
+  pm patterns daily             # Daily patterns (day of week)
+  pm percentiles -t default     # Percentiles for specific target
+  pm compare default google     # Compare two targets
+  pm export data.csv -H 24      # Export last 24h to CSV
+  pm alerts enable desktop      # Enable desktop notifications
+        """
+    )
+
+    # Global options
+    parser.add_argument('--init-config', action='store_true',
+                       help='Create default configuration file')
+    parser.add_argument('-c', '--config', type=Path,
+                       help='Path to config file')
+    parser.add_argument('--no-color', action='store_true',
+                       help='Disable colored output (useful for scripting)')
+
+    # Subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+
+    # pm run
+    run_parser = subparsers.add_parser('run', help='Start monitoring daemon')
+    run_parser.set_defaults(func=cmd_run)
+
+    # pm reload
+    reload_parser = subparsers.add_parser('reload', help='Reload configuration for running daemon')
+    reload_parser.set_defaults(func=cmd_reload)
+
+    # pm stats
+    stats_parser = subparsers.add_parser('stats', help='Show quick statistics')
+    stats_parser.add_argument('-t', '--target', help='Filter by target name')
+    stats_parser.set_defaults(func=cmd_stats)
+
+    # pm plot
+    plot_parser = subparsers.add_parser('plot', help='Show downtime plot')
+    plot_parser.add_argument('-t', '--target', help='Filter by target name')
+    plot_parser.add_argument('-H', '--hours', type=int, default=24,
+                            help='Hours to look back (default: 24)')
+    plot_parser.add_argument('-b', '--bucket', type=int, default=15,
+                            help='Bucket size in minutes (default: 15)')
+    plot_parser.add_argument('-y', '--ymax', type=int, default=20,
+                            help='Y-axis maximum (default: 20)')
+    plot_parser.add_argument('--gnuplot', action='store_true',
+                            help='Use gnuplot instead of plotext')
+    plot_parser.set_defaults(func=cmd_plot)
+
+    # pm latency (alias for plot-ping)
+    latency_parser = subparsers.add_parser('latency',
+                                           aliases=['ping', 'plot-ping'],
+                                           help='Show latency plot')
+    latency_parser.add_argument('-t', '--target', help='Filter by target name')
+    latency_parser.add_argument('-H', '--hours', type=int, default=24,
+                               help='Hours to look back (default: 24)')
+    latency_parser.add_argument('-b', '--bucket', type=int, default=15,
+                               help='Bucket size in minutes (default: 15)')
+    latency_parser.add_argument('--gnuplot', action='store_true',
+                               help='Use gnuplot instead of plotext')
+    latency_parser.set_defaults(func=cmd_latency)
+
+    # pm migrate
+    migrate_parser = subparsers.add_parser('migrate', help='Migrate legacy data')
+    migrate_parser.set_defaults(func=cmd_migrate)
+
+    # pm targets
+    targets_parser = subparsers.add_parser('targets', help='Manage monitoring targets')
+    targets_subparsers = targets_parser.add_subparsers(dest='targets_command', help='Targets command')
+
+    targets_list_parser = targets_subparsers.add_parser('list', help='List targets')
+    targets_list_parser.set_defaults(func=cmd_targets)
+
+    targets_add_parser = targets_subparsers.add_parser('add', help='Add target')
+    targets_add_parser.add_argument('name', help='Target name')
+    targets_add_parser.add_argument('host', help='Target hostname or IP')
+    targets_add_parser.add_argument('-d', '--description', help='Description')
+    targets_add_parser.set_defaults(func=cmd_targets)
+
+    targets_remove_parser = targets_subparsers.add_parser('remove', help='Remove target')
+    targets_remove_parser.add_argument('name', help='Target name to remove')
+    targets_remove_parser.set_defaults(func=cmd_targets)
+
+    # pm locations
+    locations_parser = subparsers.add_parser('locations', help='Show monitoring locations')
+    locations_parser.add_argument('--stats', action='store_true', help='Show statistics')
+    locations_parser.set_defaults(func=cmd_locations)
+
+    # pm export
+    export_parser = subparsers.add_parser('export', help='Export data')
+    export_parser.add_argument('output', help='Output file path')
+    export_parser.add_argument('-f', '--format', choices=['csv', 'json', 'summary'],
+                              default='csv', help='Export format (default: csv)')
+    export_parser.add_argument('-t', '--target', help='Filter by target name')
+    export_parser.add_argument('-H', '--hours', type=int, help='Hours to export (default: all)')
+    export_parser.add_argument('--compact', action='store_true', help='Compact JSON (no pretty print)')
+    export_parser.set_defaults(func=cmd_export)
+
+    # pm report
+    report_parser = subparsers.add_parser('report', help='Generate summary reports')
+    report_parser.add_argument('report_type', choices=['daily', 'weekly', 'monthly'],
+                              nargs='?', default='daily', help='Report type (default: daily)')
+    report_parser.add_argument('-t', '--target', help='Filter by target name')
+    report_parser.add_argument('--days', type=int, help='Number of days (for daily)')
+    report_parser.add_argument('--weeks', type=int, help='Number of weeks (for weekly)')
+    report_parser.add_argument('--months', type=int, help='Number of months (for monthly)')
+    report_parser.set_defaults(func=cmd_report)
+
+    # pm timeline
+    timeline_parser = subparsers.add_parser('timeline', help='Show discrete outage events')
+    timeline_parser.add_argument('-t', '--target', help='Filter by target name')
+    timeline_parser.add_argument('-H', '--hours', type=int, default=24,
+                                help='Hours to look back (default: 24)')
+    timeline_parser.add_argument('--min-duration', type=int, default=30,
+                                help='Minimum outage duration in seconds (default: 30)')
+    timeline_parser.set_defaults(func=cmd_timeline)
+
+    # pm percentiles
+    percentiles_parser = subparsers.add_parser('percentiles', help='Show latency percentiles')
+    percentiles_parser.add_argument('-t', '--target', help='Filter by target name')
+    percentiles_parser.add_argument('-H', '--hours', type=int, default=24,
+                                   help='Hours to look back (default: 24)')
+    percentiles_parser.set_defaults(func=cmd_percentiles)
+
+    # pm heatmap
+    heatmap_parser = subparsers.add_parser('heatmap', help='Show uptime heatmap')
+    heatmap_parser.add_argument('-t', '--target', help='Filter by target name')
+    heatmap_parser.add_argument('-d', '--days', type=int, default=30,
+                               help='Days to include (default: 30)')
+    heatmap_parser.set_defaults(func=cmd_heatmap)
+
+    # pm histogram
+    histogram_parser = subparsers.add_parser('histogram', help='Show latency distribution')
+    histogram_parser.add_argument('-t', '--target', help='Filter by target name')
+    histogram_parser.add_argument('-H', '--hours', type=int, default=24,
+                                 help='Hours to look back (default: 24)')
+    histogram_parser.set_defaults(func=cmd_histogram)
+
+    # pm compare
+    compare_parser = subparsers.add_parser('compare', help='Compare multiple targets')
+    compare_parser.add_argument('targets', nargs='+', help='Target names to compare')
+    compare_parser.add_argument('-H', '--hours', type=int, default=24,
+                               help='Hours to look back (default: 24)')
+    compare_parser.set_defaults(func=cmd_compare)
+
+    # pm status
+    status_parser = subparsers.add_parser('status', help='Show current status')
+    status_parser.add_argument('--live', action='store_true', help='Live updating status')
+    status_parser.add_argument('-i', '--interval', type=int, default=5,
+                              help='Update interval for live mode (default: 5)')
+    status_parser.set_defaults(func=cmd_status)
+
+    # pm watch
+    watch_parser = subparsers.add_parser('watch', help='Watch pings in real-time')
+    watch_parser.add_argument('-i', '--interval', type=int, default=1,
+                             help='Ping interval in seconds (default: 1)')
+    watch_parser.set_defaults(func=cmd_watch)
+
+    # pm anomalies
+    anomalies_parser = subparsers.add_parser('anomalies', help='Detect latency anomalies')
+    anomalies_parser.add_argument('-t', '--target', help='Filter by target name')
+    anomalies_parser.add_argument('-H', '--hours', type=int, default=24,
+                                 help='Hours to look back (default: 24)')
+    anomalies_parser.add_argument('-s', '--sigma', type=float, default=3.0,
+                                 help='Threshold in standard deviations (default: 3.0)')
+    anomalies_parser.set_defaults(func=cmd_anomalies)
+
+    # pm correlate
+    correlate_parser = subparsers.add_parser('correlate', help='Correlate downtime between targets')
+    correlate_parser.add_argument('-H', '--hours', type=int, default=24,
+                                 help='Hours to look back (default: 24)')
+    correlate_parser.set_defaults(func=cmd_correlate)
+
+    # pm alerts
+    alerts_parser = subparsers.add_parser('alerts', help='Manage alert configuration')
+    alerts_subparsers = alerts_parser.add_subparsers(dest='alerts_command', help='Alerts command')
+
+    alerts_show_parser = alerts_subparsers.add_parser('show', help='Show alert configuration')
+    alerts_show_parser.set_defaults(func=cmd_alerts)
+
+    alerts_enable_parser = alerts_subparsers.add_parser('enable', help='Enable notifications')
+    alerts_enable_parser.add_argument('notification_type', choices=['desktop', 'ntfy'],
+                                     help='Notification type')
+    alerts_enable_parser.add_argument('--topic', help='ntfy topic (required for ntfy)')
+    alerts_enable_parser.set_defaults(func=cmd_alerts)
+
+    alerts_disable_parser = alerts_subparsers.add_parser('disable', help='Disable notifications')
+    alerts_disable_parser.add_argument('notification_type', choices=['desktop', 'ntfy'],
+                                      help='Notification type')
+    alerts_disable_parser.set_defaults(func=cmd_alerts)
+
+    alerts_threshold_parser = alerts_subparsers.add_parser('threshold', help='Set alert threshold')
+    alerts_threshold_parser.add_argument('threshold_name',
+                                        choices=['downtime_pct_5m', 'downtime_pct_15m',
+                                               'latency_ms', 'consecutive_failures'],
+                                        help='Threshold name')
+    alerts_threshold_parser.add_argument('value', type=float, help='Threshold value')
+    alerts_threshold_parser.set_defaults(func=cmd_alerts)
+
+    # pm patterns
+    patterns_parser = subparsers.add_parser('patterns', help='Show time-based patterns')
+    patterns_parser.add_argument('pattern_type', choices=['hourly', 'daily'],
+                                nargs='?', default='hourly',
+                                help='Pattern type (default: hourly)')
+    patterns_parser.add_argument('-t', '--target', help='Filter by target name')
+    patterns_parser.add_argument('-d', '--days', type=int, default=7,
+                                help='Days to analyze for hourly (default: 7)')
+    patterns_parser.add_argument('-w', '--weeks', type=int, default=4,
+                                help='Weeks to analyze for daily (default: 4)')
+    patterns_parser.set_defaults(func=cmd_patterns)
+
+    # pm jitter
+    jitter_parser = subparsers.add_parser('jitter', help='Show latency variance/stability')
+    jitter_parser.add_argument('-t', '--target', help='Filter by target name')
+    jitter_parser.add_argument('-H', '--hours', type=int, default=24,
+                              help='Hours to look back (default: 24)')
+    jitter_parser.set_defaults(func=cmd_jitter)
+
+    # pm waterfall
+    waterfall_parser = subparsers.add_parser('waterfall', help='Multi-target waterfall chart')
+    waterfall_parser.add_argument('-H', '--hours', type=int, default=24,
+                                 help='Hours to look back (default: 24)')
+    waterfall_parser.add_argument('-b', '--bucket', type=int, default=15,
+                                 help='Bucket size in minutes (default: 15)')
+    waterfall_parser.set_defaults(func=cmd_waterfall)
+
+    args = parser.parse_args()
+
+    # Handle --no-color flag
+    if args.no_color:
+        import os
+        os.environ['PM_NO_COLOR'] = '1'
+        os.environ['NO_COLOR'] = '1'  # Standard env var for disabling colors
+
+    # Handle --init-config
+    if args.init_config:
+        Config.create_default(args.config)
+        return 0
+
+    # If no command specified, show help
+    if not args.command:
+        parser.print_help()
+        return 1
+
+    # Run the subcommand
+    try:
+        return args.func(args)
+    except FileNotFoundError as e:
+        print(f"Error: Configuration file not found", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(f"\nRun 'pm --init-config' to create a default configuration file", file=sys.stderr)
+        return 1
+    except PermissionError as e:
+        print(f"Error: Permission denied", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(f"\nCheck file permissions or run with appropriate privileges", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"Error: Invalid configuration", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(f"\nCheck your configuration file for errors", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\nInterrupted by user", file=sys.stderr)
+        return 130
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        print(f"\nFor help, run: pm --help", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

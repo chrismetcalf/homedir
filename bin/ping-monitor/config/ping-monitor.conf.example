@@ -1,0 +1,95 @@
+# Ping Monitor Configuration Example
+#
+# Copy this file to ~/.config/ping-monitor/config.toml and customize as needed
+# Or run: ping-monitor --init-config
+
+[general]
+# Path to SQLite database (supports ~ expansion)
+database_path = "~/connectivity.db"
+
+# Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level = "INFO"
+
+# Number of days to retain ping data (older data is purged)
+retention_days = 180
+
+[monitoring]
+# Interval between ping checks (seconds)
+interval_seconds = 10
+
+# Ping timeout (seconds)
+ping_timeout = 5
+
+# Number of pings to send per check
+ping_count = 1
+
+[location]
+# Enable location tracking (IP, ISP, geolocation)
+enabled = true
+
+# How often to check for IP changes (minutes)
+check_interval_minutes = 5
+
+# Geolocation provider: "ipapi.co" or "ip-api.com"
+geolocation_provider = "ipapi.co"
+
+# Cache TTL for location data (hours)
+cache_ttl_hours = 24
+
+# Define ping targets (you can have multiple)
+[[targets]]
+name = "default"
+host = "8.8.8.8"
+description = "Google DNS"
+enabled = true
+
+# Example: Monitor your router
+# [[targets]]
+# name = "router"
+# host = "192.168.1.1"
+# description = "Home Router"
+# enabled = true
+
+# Example: Monitor Cloudflare DNS
+# [[targets]]
+# name = "cloudflare"
+# host = "1.1.1.1"
+# description = "Cloudflare DNS"
+# enabled = true
+
+# Example: Monitor a custom server
+# [[targets]]
+# name = "myserver"
+# host = "example.com"
+# description = "My Server"
+# enabled = true
+
+[database]
+# Enable automatic log rotation
+rotation_enabled = true
+
+# How often to check for old logs (hours)
+rotation_interval_hours = 24
+
+# Run VACUUM after rotation to reclaim disk space
+vacuum_after_rotation = true
+
+[plotting]
+# Default time window for plots (hours)
+downtime_window_hours = 24
+
+# Time bucket size for aggregation (minutes)
+bucket_minutes = 15
+
+# Terminal plot dimensions
+terminal_width = 100
+terminal_height = 25
+
+# Y-axis maximum for downtime plots (percentage)
+downtime_y_max = 20
+
+# Use color in terminal output
+use_color = true
+
+# Visualization library: "plotext", "gnuplot", or "rich"
+visualization_library = "plotext"

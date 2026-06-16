@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""
+Ping Monitor - Latency visualization
+"""
+
+import sys
+import argparse
+from pathlib import Path
+
+# Add the parent directory to Python path (resolve symlinks)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pingmon.database import Database
+from pingmon.config import Config
+from pingmon.plot import plot_latency_plotext, plot_latency_gnuplot
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Plot average ping latency')
+    parser.add_argument('-t', '--target', help='Target name to filter by')
+    parser.add_argument('-H', '--hours', type=int, default=24, help='Hours to look back (default: 24)')
+    parser.add_argument('-b', '--bucket', type=int, default=15, help='Bucket size in minutes (default: 15)')
+    parser.add_argument('--gnuplot', action='store_true', help='Use gnuplot instead of plotext')
+    args = parser.parse_args()
+
+    try:
+        # Load config to get database path
+        config = Config.load()
+        db = Database(config.general.database_path)
+
+        # Generate plot (plotext by default, gnuplot if requested)
+        if args.gnuplot:
+            plot_latency_gnuplot(
+                db,
+                hours=args.hours,
+                bucket_minutes=args.bucket,
+                target_name=args.target
+            )
+        else:
+            plot_latency_plotext(
+                db,
+                hours=args.hours,
+                bucket_minutes=args.bucket,
+                target_name=args.target
+            )
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

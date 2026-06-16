@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""
+Ping Monitor - Quick stats (for status bars)
+"""
+
+import sys
+import argparse
+from pathlib import Path
+
+# Add the parent directory to Python path (resolve symlinks)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pingmon.database import Database
+from pingmon.config import Config
+from pingmon.plot import get_quick_stats, format_stats_output
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Show quick uptime statistics')
+    parser.add_argument('-t', '--target', help='Target name to filter by')
+    args = parser.parse_args()
+
+    try:
+        # Load config to get database path
+        config = Config.load()
+        db = Database(config.general.database_path)
+
+        # Get stats
+        stats = get_quick_stats(db, target_name=args.target)
+
+        # Format and print
+        print(format_stats_output(stats))
+
+    except Exception as e:
+        print(f"N/A, N/A, N/A (error: {e})", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
