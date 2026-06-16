@@ -1,0 +1,11 @@
+# Core dependencies
+tomli>=2.0; python_version<'3.11'
+
+# Optional visualization dependencies
+# Uncomment if you want plotting capabilities
+# plotext>=5.0
+# matplotlib>=3.5
+
+# Development dependencies
+# pytest>=7.0
+# pytest-cov>=4.0

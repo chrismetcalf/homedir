@@ -1,0 +1,39 @@
+# Battery Monitor Configuration Example
+# Copy this file to ~/.config/battery-monitor/config.toml and customize
+
+[general]
+database_path = "~/battery_monitor.db"
+log_level = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+retention_days = 180  # Keep 6 months of battery data
+
+[monitoring]
+interval_seconds = 60  # Check battery every minute
+battery_id = "BAT0"  # Battery identifier (use --list-batteries to see available)
+detection_method = "auto"  # auto, sysfs, acpi, acpitool, apcaccess
+
+[database]
+rotation_enabled = true
+rotation_interval_hours = 24  # Rotate logs daily
+vacuum_after_rotation = true  # Reclaim disk space after rotation
+
+[alerts]
+enabled = true
+low_battery_threshold = 20  # Warn when battery below 20%
+critical_battery_threshold = 10  # Critical alert at 10%
+# high_temperature_threshold = 60.0  # Uncomment to alert on high temperature
+
+# Example configurations for different use cases:
+
+# Laptop with frequent checks:
+# [monitoring]
+# interval_seconds = 30
+# battery_id = "BAT0"
+
+# UPS monitoring:
+# [monitoring]
+# interval_seconds = 10
+# detection_method = "apcaccess"
+
+# Multiple batteries (configure multiple instances with different battery_id):
+# Instance 1: battery_id = "BAT0"
+# Instance 2: battery_id = "BAT1"

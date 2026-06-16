@@ -1,0 +1,19 @@
+[Unit]
+Description=Battery Monitor
+Documentation=file://%h/.homedir/bin/battery-monitor/README.md
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.homedir/bin/bm run
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Restart if the service fails
+StartLimitBurst=5
+StartLimitIntervalSec=30
+
+[Install]
+WantedBy=default.target

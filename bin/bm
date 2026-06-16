@@ -1,0 +1,514 @@
+#!/usr/bin/env python3
+"""
+Battery Monitor - CLI
+
+Usage:
+    bm run                  # Start monitoring daemon
+    bm stats [hours]        # Show battery statistics (default: 24 hours)
+    bm status               # Show current battery status
+    bm events [limit]       # Show recent events (default: 20)
+    bm --init-config        # Create default config
+    bm --list-batteries     # List available batteries
+"""
+
+import sys
+import argparse
+from pathlib import Path
+from datetime import datetime, timedelta
+
+# Add the battery-monitor directory to Python path
+# Use .homedir location (handles both symlink and direct execution)
+HOMEDIR = Path.home() / ".homedir"
+BATTERY_MONITOR_DIR = HOMEDIR / "bin" / "battery-monitor"
+sys.path.insert(0, str(BATTERY_MONITOR_DIR))
+
+from battmon.config import Config
+from battmon.database import Database
+from battmon.battery import BatteryReader
+from battmon.waterfall import plot_waterfall
+from battmon.plot import plot_battery
+from battmon.export import export_csv, export_json, export_summary_json
+from battmon.reporting import (get_daily_report, get_weekly_report, get_monthly_report,
+                                format_report, get_charge_cycle_summary, format_charge_cycles)
+
+
+def cmd_run(args):
+    """Run the monitoring daemon"""
+    # Run monitoring daemon directly without using monitor.py's main function
+    import logging
+    import signal
+    import time
+
+    try:
+        config = Config.load(args.config)
+        config.validate()
+
+        # Set up logging
+        logging.basicConfig(
+            level=getattr(logging, config.general.log_level),
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+        # Import and create monitor
+        from battmon.monitor import Monitor
+        monitor = Monitor(config)
+        monitor.start()
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        print("Run 'bm --init-config' to create a configuration file")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_status(args):
+    """Show current battery status"""
+    try:
+        config = Config.load(args.config)
+        reader = BatteryReader(
+            battery_id=config.monitoring.battery_id,
+            method=config.monitoring.detection_method
+        )
+
+        if not reader.is_available():
+            print(f"No battery found: {config.monitoring.battery_id}")
+            print(f"Available batteries: {BatteryReader.list_batteries()}")
+            sys.exit(1)
+
+        info = reader.read()
+
+        print(f"Battery Status ({config.monitoring.battery_id})")
+        print("=" * 50)
+        print(f"Status:      {info.status}")
+        if info.percentage is not None:
+            print(f"Percentage:  {info.percentage:.1f}%")
+
+        # Show discharge duration if discharging
+        if info.status == "Discharging":
+            try:
+                db = Database(config.general.database_path)
+                events = db.get_events(limit=1, event_type="discharging_started")
+                if events:
+                    start_time = datetime.fromisoformat(events[0]['timestamp'])
+                    duration = datetime.utcnow() - start_time
+
+                    # Format duration
+                    total_seconds = int(duration.total_seconds())
+                    days = total_seconds // 86400
+                    hours = (total_seconds % 86400) // 3600
+                    minutes = (total_seconds % 3600) // 60
+
+                    if days > 0:
+                        duration_str = f"{days}d {hours}h {minutes}m"
+                    elif hours > 0:
+                        duration_str = f"{hours}h {minutes}m"
+                    else:
+                        duration_str = f"{minutes}m"
+
+                    print(f"Discharging: {duration_str}")
+                db.close()
+            except Exception:
+                pass  # Skip if database not available
+
+        if info.voltage is not None:
+            print(f"Voltage:     {info.voltage:.2f}V")
+        if info.current is not None:
+            print(f"Current:     {info.current:.3f}A")
+        if info.power is not None:
+            print(f"Power:       {info.power:.2f}W")
+        if info.temperature is not None:
+            print(f"Temperature: {info.temperature:.1f}°C")
+        if info.time_remaining is not None:
+            hours = info.time_remaining // 60
+            minutes = info.time_remaining % 60
+            print(f"Time Left:   {hours:02d}:{minutes:02d}")
+        if info.cycle_count is not None:
+            print(f"Cycles:      {info.cycle_count}")
+        if info.manufacturer:
+            print(f"Manufacturer: {info.manufacturer}")
+        if info.model:
+            print(f"Model:        {info.model}")
+        if info.capacity is not None:
+            print(f"Capacity:     {info.capacity:.2f}Wh")
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        print("Run 'bm --init-config' to create a configuration file")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_stats(args):
+    """Show battery statistics"""
+    try:
+        config = Config.load(args.config)
+        db = Database(config.general.database_path)
+
+        hours = args.hours or 24
+        stats = db.get_stats(window_hours=hours)
+
+        print(f"Battery Statistics (Last {hours} hours)")
+        print("=" * 50)
+        print(f"Total Readings:    {stats['total_readings']}")
+        print(f"Average Battery:   {stats['avg_percentage']:.1f}%")
+        print(f"Min Battery:       {stats['min_percentage']:.1f}%")
+        print(f"Max Battery:       {stats['max_percentage']:.1f}%")
+        if stats['avg_power'] > 0:
+            print(f"Average Power:     {stats['avg_power']:.2f}W")
+        if stats['avg_temperature'] > 0:
+            print(f"Average Temp:      {stats['avg_temperature']:.1f}°C")
+
+        if stats['status_counts']:
+            print("\nStatus Distribution:")
+            for status, count in stats['status_counts'].items():
+                pct = (count / stats['total_readings']) * 100 if stats['total_readings'] > 0 else 0
+                print(f"  {status:15s} {count:6d} ({pct:5.1f}%)")
+
+        db.close()
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_events(args):
+    """Show recent events"""
+    try:
+        config = Config.load(args.config)
+        db = Database(config.general.database_path)
+
+        limit = args.limit or 20
+        events = db.get_events(limit=limit)
+
+        if not events:
+            print("No events recorded yet")
+            db.close()
+            return
+
+        print(f"Recent Events (Last {limit})")
+        print("=" * 80)
+        print(f"{'Time':<20} {'Type':<20} {'Battery':<10} {'Description'}")
+        print("-" * 80)
+
+        for event in events:
+            timestamp = datetime.fromisoformat(event['timestamp'])
+            time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            battery = f"{event['percentage']:.0f}%" if event['percentage'] else "N/A"
+            print(f"{time_str:<20} {event['event_type']:<20} {battery:<10} {event['description']}")
+
+        db.close()
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_init_config(args):
+    """Create default configuration"""
+    Config.create_default(args.config)
+
+
+def cmd_list_batteries(args):
+    """List available batteries"""
+    batteries = BatteryReader.list_batteries()
+    if batteries:
+        print("Available batteries:")
+        for bat in batteries:
+            print(f"  - {bat}")
+    else:
+        print("No batteries found on this system")
+
+
+def cmd_waterfall(args):
+    """Show waterfall chart"""
+    try:
+        config = Config.load(args.config)
+        db = Database(config.general.database_path)
+        plot_waterfall(db, hours=args.hours, bucket_minutes=args.bucket)
+        db.close()
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_plot(args):
+    """Show battery plot"""
+    try:
+        config = Config.load(args.config)
+        db = Database(config.general.database_path)
+        plot_battery(db, hours=args.hours, bucket_minutes=args.bucket)
+        db.close()
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_export(args):
+    """Export battery data"""
+    try:
+        config = Config.load(args.config)
+        db = Database(config.general.database_path)
+        output_path = Path(args.output)
+
+        if args.format == 'csv':
+            count = export_csv(db, output_path, hours=args.hours)
+            print(f"Exported {count:,} records to {output_path}")
+        elif args.format == 'json':
+            count = export_json(db, output_path, hours=args.hours,
+                              pretty=not args.compact)
+            print(f"Exported {count:,} records to {output_path}")
+        elif args.format == 'summary':
+            export_summary_json(db, output_path)
+            print(f"Exported summary to {output_path}")
+
+        db.close()
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_report(args):
+    """Generate battery reports"""
+    try:
+        config = Config.load(args.config)
+        db = Database(config.general.database_path)
+
+        if args.report_type == 'daily':
+            report = get_daily_report(db, days=args.days or 7)
+        elif args.report_type == 'weekly':
+            report = get_weekly_report(db, weeks=args.weeks or 4)
+        elif args.report_type == 'monthly':
+            report = get_monthly_report(db, months=args.months or 3)
+        elif args.report_type == 'cycles':
+            cycles = get_charge_cycle_summary(db, days=args.days or 30)
+            print(format_charge_cycles(cycles))
+            db.close()
+            return
+        else:
+            report = get_daily_report(db, days=7)
+
+        print(format_report(report))
+        db.close()
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def cmd_reload(args):
+    """Reload configuration for running daemon"""
+    import subprocess
+    import os
+    import signal
+
+    # Try to find the running python process for battery-monitor
+    try:
+        # Use pgrep to find the process
+        result = subprocess.run(
+            ['pgrep', '-f', 'battmon.monitor'],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            print("Error: No running battery-monitor daemon found", file=sys.stderr)
+            print("\nTo start the daemon:", file=sys.stderr)
+            print("  bm run", file=sys.stderr)
+            print("\nTo check if it's running:", file=sys.stderr)
+            print("  ps aux | grep 'battmon.monitor'", file=sys.stderr)
+            print("  # or", file=sys.stderr)
+            print("  systemctl status battery-monitor  # if using systemd", file=sys.stderr)
+            sys.exit(1)
+
+        pids = result.stdout.strip().split('\n')
+
+        # Send SIGHUP to all matching processes
+        for pid in pids:
+            try:
+                os.kill(int(pid), signal.SIGHUP)
+                print(f"Sent reload signal to process {pid}")
+            except ProcessLookupError:
+                print(f"Process {pid} no longer exists")
+            except PermissionError:
+                print(f"Permission denied to signal process {pid}")
+                sys.exit(1)
+
+        print("Configuration reload requested")
+
+    except FileNotFoundError:
+        print("Error: 'pgrep' command not found")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Battery Monitor - Track battery metrics over time",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Path to configuration file"
+    )
+
+    parser.add_argument(
+        "--init-config",
+        action="store_true",
+        help="Create default configuration file and exit"
+    )
+
+    parser.add_argument(
+        "--list-batteries",
+        action="store_true",
+        help="List available batteries and exit"
+    )
+
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable colored output (useful for scripting)"
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
+
+    # run command
+    parser_run = subparsers.add_parser("run", help="Start monitoring daemon")
+
+    # status command
+    parser_status = subparsers.add_parser("status", help="Show current battery status")
+
+    # stats command
+    parser_stats = subparsers.add_parser("stats", help="Show battery statistics")
+    parser_stats.add_argument("hours", type=int, nargs="?", help="Time window in hours (default: 24)")
+
+    # events command
+    parser_events = subparsers.add_parser("events", help="Show recent events")
+    parser_events.add_argument("limit", type=int, nargs="?", help="Number of events to show (default: 20)")
+
+    # waterfall command
+    parser_waterfall = subparsers.add_parser("waterfall", help="Show waterfall chart")
+    parser_waterfall.add_argument("-H", "--hours", type=int, default=6,
+                                  help="Hours to look back (default: 6)")
+    parser_waterfall.add_argument("-b", "--bucket", type=int, default=15,
+                                  help="Bucket size in minutes (default: 15)")
+
+    # plot command
+    parser_plot = subparsers.add_parser("plot", help="Show battery percentage plot")
+    parser_plot.add_argument("-H", "--hours", type=int, default=24,
+                            help="Hours to look back (default: 24)")
+    parser_plot.add_argument("-b", "--bucket", type=int, default=15,
+                            help="Bucket size in minutes (default: 15)")
+
+    # export command
+    parser_export = subparsers.add_parser("export", help="Export battery data")
+    parser_export.add_argument("output", help="Output file path")
+    parser_export.add_argument("-f", "--format", choices=["csv", "json", "summary"],
+                              default="csv", help="Export format (default: csv)")
+    parser_export.add_argument("-H", "--hours", type=int, help="Hours to export (default: all)")
+    parser_export.add_argument("--compact", action="store_true",
+                              help="Compact JSON (no pretty print)")
+
+    # report command
+    parser_report = subparsers.add_parser("report", help="Generate battery summary reports")
+    parser_report.add_argument("report_type", choices=["daily", "weekly", "monthly", "cycles"],
+                              help="Type of report to generate")
+    parser_report.add_argument("-d", "--days", type=int, help="Days to include (for daily/cycles)")
+    parser_report.add_argument("-w", "--weeks", type=int, help="Weeks to include (for weekly)")
+    parser_report.add_argument("-m", "--months", type=int, help="Months to include (for monthly)")
+
+    # reload command
+    parser_reload = subparsers.add_parser("reload", help="Reload daemon configuration")
+
+    args = parser.parse_args()
+
+    # Handle --no-color flag
+    if args.no_color:
+        import os
+        os.environ['BM_NO_COLOR'] = '1'
+        os.environ['NO_COLOR'] = '1'  # Standard env var for disabling colors
+
+    # Handle top-level flags
+    if args.init_config:
+        cmd_init_config(args)
+        return
+
+    if args.list_batteries:
+        cmd_list_batteries(args)
+        return
+
+    # Dispatch to command handlers
+    try:
+        if args.command == "run":
+            cmd_run(args)
+        elif args.command == "status":
+            cmd_status(args)
+        elif args.command == "stats":
+            cmd_stats(args)
+        elif args.command == "events":
+            cmd_events(args)
+        elif args.command == "waterfall":
+            cmd_waterfall(args)
+        elif args.command == "plot":
+            cmd_plot(args)
+        elif args.command == "export":
+            cmd_export(args)
+        elif args.command == "report":
+            cmd_report(args)
+        elif args.command == "reload":
+            cmd_reload(args)
+        else:
+            parser.print_help()
+            sys.exit(1)
+    except FileNotFoundError as e:
+        print(f"Error: Configuration file not found", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(f"\nRun 'bm --init-config' to create a default configuration file", file=sys.stderr)
+        sys.exit(1)
+    except PermissionError as e:
+        print(f"Error: Permission denied", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(f"\nCheck file permissions or run with appropriate privileges", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Error: Invalid configuration or input", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(f"\nCheck your configuration file or command arguments for errors", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user", file=sys.stderr)
+        sys.exit(130)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        print(f"\nFor help, run: bm --help", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
