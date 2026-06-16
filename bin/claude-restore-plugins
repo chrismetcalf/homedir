@@ -3,21 +3,48 @@
 #
 # Only ~/.claude/settings.json (enabledPlugins + extraKnownMarketplaces) is
 # tracked in this repo; the plugin FILES under ~/.claude/plugins/ are not
-# vendored (56M of churn-prone marketplace content, reinstallable from public
-# repos). This script reinstalls them from those public marketplaces.
+# vendored (churn-prone marketplace content, reinstallable from public repos).
+# This script reinstalls them from those public marketplaces.
 #
 # Personal skills under ~/.claude/skills/ ARE versioned and need no restore.
-set -euo pipefail
+#
+# Idempotent: already-present marketplaces/plugins are reported by the CLI as
+# success, so re-running is safe. Individual failures don't abort the rest —
+# each is reported and the script exits non-zero if anything failed.
+set -uo pipefail
 
 command -v claude >/dev/null || { echo "claude CLI not found on PATH" >&2; exit 1; }
 
-# claude-plugins-official is built-in; only the custom marketplaces need adding.
-claude plugin marketplace add nextlevelbuilder/ui-ux-pro-max-skill
-claude plugin marketplace add obra/superpowers-marketplace
+# Marketplaces to register. claude-plugins-official is normally built-in, but we
+# add it explicitly so the script doesn't depend on that — adding an existing
+# marketplace is a harmless no-op.
+marketplaces=(
+  anthropics/claude-plugins-official
+  nextlevelbuilder/ui-ux-pro-max-skill
+  obra/superpowers-marketplace
+)
 
-claude plugin install skill-creator@claude-plugins-official
-claude plugin install frontend-design@claude-plugins-official
-claude plugin install ui-ux-pro-max@ui-ux-pro-max-skill
-claude plugin install superpowers@superpowers-marketplace
+# plugin@marketplace pairs (the marketplace is the registered key, not the repo).
+plugins=(
+  skill-creator@claude-plugins-official
+  frontend-design@claude-plugins-official
+  ui-ux-pro-max@ui-ux-pro-max-skill
+  superpowers@superpowers-marketplace
+)
+
+fail=0
+
+for m in "${marketplaces[@]}"; do
+  claude plugin marketplace add "$m" || { echo "  ✗ marketplace add failed: $m" >&2; fail=1; }
+done
+
+for p in "${plugins[@]}"; do
+  claude plugin install "$p" || { echo "  ✗ install failed: $p" >&2; fail=1; }
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "Some steps failed (see ✗ above) — re-running is safe; check network / GitHub access." >&2
+  exit 1
+fi
 
 echo "Done. Restart Claude Code (or run /reload-plugins) to activate."
