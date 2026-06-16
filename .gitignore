@@ -29,8 +29,16 @@ bin/nvim
 .config/wireshark/
 .fonts/.uuid
 
+# .claude/: track skills, shared settings, global notes, and the statusline;
+# ignore machine state (plugins cache, history, projects, todos) and the
+# chmod-600 settings.local.json permissions file.
+.claude/*
+!.claude/skills/
+!.claude/settings.json
+!.claude/CLAUDE.md
+!.claude/statusline-command.sh
+
 # Credentials / auth tokens — NEVER commit
-.claude/
 .config/cursor/
 .config/gcloud/
 .config/github-copilot/
