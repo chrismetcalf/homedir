@@ -173,6 +173,7 @@ Utility scripts on `$PATH` (via `.zsh/rc/exports`). Notable ones:
 
 - **`gitfix`**: re-runnable symlink installer. Walks `.homedir/`, `.homedir/.ssh/`, `.homedir/.config/` and links matching entries into `~/`, `~/.ssh/`, `~/.config/`. Uses `dircombine` (Joey Hess, perl) which maintains a `known` file per source dir to clean up stale links on re-run. Skips `.git`, `.gitignore`, `.gitmodules`, `.svn`, `_darcs`.
 - **`install-neovim`**: downloads latest Neovim release into `~/bin/nvim` (Linux x86_64/arm64 tarballs, macOS x86_64/arm64).
+- **`claude-restore-plugins`**: reinstall Claude Code plugins on a new machine. Only `.claude/settings.json` (enabledPlugins + marketplaces) and `.claude/skills/` are versioned; the marketplace plugin files under `.claude/plugins/` aren't, so this re-adds the custom marketplaces and `claude plugin install`s each one. Run after `gitfix` on a fresh checkout. ("restore my plugins" → run this.)
 - **`setup_osx`**: macOS `defaults write` bootstrap (Sonoma/Sequoia idioms; sections for UI, keyboard, trackpad, Dock, Finder, etc.)
 - **`tmux-scout-window-tint`**: ticker that reads `~/.tmux-scout/status.json` and sets `@scout-state` per window
 - **`tmux-askpass`**: tmux popup for sudo password prompts

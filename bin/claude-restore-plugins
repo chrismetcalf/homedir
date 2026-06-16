@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Reinstall Claude Code plugins on a new machine.
+#
+# Only ~/.claude/settings.json (enabledPlugins + extraKnownMarketplaces) is
+# tracked in this repo; the plugin FILES under ~/.claude/plugins/ are not
+# vendored (56M of churn-prone marketplace content, reinstallable from public
+# repos). This script reinstalls them from those public marketplaces.
+#
+# Personal skills under ~/.claude/skills/ ARE versioned and need no restore.
+set -euo pipefail
+
+command -v claude >/dev/null || { echo "claude CLI not found on PATH" >&2; exit 1; }
+
+# claude-plugins-official is built-in; only the custom marketplaces need adding.
+claude plugin marketplace add nextlevelbuilder/ui-ux-pro-max-skill
+claude plugin marketplace add obra/superpowers-marketplace
+
+claude plugin install skill-creator@claude-plugins-official
+claude plugin install frontend-design@claude-plugins-official
+claude plugin install ui-ux-pro-max@ui-ux-pro-max-skill
+claude plugin install superpowers@superpowers-marketplace
+
+echo "Done. Restart Claude Code (or run /reload-plugins) to activate."
