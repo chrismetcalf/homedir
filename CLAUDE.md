@@ -6,6 +6,21 @@ This document contains comprehensive information about the homedir configuration
 
 This is a dotfiles repository that manages shell, editor, and development environment configurations. The setup is designed to work across multiple systems and includes automated linking via `gitfix`.
 
+## New machine setup
+
+A fresh checkout needs more than `git pull` — submodules and per-host plugins are not auto-populated. Run these in order:
+
+1. **Clone with submodules** (or initialize them in an existing clone):
+   ```
+   git clone --recurse-submodules <repo> ~/.homedir
+   # existing clone:
+   git -C ~/.homedir submodule update --init --recursive
+   ```
+   Submodules include `.oh-my-zsh`, `.oh-my-zsh-custom/plugins/zsh-syntax-highlighting`, `.oh-my-zsh-custom/plugins/zsh-autosuggestions`, `.oh-my-zsh-custom/themes/powerlevel10k`, `.tmux/plugins/tpm`, and the `bin/*.git` tools. Skipping this is what causes `[oh-my-zsh] plugin '...' not found` and a missing powerlevel10k prompt.
+2. **`bin/gitfix`** — symlinks repo contents into `~/`, `~/.ssh/`, `~/.config/`.
+3. **`claude-restore-plugins`** — reinstalls Claude Code plugins. Only `.claude/settings.json` (enabledPlugins + marketplaces) and `.claude/skills/` are versioned; the plugin files under `.claude/plugins/` are per-host. ("restore my plugins" maps here.)
+4. **tmux → `prefix + I`** — tpm installs the tmux plugins (tmux-scout, etc.). Until tmux-scout is installed, the Claude hooks in `settings.json` no-op safely (they're guarded with `[ -f <script> ] && ...`), so a host without it won't throw `MODULE_NOT_FOUND`.
+
 ## Directory Structure
 
 ```
