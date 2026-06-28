@@ -1,0 +1,123 @@
+/* tmux shortcuts for Secure ShellFish — generated Jun 28, 2026. Prefix is Ctrl-A (\u0001). */
+{
+  "F77B4F9E-4AE5-4AEC-B8CA-DFCFE4D3CC64": {
+    "description": "tmux menu (tappable)",
+    "keyboardLabel": "menu",
+    "body": "\u0001m"
+  },
+  "DA9632FE-BB8F-4C7D-B0F2-E4B54DCAEA21": {
+    "description": "Zoom pane (fullscreen)",
+    "keyboardLabel": "zoom",
+    "body": "\u0001z"
+  },
+  "72A7D0C1-BFC6-435B-BA92-06066724C8EB": {
+    "description": "Break pane to window",
+    "keyboardLabel": "break",
+    "body": "\u0001b"
+  },
+  "FDD7E062-A04A-4808-BDBD-240875A68959": {
+    "description": "Pane numbers",
+    "keyboardLabel": "panes",
+    "body": "\u0001q"
+  },
+  "18A5E2D5-06CB-4CF8-AA16-D7F8E7A4A7CC": {
+    "description": "Pane/window picker (fzf)",
+    "keyboardLabel": "pick",
+    "body": "\u0001F"
+  },
+  "6B8B4818-222B-457D-9939-6590BB935E8F": {
+    "description": "Choose tree",
+    "keyboardLabel": "tree",
+    "body": "\u0001s"
+  },
+  "5FD201D1-0FCB-48A3-9FDE-DA867F62EC15": {
+    "description": "Cycle to next pane",
+    "keyboardLabel": "pane>",
+    "body": "\u0001\u0001"
+  },
+  "2CB610C2-36E7-416F-A466-01D23FA6B872": {
+    "description": "Split right",
+    "keyboardLabel": "spl|",
+    "body": "\u0001|"
+  },
+  "A225D8D3-18BB-48D1-A849-7DFAB97907C8": {
+    "description": "Split below",
+    "keyboardLabel": "spl-",
+    "body": "\u0001-"
+  },
+  "A744EDD2-603C-42EA-A359-41D0C3FC2080": {
+    "description": "New window",
+    "keyboardLabel": "win+",
+    "body": "\u0001c"
+  },
+  "E960B010-551D-4017-B722-C8BB7288FE0A": {
+    "description": "Next window",
+    "keyboardLabel": "win>",
+    "body": "\u0001n"
+  },
+  "3629AC44-CAA9-4E2F-A82F-AD24FC99AE39": {
+    "description": "Previous window",
+    "keyboardLabel": "win<",
+    "body": "\u0001p"
+  },
+  "E40AB1B4-78A9-42FA-BE15-0BBF6B5236C7": {
+    "description": "Last window",
+    "keyboardLabel": "last",
+    "body": "\u0001 "
+  },
+  "90FE87E4-E0DB-4B6D-A5B0-16879B7AEC38": {
+    "description": "Rename window",
+    "keyboardLabel": "ren",
+    "body": "\u0001,"
+  },
+  "A9B82464-70FA-4E73-80DD-9CB0786FFE3A": {
+    "description": "Kill pane",
+    "keyboardLabel": "killp",
+    "body": "\u0001x"
+  },
+  "FE9F8110-BDD6-45AE-9FF3-39A1ECCB39DB": {
+    "description": "Detach",
+    "keyboardLabel": "detach",
+    "body": "\u0001d"
+  },
+  "D699B565-A37D-4F76-B9BE-CBF86EF96DCA": {
+    "description": "Scroll / copy mode",
+    "keyboardLabel": "scroll",
+    "body": "\u0001["
+  },
+  "623ECF2F-A1E2-431A-926C-072BEB1379ED": {
+    "description": "Paste buffer",
+    "keyboardLabel": "paste",
+    "body": "\u0001]"
+  },
+  "0A411400-A05D-424F-BC49-B3B004081567": {
+    "description": "Grab text (extrakto)",
+    "keyboardLabel": "grab",
+    "body": "\u0001\t"
+  },
+  "249ED944-7C37-4E3E-930D-5865C99ADE2B": {
+    "description": "Next agent awaiting input",
+    "keyboardLabel": "claudes",
+    "body": "\u0001~"
+  },
+  "C30FD90E-1290-46CE-8990-25B224563D01": {
+    "description": "Agent session picker",
+    "keyboardLabel": "agents",
+    "body": "\u0001`"
+  },
+  "AEE1158E-BA04-4B0A-A2F2-A51F652134B2": {
+    "description": "Vault console",
+    "keyboardLabel": "vault",
+    "body": "\u0001V"
+  },
+  "07137AC2-12A1-41A4-B0FE-3D08CD3029CD": {
+    "description": "Reload tmux config",
+    "keyboardLabel": "reload",
+    "body": "\u0001r"
+  },
+  "EF91CC9F-3DC7-4015-A762-6354C4B3F275": {
+    "description": "Install tmux plugins (tpm)",
+    "keyboardLabel": "tpm",
+    "body": "\u0001I"
+  }
+}
