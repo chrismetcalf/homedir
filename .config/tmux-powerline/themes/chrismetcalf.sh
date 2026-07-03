@@ -43,7 +43,7 @@ if [ -z "$TMUX_POWERLINE_WINDOW_STATUS_CURRENT" ]; then
 		"#[fg=colour231,bg=colour235,bold,nounderscore]"
 		" ${SCOUT_FG}#I#F "
 		"$TMUX_POWERLINE_SEPARATOR_RIGHT_THIN"
-		" #W "
+		" #{=/14/…:window_name} "
 		"#[$(format regular)]"
 	)
 fi
@@ -61,7 +61,7 @@ if [ -z "$TMUX_POWERLINE_WINDOW_STATUS_FORMAT" ]; then
 		"#[$(format regular)]"
 		"  ${SCOUT_FG}#I#{?window_flags,#F, } "
 		"$TMUX_POWERLINE_SEPARATOR_RIGHT_THIN"
-		" #W "
+		" #{=/14/…:window_name} "
 	)
 fi
 
