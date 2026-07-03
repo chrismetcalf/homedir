@@ -38,7 +38,6 @@ if (!cached || !cached.status) process.exit(0)
 const active = render.getActiveSessions(cached.status, cached.panes)
 
 const PRIO = { wait: 4, busy: 3, done: 2, idle: 1 }
-const now = Date.now()
 const paneState = new Map()
 
 for (const s of active) {
@@ -47,9 +46,13 @@ for (const s of active) {
   // (running/idle/completed/waitingForApproval/…); older builds only set
   // `status`. Map both so tinting survives the upgrade.
   const phase = s.phase || ''
-  const waiting = s.needsAttention || s.pendingInteraction
-    || phase === 'waitingForApproval' || phase === 'waitingForAnswer'
-    || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)
+  // Mirror tmux-scout's own render.js isNeedsAttention(): needsAttention /
+  // pendingInteraction are the authoritative "waiting on the user" signals.
+  // No pendingToolUse-age heuristic: a tool pending >Ns just means a long tool
+  // is running, not that the user is being asked something — it painted busy
+  // panes red and made the wait tint unreliable.
+  const waiting = !!(s.needsAttention || s.pendingInteraction
+    || phase === 'waitingForApproval' || phase === 'waitingForAnswer')
   let state
   if (waiting) state = 'wait'
   else if (phase) {

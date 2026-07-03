@@ -44,16 +44,16 @@ if (!cached || !cached.status) process.exit(0)
 
 const active = render.getActiveSessions(cached.status, cached.panes)
 
-// Same wait criterion as tmux-scout-window-tint (handles both the new `phase`
-// model and the older `status`/pendingToolUse signals).
-const now = Date.now()
+// Same wait criterion as tmux-scout-window-tint: mirror tmux-scout's own
+// render.js isNeedsAttention() — needsAttention / pendingInteraction are the
+// authoritative "waiting on the user" signals. No pendingToolUse-age heuristic
+// (a long-running tool is not the user being asked something).
 const waitPanes = new Set()
 for (const s of active) {
   if (!s.tmuxPane) continue
   const phase = s.phase || ''
   if (s.needsAttention || s.pendingInteraction
-    || phase === 'waitingForApproval' || phase === 'waitingForAnswer'
-    || (s.pendingToolUse && s.pendingToolUse.timestamp && now - s.pendingToolUse.timestamp > 5000)) {
+    || phase === 'waitingForApproval' || phase === 'waitingForAnswer') {
     waitPanes.add(s.tmuxPane)
   }
 }
