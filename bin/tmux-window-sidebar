@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Persistent per-window sidebar pane: a narrow left column listing every window
+# in the session (index, truncated name, tmux-scout state color) and highlighting
+# the session's active window. Auto-refreshes ~1/s and styles to the powerline
+# scout palette (203 wait, 214 busy, 78 done, 245 idle).
+#
+# Spawned focus-safe by tmux-sidebar-ensure; not meant to be run by hand. Toggle
+# the whole feature with `prefix + W` (tmux-sidebar-toggle).
+set -u
+
+PANE="${TMUX_PANE:-}"
+[ -n "$PANE" ] || exit 0
+
+ESC=$'\033'
+RESET="${ESC}[0m"
+
+# tmux-scout state -> 256-color foreground (matches the powerline theme tint)
+color_for() {
+	case "$1" in
+	wait) printf '203' ;;
+	busy) printf '214' ;;
+	done) printf '78' ;;
+	*) printf '245' ;; # idle / none
+	esac
+}
+
+cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
+trap cleanup EXIT INT TERM
+printf '%s[?25l' "$ESC" # hide cursor
+
+while :; do
+	# Dimensions + pane count. If we're the only pane left (the main shell
+	# exited), self-destruct so the window doesn't linger as a lone sidebar.
+	info=$(tmux display-message -p -t "$PANE" '#{pane_width} #{window_panes}' 2>/dev/null) || exit 0
+	# shellcheck disable=SC2086
+	set -- $info
+	W="${1:-24}"
+	NP="${2:-2}"
+	[ "${NP:-2}" -le 1 ] && exit 0
+	namew=$((W - 4))
+	[ "$namew" -lt 3 ] && namew=3
+
+	lines=()
+	lines+=("${ESC}[1;38;5;67m WINDOWS${RESET}")
+	lines+=("")
+	while read -r active idx scout name; do
+		col=$(color_for "$scout")
+		nm="$name"
+		[ "${#nm}" -gt "$namew" ] && nm="${nm:0:$((namew - 1))}…"
+		if [ "$active" = "1" ]; then
+			plain=">${idx} ${nm}"
+			pad=$((W - ${#plain}))
+			[ "$pad" -lt 0 ] && pad=0
+			lines+=("${ESC}[48;5;236m${ESC}[1;38;5;${col}m${plain}$(printf '%*s' "$pad" '')${RESET}")
+		else
+			lines+=(" ${ESC}[38;5;${col}m${idx}${RESET} ${ESC}[38;5;250m${nm}${RESET}")
+		fi
+	done < <(tmux list-windows -t "$PANE" \
+		-F '#{window_active} #{window_index} #{?@scout-state,#{@scout-state},none} #{window_name}' 2>/dev/null)
+
+	# Repaint from home; clear each line to EOL, then clear below the list.
+	printf '%s[H' "$ESC"
+	for ln in "${lines[@]}"; do
+		printf '%s%s[K\r\n' "$ln" "$ESC"
+	done
+	printf '%s[J' "$ESC"
+
+	sleep 1
+done

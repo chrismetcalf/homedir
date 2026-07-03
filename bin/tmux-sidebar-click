@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Select the window whose row was clicked in the sidebar pane.
+# Args: <mouse_y> <session_name>.
+#
+# Sidebar layout (see tmux-window-sidebar): row 0 = "WINDOWS" header,
+# row 1 = blank, rows 2.. = one window each, in `list-windows` order. The
+# sidebar pane is anchored top-left, so mouse_y is also its row index.
+# Bound via MouseDown1Pane in .tmux.conf (only fires over a @sidebar-pane).
+set -u
+
+y="${1:-}"
+sess="${2:-}"
+[ -n "$y" ] && [ -n "$sess" ] || exit 0
+
+idx=$((y - 2)) # skip the header + blank line
+[ "$idx" -ge 0 ] || exit 0
+
+win="$(tmux list-windows -t "$sess" -F '#{window_id}' | sed -n "$((idx + 1))p")"
+[ -n "$win" ] && tmux select-window -t "$win"

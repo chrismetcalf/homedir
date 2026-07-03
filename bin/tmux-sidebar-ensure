@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Ensure a window has the sidebar pane, if the feature is enabled (@sidebar on).
+# Idempotent and focus-safe: splits a narrow left pane running tmux-window-sidebar
+# without stealing focus. Called by tmux-sidebar-toggle (once per window) and by
+# the after-select-window / after-new-window hooks (current window).
+#
+# Arg 1: target window id (defaults to the current window).
+set -u
+
+[ "$(tmux show-option -gqv @sidebar)" = "on" ] || exit 0
+win="${1:-$(tmux display-message -p '#{window_id}')}"
+
+# Already has a sidebar pane? Nothing to do.
+if tmux list-panes -t "$win" -F '#{@sidebar-pane}' 2>/dev/null | grep -qx 1; then
+	exit 0
+fi
+
+width="$(tmux show-option -gqv @sidebar-width)"
+width="${width:-24}"
+
+# -h horizontal split, -b before (left side), -d keep focus on the current pane.
+p="$(tmux split-window -hb -l "$width" -d -t "$win" -P -F '#{pane_id}' \
+	"exec $HOME/bin/tmux-window-sidebar")" || exit 0
+[ -n "$p" ] && tmux set-option -p -t "$p" @sidebar-pane 1

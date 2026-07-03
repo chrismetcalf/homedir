@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Toggle the persistent window sidebar for the current session (prefix + W).
+#
+#   on  -> add the sidebar pane to every window now, and set @sidebar on so
+#          windows you later visit or create get one too (via the follow hooks
+#          in .tmux.conf that call tmux-sidebar-ensure).
+#   off -> remove every sidebar pane in the session and clear @sidebar.
+set -u
+
+sess="$(tmux display-message -p '#{session_name}')"
+state="$(tmux show-option -gqv @sidebar)"
+
+if [ "$state" = "on" ]; then
+	tmux set-option -g @sidebar off
+	tmux list-panes -s -t "$sess" -F '#{@sidebar-pane}|#{pane_id}' 2>/dev/null |
+		awk -F'|' '$1=="1"{print $2}' |
+		while read -r p; do tmux kill-pane -t "$p" 2>/dev/null; done
+	tmux display-message "window sidebar: off"
+else
+	tmux set-option -g @sidebar on
+	tmux list-windows -t "$sess" -F '#{window_id}' |
+		while read -r w; do "$HOME/bin/tmux-sidebar-ensure" "$w"; done
+	tmux display-message "window sidebar: on"
+fi
