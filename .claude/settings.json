@@ -58,6 +58,18 @@
         ]
       }
     ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
