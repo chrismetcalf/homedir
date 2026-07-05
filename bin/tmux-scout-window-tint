@@ -70,6 +70,20 @@ for (const s of active) {
   if (!prev || PRIO[state] > PRIO[prev]) paneState.set(s.tmuxPane, state)
 }
 
+// Pane-content fallback. scout only learns of a permission prompt via its
+// PermissionRequest hook, which never fires for sessions started before that
+// hook was installed (long-running worktree sessions) or when scout has latched
+// an interrupted/stale phase — so needsAttention stays null while the pane is
+// visibly asking for input. Scrape each agent pane for Claude's permission /
+// question dialog and promote it to wait (top priority). One capture-pane per
+// agent pane per tick — cheap, and it's the only hook-independent signal.
+const DIALOG_RE = /Do you want to |Would you like to proceed|❯ 1\. Yes/
+for (const s of active) {
+  const pane = s.tmuxPane
+  if (!pane || paneState.get(pane) === 'wait') continue
+  if (DIALOG_RE.test(tmux(`capture-pane -p -t ${pane}`))) paneState.set(pane, 'wait')
+}
+
 const panesRaw = tmux("list-panes -a -F '#{window_id} #{pane_id}'").trim()
 if (!panesRaw) process.exit(0)
 
