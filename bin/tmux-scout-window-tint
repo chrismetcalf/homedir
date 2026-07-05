@@ -74,14 +74,24 @@ for (const s of active) {
 // PermissionRequest hook, which never fires for sessions started before that
 // hook was installed (long-running worktree sessions) or when scout has latched
 // an interrupted/stale phase — so needsAttention stays null while the pane is
-// visibly asking for input. Scrape each agent pane for Claude's permission /
-// question dialog and promote it to wait (top priority). One capture-pane per
-// agent pane per tick — cheap, and it's the only hook-independent signal.
-const DIALOG_RE = /Do you want to |Would you like to proceed|❯ 1\. Yes/
+// visibly asking for input. Scrape each agent pane and promote it to wait (top
+// priority). One capture-pane per agent pane per tick — cheap.
+//
+// Match only a LIVE dialog at the bottom of the screen, not prose/history higher
+// up that merely quotes a prompt (an agent pane — like a Claude session helping
+// with this very script — can print dialog-looking text). Claude's dialog draws
+// an "❯ <n>." option selector plus a footer hint; require both, in the last ~12
+// non-empty lines.
+function paneIsPrompting(text) {
+  const tail = text.split('\n').map(l => l.replace(/\s+$/, '')).filter(Boolean).slice(-12)
+  const hasSelector = tail.some(l => /^\s*❯\s*\d+\.\s/.test(l))
+  const hasFooter = tail.some(l => /Esc to (cancel|reject)|Tab to amend|shift\+tab\)|allow all edits|don.t ask again/.test(l))
+  return hasSelector && hasFooter
+}
 for (const s of active) {
   const pane = s.tmuxPane
   if (!pane || paneState.get(pane) === 'wait') continue
-  if (DIALOG_RE.test(tmux(`capture-pane -p -t ${pane}`))) paneState.set(pane, 'wait')
+  if (paneIsPrompting(tmux(`capture-pane -p -t ${pane}`))) paneState.set(pane, 'wait')
 }
 
 const panesRaw = tmux("list-panes -a -F '#{window_id} #{pane_id}'").trim()
