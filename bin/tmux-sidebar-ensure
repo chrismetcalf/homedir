@@ -10,13 +10,17 @@ set -u
 [ "$(tmux show-option -gqv @sidebar)" = "on" ] || exit 0
 win="${1:-$(tmux display-message -p '#{window_id}')}"
 
-# Already has a sidebar pane? Nothing to do.
-if tmux list-panes -t "$win" -F '#{@sidebar-pane}' 2>/dev/null | grep -qx 1; then
-	exit 0
-fi
-
 width="$(tmux show-option -gqv @sidebar-width)"
 width="${width:-24}"
+
+# Already has a sidebar pane? Re-pin its width (a resize while this window was
+# hidden may have let it drift) and we're done.
+existing="$(tmux list-panes -t "$win" -F '#{@sidebar-pane}|#{pane_id}' 2>/dev/null |
+	awk -F'|' '$1=="1"{print $2; exit}')"
+if [ -n "$existing" ]; then
+	tmux resize-pane -x "$width" -t "$existing" 2>/dev/null
+	exit 0
+fi
 
 # -h horizontal split, -b before (left side), -d keep focus on the current pane.
 p="$(tmux split-window -hb -l "$width" -d -t "$win" -P -F '#{pane_id}' \

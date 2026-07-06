@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Re-pin every sidebar pane to @sidebar-width. tmux redistributes pane widths
+# proportionally when a client/window is resized, so without this the sidebar
+# drifts off its intended width and looks wonky. Bound to the window-resized
+# hook in .tmux.conf; also run per-window by tmux-sidebar-ensure on select.
+set -u
+
+width="$(tmux show-option -gqv @sidebar-width)"
+width="${width:-24}"
+
+tmux list-panes -s -F '#{@sidebar-pane}|#{pane_id}' 2>/dev/null |
+	awk -F'|' '$1=="1"{print $2}' |
+	while read -r p; do tmux resize-pane -x "$width" -t "$p" 2>/dev/null; done
