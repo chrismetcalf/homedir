@@ -218,6 +218,7 @@ Submodules under `bin/` (named `*.git/`): `ansiweather.git`, `multi-git-status.g
 
 - `~/.zshrc.local` — per-host secrets + tmux auto-attach (chmod 600)
 - `~/.shellfish-secrets` — Secure ShellFish push key/user, sourced by `.zsh/rc/shellfishrc` (chmod 600)
+- `~/.shellfishrc` — Secure ShellFish's own shell integration, dropped in by the app's installer; sourced from `.zshrc` behind a `test -e` guard (chmod 700)
 - `~/.ssh/config.local` — per-host SSH overrides, `Include`d from `.ssh/config` (chmod 600)
 - `~/.ssh/sockets/` — ControlMaster sockets (chmod 700)
 - `~/.ssh/id_rsa`, `~/.ssh/id_ed25519` — keys (never committed; `.gitignore` defensively blocks `.ssh/id_*`)
