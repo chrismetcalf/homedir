@@ -18,7 +18,7 @@ A fresh checkout needs more than `git pull` — submodules and per-host plugins 
    ```
    Submodules include `.oh-my-zsh`, `.oh-my-zsh-custom/plugins/zsh-syntax-highlighting`, `.oh-my-zsh-custom/plugins/zsh-autosuggestions`, `.oh-my-zsh-custom/themes/powerlevel10k`, `.tmux/plugins/tpm`, and the `bin/*.git` tools. Skipping this is what causes `[oh-my-zsh] plugin '...' not found` and a missing powerlevel10k prompt.
 2. **`bin/gitfix`** — symlinks repo contents into `~/`, `~/.ssh/`, `~/.config/`.
-3. **`claude-restore-plugins`** — reinstalls Claude Code plugins. Only `.claude/settings.json` (enabledPlugins + marketplaces) and `.claude/skills/` are versioned; the plugin files under `.claude/plugins/` are per-host. ("restore my plugins" maps here.)
+3. **`claude-restore-plugins`** — reinstalls Claude Code plugins. Only `.claude/settings.json` (enabledPlugins + marketplaces), `.claude/skills/`, and the hook scripts `settings.json` points at (`.claude/hooks/`, `.claude/shellfish-notify.sh`) are versioned; the plugin files under `.claude/plugins/` are per-host. ("restore my plugins" maps here.)
 4. **tmux → `prefix + I`** — tpm installs the tmux plugins (tmux-scout, etc.). Until tmux-scout is installed, the Claude hooks in `settings.json` no-op safely (they're guarded with `[ -f <script> ] && ...`), so a host without it won't throw `MODULE_NOT_FOUND`.
 
 ## Directory Structure
@@ -194,7 +194,7 @@ Utility scripts on `$PATH` (via `.zsh/rc/exports`). Notable ones:
 
 - **`gitfix`**: re-runnable symlink installer. Walks `.homedir/`, `.homedir/.ssh/`, `.homedir/.config/` and links matching entries into `~/`, `~/.ssh/`, `~/.config/`. Uses `dircombine` (Joey Hess, perl) which maintains a `known` file per source dir to clean up stale links on re-run. Skips `.git`, `.gitignore`, `.gitmodules`, `.svn`, `_darcs`.
 - **`install-neovim`**: downloads latest Neovim release into `~/bin/nvim` (Linux x86_64/arm64 tarballs, macOS x86_64/arm64).
-- **`claude-restore-plugins`**: reinstall Claude Code plugins on a new machine. Only `.claude/settings.json` (enabledPlugins + marketplaces) and `.claude/skills/` are versioned; the marketplace plugin files under `.claude/plugins/` aren't, so this re-adds the custom marketplaces and `claude plugin install`s each one. Run after `gitfix` on a fresh checkout. ("restore my plugins" → run this.)
+- **`claude-restore-plugins`**: reinstall Claude Code plugins on a new machine. Only `.claude/settings.json` (enabledPlugins + marketplaces), `.claude/skills/`, and the `settings.json` hook scripts (`.claude/hooks/deletion-circuit-breaker.sh`, `.claude/shellfish-notify.sh`) are versioned; the marketplace plugin files under `.claude/plugins/` aren't, so this re-adds the custom marketplaces and `claude plugin install`s each one. Run after `gitfix` on a fresh checkout. ("restore my plugins" → run this.)
 - **`setup_osx`**: macOS `defaults write` bootstrap (Sonoma/Sequoia idioms; sections for UI, keyboard, trackpad, Dock, Finder, etc.)
 - **`tmux-scout-window-tint`**: ticker (reads `~/.tmux-scout/status.json` via scout's own sync/render libs) that sets `@scout-state` per window; wait = scout `needsAttention` or a live approval dialog scraped from the pane. **`tmux-scout-next-wait`** (`prefix + ~`): jump to the next agent pane awaiting input.
 - **`tmux-window-sidebar`** + **`tmux-sidebar-{toggle,ensure,click,resize}`**: the `prefix + W` window sidebar — render loop, per-window spawn/teardown, click-to-switch, and resize re-pin.

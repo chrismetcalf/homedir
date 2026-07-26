@@ -45,6 +45,12 @@ bin/nvim
 !.claude/settings.json
 !.claude/CLAUDE.md
 !.claude/statusline-command.sh
+# Hook scripts referenced by settings.json — must ship with it or the hooks
+# fire against missing files on a fresh checkout.
+!.claude/hooks/
+!.claude/shellfish-notify.sh
+# Host-specific symlink into the Otto install; dangles on any other machine.
+.claude/skills/relay
 
 # Credentials / auth tokens — NEVER commit
 .config/cursor/

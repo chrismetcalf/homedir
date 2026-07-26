@@ -1,15 +1,157 @@
 {
   "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "Edit(/opt/docker-config/obsidian/Metcalf/**)",
+      "Bash(ls:*)",
+      "Bash(head:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(awk:*)",
+      "Bash(sed:*)",
+      "Bash(sort:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(timedatectl:*)",
+      "Bash(crontab:*)",
+      "Bash(node:*)",
+      "Bash(node --version:*)",
+      "Bash(npm install:*)",
+      "Bash(npm --version:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(python3:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git -C /opt/docker-config/obsidian/Metcalf:*)",
+      "Bash(pm2 restart:*)",
+      "Bash(pm2 start:*)",
+      "Bash(pm2 logs:*)",
+      "Bash(CLAUDECODE= node scripts/direct-query.js:*)",
+      "Bash(CLAUDECODE= timeout * node scripts/direct-query.js:*)",
+      "Bash(timeout * node:*)",
+      "Bash(node /opt/otto/scripts/check-email.js:*)",
+      "Bash(node /opt/otto/scripts/show-tripit.js:*)",
+      "Bash(/opt/otto/scripts/youtube-transcript.sh:*)",
+      "Bash(curl -fSL -o /opt/docker-config/obsidian/Metcalf/Attachments/:*)",
+      "WebFetch(domain:groups.io)",
+      "WebFetch(domain:docs.obsidian.md)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.home-assistant.io)",
+      "WebFetch(domain:status.claude.com)",
+      "WebFetch(domain:www.google.com)",
+      "WebFetch(domain:duckduckgo.com)",
+      "WebFetch(domain:html.duckduckgo.com)",
+      "WebFetch(domain:web.archive.org)",
+      "WebFetch(domain:troop166.net)",
+      "WebFetch(domain:troop151.net)",
+      "WebFetch(domain:troop681.org)",
+      "WebFetch(domain:scoutingseattle.org)",
+      "WebFetch(domain:www.troopwebhost.org)",
+      "WebFetch(domain:www.assumption-stbridget.org)",
+      "WebFetch(domain:adventuretaco.com)",
+      "WebFetch(domain:trail4runner.com)",
+      "mcp__playwright__browser_evaluate",
+      "Bash(pip3 show *)",
+      "mcp__google-maps__routes_compute",
+      "Bash(node /opt/otto/scripts/provision-worktree.js:*)",
+      "Bash(node /opt/otto/scripts/push-pr.js:*)",
+      "Bash(node /opt/otto/scripts/complete-build.js:*)",
+      "Bash(node /opt/otto/scripts/spawn-build-window.js:*)"
+    ],
     "deny": [
       "Read(/opt/otto/.env)",
       "Read(/opt/otto/.env.*)",
+      "Read(/home/krezel/.claude/settings.json)",
       "Edit(/opt/otto/scripts/**)",
-      "Write(/opt/otto/scripts/**)",
       "Edit(/opt/otto/CLAUDE.md)",
-      "Write(/opt/otto/CLAUDE.md)"
+      "Bash(cat /opt/otto/.env:*)",
+      "Bash(cat /home/krezel/:*)",
+      "Bash(curl file://:*)",
+      "Bash(curl *file://:*)",
+      "Bash(source /opt/otto/.env:*)",
+      "Bash(source /home/:*)",
+      "Bash(*/.env:*)",
+      "Bash(*.env:*)",
+      "Bash(*credentials*:*)",
+      "Bash(*SLACK_BOT_TOKEN*:*)",
+      "Bash(*GOOGLE_CLIENT_SECRET*:*)"
+    ],
+    "ask": [
+      "Edit(/opt/docker-config/obsidian/Metcalf/CLAUDE.md)",
+      "Edit(/opt/docker-config/obsidian/Metcalf/.claude/**)",
+      "Edit(/opt/docker-config/obsidian/Metcalf/.obsidian/**)",
+      "Edit(/opt/docker-config/obsidian/Metcalf/Otto/Prompts/**)"
     ]
   },
+  "model": "opus",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/krezel/.claude/hooks/deletion-circuit-breaker.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/krezel/.claude/shellfish-notify.sh claude"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",
@@ -34,30 +176,6 @@
         ]
       }
     ],
-    "PreToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "PermissionRequest": [
       {
         "matcher": "",
@@ -70,14 +188,13 @@
         ]
       }
     ],
-    "Stop": [
+    "Notification": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
-            "timeout": 5
+            "command": "/home/krezel/.claude/shellfish-notify.sh claude"
           }
         ]
       }
@@ -100,22 +217,22 @@
     "command": "bash /home/krezel/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "skill-creator@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
-    "superpowers@superpowers-marketplace": true
+    "skill-creator@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true,
+    "frontend-design@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
     "claude-code-plugins": {
       "source": {
         "source": "github",
         "repo": "anthropics/claude-code"
-      }
-    },
-    "ui-ux-pro-max-skill": {
-      "source": {
-        "source": "github",
-        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
       }
     },
     "superpowers-marketplace": {
@@ -124,13 +241,15 @@
         "repo": "obra/superpowers-marketplace"
       }
     },
-    "claude-plugins-official": {
+    "ui-ux-pro-max-skill": {
       "source": {
         "source": "github",
-        "repo": "anthropics/claude-plugins-official"
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
       }
     }
   },
   "alwaysThinkingEnabled": true,
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
   "agentPushNotifEnabled": true
 }
