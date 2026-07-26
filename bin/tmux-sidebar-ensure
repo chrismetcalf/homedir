@@ -10,6 +10,13 @@ set -u
 [ "$(tmux show-option -gqv @sidebar)" = "on" ] || exit 0
 win="${1:-$(tmux display-message -p '#{window_id}')}"
 
+# NEVER sidebar the Otto relay window: the relay addresses its panes by index
+# (main:otto-relay.0/1/2 = sonnet/opus/voice, per /opt/otto/.env), so inserting a
+# sidebar pane at index 0 shifts them and every relay request fails with "no signal".
+case "$(tmux display-message -p -t "$win" '#{window_name}')" in
+	otto-relay) exit 0 ;;
+esac
+
 width="$(tmux show-option -gqv @sidebar-width)"
 width="${width:-24}"
 
