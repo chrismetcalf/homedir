@@ -179,10 +179,14 @@ Leader key: `,`
 - **Window sidebar** (`prefix + W`): per-window narrow left pane listing every window (index + name + scout-state color, active highlighted). `bin/tmux-window-sidebar` renders; `tmux-sidebar-{toggle,ensure,click,resize}` drive it. Follow hooks (`after-select-window`/`after-new-window`) add it to windows as you visit/create them; the `window-resized` hook re-pins width to `@sidebar-width` (24). Focus-safe (`split -d`), self-destructs if it becomes the last pane, and a row click switches windows (`MouseDown1Pane` over sidebar panes only).
 - **Window tabs**: names truncated to 14 chars via `#{=/14/…:window_name}` in the theme so many long agent-worktree tabs stay readable before the bar scrolls.
 - **`status-interval` = 5**: tmux-powerline's `main.tmux` forces it to its own default (1) as tpm loads it, which restacks status renders faster than they finish (fork storm → box-wide lag). `.tmux.conf` **re-asserts `set -g status-interval 5` AFTER the tpm line** so it wins.
+- **which-key menu** (`prefix + ?`): alexwforsythe/tmux-which-key — a labelled popup of every binding, drilling into submenus (`+Agents`, `+Tools`, `+Windows`, `+Panes`, …). The plugin's default trigger keys are both taken here: `prefix + Space` is `last-window`, and a root-table `C-Space` would swallow nvim-cmp's completion key inside every pane — hence `?`. The raw `list-keys -N` listing that key used to run is still in the menu under `+Keys`.
+  - Config is **versioned at `.config/tmux/plugins/tmux-which-key/config.yaml`** (XDG mode via `@tmux-which-key-xdg-enable 1`), not in the gitignored `.tmux/plugins/` tree. The plugin regenerates `~/.local/share/tmux/plugins/tmux-which-key/init.tmux` from it on every load, so `prefix + r` picks up edits.
+  - Two YAML traps when editing it: an unquoted scalar makes ` #{...}` a **comment** (silently truncating the command), and generated menu strings are single-quoted, so a `'%1'` inside a command **closes the string** — use `{ }` command blocks or double quotes instead. Both bit the first draft; the fixes are commented in place.
 - **OSC 52 copy**: `@override_copy_command 'tmux load-buffer -w -'` routes every yank through tmux's buffer + OSC 52 to the host terminal clipboard (Tabby, ShellFish)
 - **Keybindings**:
   - `prefix + r`: reload `.tmux.conf`
   - `prefix + |` / `prefix + -`: vertical / horizontal split
+  - `prefix + ?`: which-key menu (every binding, labelled) · `prefix + /`: describe a single key
   - `prefix + W`: toggle window sidebar · `prefix + ~`: next agent pane awaiting input · `prefix + b`: break pane to its own window · `prefix + m`: tappable (ShellFish) action menu
   - `<C-h/j/k/l>`: pane nav (with vim-tmux-navigator)
 - **Dark theme**: all `*-style` options explicitly set to `bg=colour235` so activity/bell flags don't flip to white
