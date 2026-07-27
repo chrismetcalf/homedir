@@ -182,12 +182,13 @@ Leader key: `,`
 - **which-key menu** (`prefix + ?`): alexwforsythe/tmux-which-key — a labelled popup of every binding, drilling into submenus (`+Agents`, `+Tools`, `+Windows`, `+Panes`, …). The plugin's default trigger keys are both taken here: `prefix + Space` is `last-window`, and a root-table `C-Space` would swallow nvim-cmp's completion key inside every pane — hence `?`. The raw `list-keys -N` listing that key used to run is still in the menu under `+Keys`.
   - Config is **versioned at `.config/tmux/plugins/tmux-which-key/config.yaml`** (XDG mode via `@tmux-which-key-xdg-enable 1`), not in the gitignored `.tmux/plugins/` tree. The plugin regenerates `~/.local/share/tmux/plugins/tmux-which-key/init.tmux` from it on every load, so `prefix + r` picks up edits.
   - Two YAML traps when editing it: an unquoted scalar makes ` #{...}` a **comment** (silently truncating the command), and generated menu strings are single-quoted, so a `'%1'` inside a command **closes the string** — use `{ }` command blocks or double quotes instead. Both bit the first draft; the fixes are commented in place.
+  - **`prefix + m` opens the same menu** (it replaced a hand-rolled `display-menu`), so the ShellFish snippet that sends `^A m` still works; the menu is centred (`position: C/C`) for thumb-tapping. That bind lives **after** the tpm line — `show-wk-menu-root` is a command-alias the plugin defines as it loads — and behind an `if-shell` file test, since an unguarded `bind m show-wk-menu-root` fails config parsing with `unknown command` on a host that hasn't run `prefix + I` yet.
 - **OSC 52 copy**: `@override_copy_command 'tmux load-buffer -w -'` routes every yank through tmux's buffer + OSC 52 to the host terminal clipboard (Tabby, ShellFish)
 - **Keybindings**:
   - `prefix + r`: reload `.tmux.conf`
   - `prefix + |` / `prefix + -`: vertical / horizontal split
-  - `prefix + ?`: which-key menu (every binding, labelled) · `prefix + /`: describe a single key
-  - `prefix + W`: toggle window sidebar · `prefix + ~`: next agent pane awaiting input · `prefix + b`: break pane to its own window · `prefix + m`: tappable (ShellFish) action menu
+  - `prefix + ?` (or `prefix + m`): which-key menu (every binding, labelled) · `prefix + /`: describe a single key
+  - `prefix + W`: toggle window sidebar · `prefix + ~`: next agent pane awaiting input · `prefix + b`: break pane to its own window
   - `<C-h/j/k/l>`: pane nav (with vim-tmux-navigator)
 - **Dark theme**: all `*-style` options explicitly set to `bg=colour235` so activity/bell flags don't flip to white
 - `renumber-windows on`, `detach-on-destroy off`

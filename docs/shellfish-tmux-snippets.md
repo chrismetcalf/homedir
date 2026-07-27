@@ -32,12 +32,14 @@ key — e.g. zoom is `^A` then `z`).
 ## Start here: the tappable menu
 
 Add **this one first** — it makes the rest optional. `^A m` opens an on-screen
-menu you **tap** (mouse mode is on), covering zoom / break / split / pane list /
-windows / detach without any chords.
+menu you **tap** (mouse mode is on), centred on screen. It's the tmux-which-key
+menu: the top level covers the common actions, and rows starting with `+` open a
+submenu (`+Agents`, `+Panes`, `+Windows`, …), so everything tmux can do is
+reachable by tapping — no chords. `^A ?` opens the same menu from a keyboard.
 
 | Name | Sequence | Does |
 |------|----------|------|
-| tmux menu | `^A` `m` | Tappable popup of the common actions |
+| tmux menu | `^A` `m` | Tappable popup — every binding, nested by category |
 
 ## Pane focus (what you asked for)
 
@@ -91,4 +93,7 @@ windows / detach without any chords.
 ---
 
 Bindings live in [`.tmux.conf`](../.tmux.conf); the `m` menu and `b` break-pane
-keys were added specifically for mobile use.
+keys were added specifically for mobile use. `m` used to open a hand-rolled
+`display-menu`; it now points at tmux-which-key's root menu, whose contents come
+from [`.config/tmux/plugins/tmux-which-key/config.yaml`](../.config/tmux/plugins/tmux-which-key/config.yaml).
+The snippet itself is unchanged — it still just sends `^A m`.
