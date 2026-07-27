@@ -1,0 +1,45 @@
+# Ghostty configuration
+# Managed in ~/.homedir/.config/ghostty/config, symlinked by gitfix.
+# Full reference: `ghostty +show-config --default --docs` or https://ghostty.org/docs/config
+
+# --- Appearance ---------------------------------------------------------------
+theme = spaceduck
+# Override spaceduck's dark-navy (#0f111b) with pure black.
+background = #000000
+background-opacity = 0.98
+# Ghostty bundles JetBrains Mono Nerd Font, so devicons/powerline glyphs work.
+font-family = "JetBrainsMono Nerd Font"
+font-size = 14
+# Slightly roomier lines; comment out if you prefer tight.
+adjust-cell-height = 8%
+
+# --- Window -------------------------------------------------------------------
+window-padding-x = 8
+window-padding-y = 6
+window-padding-balance = true
+macos-titlebar-style = tabs
+# Don't restore last session's windows on launch.
+window-save-state = never
+
+# --- Cursor -------------------------------------------------------------------
+cursor-style = block
+cursor-style-blink = false
+shell-integration-features = no-cursor
+
+# --- Clipboard ----------------------------------------------------------------
+# You yank via OSC 52 (nvim vim.g.clipboard, tmux load-buffer -w). Let apps write
+# the clipboard, and copy-on-select for convenience.
+clipboard-read = allow
+clipboard-write = allow
+copy-on-select = clipboard
+
+# --- Shell / behavior ---------------------------------------------------------
+# tmux auto-attaches from ~/.zshrc.local, so just launch your login shell.
+confirm-close-surface = false
+mouse-hide-while-typing = true
+
+# --- Keybindings --------------------------------------------------------------
+# Reload config without restarting.
+keybind = cmd+shift+comma=reload_config
+# Unmap cmd+enter (default toggle_fullscreen) — too easy to hit by accident.
+keybind = cmd+enter=unbind
