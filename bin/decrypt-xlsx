@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""
+Remove password from an .xlsx file.
+
+Usage:
+    python remove_xlsx_password.py path/to/file.xlsx
+
+Behavior:
+- If the file is *encrypted* (requires an open password), the script will prompt
+  for that password and attempt to decrypt the file using msoffcrypto.
+- If the file is *not encrypted* but has sheet/workbook protection (you can open
+  it in Excel), the script will remove common protection XML tags and write a
+  new file without those protection tags.
+
+Requirements:
+    pip install msoffcrypto-tool
+
+Note: Only run on files you own or have permission to modify. The script writes
+a backup copy (original_filename.bak.xlsx) before modifying/writing output.
+"""
+import sys
+import re
+import shutil
+import zipfile
+import tempfile
+from pathlib import Path
+from getpass import getpass
+
+try:
+    import msoffcrypto
+except Exception:
+    print("Missing dependency 'msoffcrypto'. Install with: pip install msoffcrypto-tool")
+    sys.exit(2)
+
+
+def decrypt_office_file(path: Path, out_path: Path, password: str) -> bool:
+    """Attempt decryption with msoffcrypto. Returns True on success."""
+    with path.open("rb") as f_in:
+        of = msoffcrypto.OfficeFile(f_in)
+        if not of.is_encrypted():
+            return False
+        try:
+            of.load_key(password=password)
+            with out_path.open("wb") as f_out:
+                of.decrypt(f_out)
+            return True
+        except Exception as e:
+            print(f"Decryption failed: {e}")
+            return False
+
+
+# Patterns to remove protection tags (self-closing and paired) in worksheet/workbook XML
+_PROT_PATTERNS = [
+    # self-closing tags like <sheetProtection .../>
+    re.compile(r"<sheetProtection[^/>]*/\s*>", flags=re.IGNORECASE),
+    re.compile(r"<workbookProtection[^/>]*/\s*>", flags=re.IGNORECASE),
+    re.compile(r"<workbookProtection\b[^>]*>.*?</workbookProtection>", flags=re.IGNORECASE | re.DOTALL),
+    # protection tags inside workbook or worksheet
+    re.compile(r"<protection[^/>]*/\s*>", flags=re.IGNORECASE),
+    re.compile(r"<protection\b[^>]*>.*?</protection>", flags=re.IGNORECASE | re.DOTALL),
+]
+
+
+def strip_sheet_protection_zip(src: Path, dst: Path) -> bool:
+    """
+    Unzip XLSX, remove protection tags from xml files under xl/worksheets and xl/workbook.xml,
+    then rezip to dst. Returns True on success.
+    """
+    tmpdir = Path(tempfile.mkdtemp(prefix="xlsx_unprotect_"))
+    try:
+        with zipfile.ZipFile(src, "r") as zin:
+            zin.extractall(tmpdir)
+
+        changed = False
+        # target files: xl/worksheets/*.xml and xl/workbook.xml and xl/workbook.xml.rels? (we'll focus on .xml)
+        candidates = list(tmpdir.glob("xl/worksheets/*.xml"))
+        wb = tmpdir / "xl" / "workbook.xml"
+        if wb.exists():
+            candidates.append(wb)
+
+        for f in candidates:
+            txt = f.read_text(encoding="utf-8")
+            new_txt = txt
+            for pat in _PROT_PATTERNS:
+                new_txt = pat.sub("", new_txt)
+            if new_txt != txt:
+                f.write_text(new_txt, encoding="utf-8")
+                changed = True
+
+        # Rezip (preserve archive structure)
+        with zipfile.ZipFile(dst, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+            for file in tmpdir.rglob("*"):
+                zout.write(file, arcname=str(file.relative_to(tmpdir)))
+        return changed
+    except Exception as e:
+        print(f"Error while editing XLSX contents: {e}")
+        return False
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
+
+
+def make_backup(path: Path) -> Path:
+    bak = path.with_name(path.stem + ".bak" + path.suffix)
+    shutil.copy2(path, bak)
+    return bak
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python remove_xlsx_password.py file.xlsx")
+        sys.exit(1)
+
+    src = Path(sys.argv[1])
+    if not src.exists() or src.suffix.lower() != ".xlsx":
+        print("File does not exist or is not an .xlsx")
+        sys.exit(1)
+
+    out_decrypted = src.with_name(src.stem + "_unprotected" + src.suffix)
+
+    # First check encryption using msoffcrypto
+    with src.open("rb") as f:
+        ofile = msoffcrypto.OfficeFile(f)
+        encrypted = ofile.is_encrypted()
+
+    if encrypted:
+        pwd = getpass("Enter open-password for encrypted .xlsx: ")
+        bak = make_backup(src)
+        ok = decrypt_office_file(src, out_decrypted, pwd)
+        if ok:
+            print(f"Decrypted file written to: {out_decrypted}")
+            print(f"Backup of original made at: {bak}")
+            sys.exit(0)
+        else:
+            print("Failed to decrypt. No output written.")
+            sys.exit(3)
+    else:
+        # Not encrypted; attempt to strip sheet/workbook protection
+        bak = make_backup(src)
+        changed = strip_sheet_protection_zip(src, out_decrypted)
+        if changed:
+            print(f"Protection tags removed. New file: {out_decrypted}")
+            print(f"Backup of original made at: {bak}")
+            sys.exit(0)
+        else:
+            # If no changes made, still write a copy but warn user
+            shutil.copy2(src, out_decrypted)
+            print("No sheet/workbook protection tags found (or no changes applied).")
+            print(f"Copied original to: {out_decrypted}")
+            print(f"Backup of original made at: {bak}")
+            sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

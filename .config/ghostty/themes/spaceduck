@@ -1,0 +1,28 @@
+# Spaceduck theme for Ghostty
+# Palette from github.com/pineapplegiant/spaceduck (matches the nvim colorscheme).
+
+background = #0f111b
+foreground = #ecf0c1
+
+cursor-color = #c1c3cc
+cursor-text = #0f111b
+
+selection-background = #30365f
+selection-foreground = #ecf0c1
+
+palette = 0=#000000
+palette = 1=#e33400
+palette = 2=#5ccc96
+palette = 3=#b3a1e6
+palette = 4=#00a3cc
+palette = 5=#ce6f8f
+palette = 6=#7a5ccc
+palette = 7=#686f9a
+palette = 8=#686f9a
+palette = 9=#e33400
+palette = 10=#5ccc96
+palette = 11=#b3a1e6
+palette = 12=#00a3cc
+palette = 13=#ce6f8f
+palette = 14=#7a5ccc
+palette = 15=#ecf0c1

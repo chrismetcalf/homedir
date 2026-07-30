@@ -33,6 +33,8 @@ bin/nvim
 .config/karabiner/automatic_backups/
 .config/thefuck/__pycache__/
 .config/thefuck/settings.pyc
+.config/cagent/
+.config/ncmpcpp/
 .config/uv/
 .config/wireshark/
 .fonts/.uuid
@@ -55,8 +57,11 @@ bin/nvim
 # Credentials / auth tokens — NEVER commit
 .config/cursor/
 .config/gcloud/
+.config/gh/
 .config/github-copilot/
 .config/heroku
+.config/op/
+.config/raycast/
 .config/hub
 .config/rclone/
 # SSH: defensive — block private keys, per-host configs, and runtime state.

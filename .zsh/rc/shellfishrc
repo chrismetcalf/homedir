@@ -275,7 +275,9 @@ EOF
   }
 
   # copy standard input or arguments to iOS clipboard
-  pbcopy() {
+  # `function` keyword avoids alias expansion (oh-my-zsh's macos plugin
+  # aliases pbcopy/pbpaste).
+  function pbcopy {
     OUTPUT=$(
       awk 'BEGIN {printf "52;c;"} '
       if [ $# -eq 0 ]; then
@@ -288,7 +290,7 @@ EOF
   }
   
   # paste from iOS device clipboard to standard output
-  pbpaste() {
+  function pbpaste {
     FIFO=$(ios_prepareResult)
     OUTPUT=$(
       awk 'BEGIN {printf "6;pbpaste://?ver=2&respond="}'
