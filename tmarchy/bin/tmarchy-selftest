@@ -20,15 +20,22 @@ export XDG_STATE_HOME="$STATE_HOME"
 SENTINEL_THEME="tmarchy-selftest-sentinel-$$"
 SENTINEL_PATH="$DIR/themes/$SENTINEL_THEME.conf"
 SENTINEL_BG="#c0ffee"
+# The outer server that supplies the pty for rendering. Same $$-uniquification
+# as SOCK, and torn down in the same trap — an outer server/socket leaked on
+# an interrupted run is exactly the /tmp accumulation this repo has a
+# documented history of (see CLAUDE.md troubleshooting notes).
+OUTER_SOCK="tmarchy-outer-$$"
+OUTER_SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$OUTER_SOCK"
 FAILED=0
 
 cleanup() {
   tmux -L "$SOCK" kill-server 2>/dev/null
+  tmux -L "$OUTER_SOCK" kill-server 2>/dev/null
   # kill-server doesn't reliably unlink its socket, and this repo has a
   # documented history of /tmp accumulation causing box-wide lag (see
   # CLAUDE.md troubleshooting notes) — so remove it ourselves rather than
   # trusting the side effect.
-  rm -f "$SOCK_PATH"
+  rm -f "$SOCK_PATH" "$OUTER_SOCK_PATH"
   rm -rf "$STATE_HOME"
   rm -f "$SENTINEL_PATH"
 }
@@ -79,5 +86,45 @@ printf 'no-such-theme\n' > "$STATE_HOME/tmarchy/theme"
 out="$(load_tmarchy)"
 assert_eq "bogus persisted theme loads without error" "" "$out"
 assert_eq "bogus persisted theme falls back to default" "tokyo-night" "$(theme_option @tmarchy-theme)"
+
+# Render a real client and capture what it actually drew. An outer throwaway
+# server supplies the pty the inner server needs in order to render at all.
+# Reuses OUTER_SOCK/OUTER_SOCK_PATH (declared up top) rather than a fresh name
+# per call, so the trap's cleanup covers this even if we're interrupted
+# mid-render; the two call sites below run sequentially so there's no
+# collision between them.
+render_status() {
+  tmux -L "$OUTER_SOCK" -f /dev/null new-session -d -x 200 -y 24 "tmux -L $SOCK attach" 2>/dev/null
+  sleep 1
+  tmux -L "$OUTER_SOCK" capture-pane -p -e -t 0 2>/dev/null | tail -1
+  tmux -L "$OUTER_SOCK" kill-server 2>/dev/null
+  rm -f "$OUTER_SOCK_PATH"
+}
+
+echo "rendering"
+tmux -L "$SOCK" rename-session tmarchytest
+STATUS="$(render_status)"
+
+case "$STATUS" in
+  *tmarchytest*) pass "session name appears in the bar" ;;
+  *) fail "session name appears in the bar" "tmarchytest" "$STATUS" ;;
+esac
+
+case "$STATUS" in
+  *$'\033['*) pass "bar is styled (escape sequences present)" ;;
+  *) fail "bar is styled (escape sequences present)" "an SGR sequence" "$STATUS" ;;
+esac
+
+# The load-bearing mechanism: a user option expanded INSIDE a style spec.
+# Uses a 256-colour value because its SGR encoding is stable, unlike truecolor
+# which tmux may downsample depending on the test terminal.
+echo "theme indirection"
+tmux -L "$SOCK" set -g @theme-probe "colour203"
+tmux -L "$SOCK" set -g status-left "#[fg=#{@theme-probe}]PROBE#[default] "
+PROBE="$(render_status)"
+case "$PROBE" in
+  *'38;5;203'*) pass "#[fg=#{@theme-probe}] renders as SGR 38;5;203" ;;
+  *) fail "#[fg=#{@theme-probe}] renders as SGR 38;5;203" "38;5;203" "$PROBE" ;;
+esac
 
 exit "$FAILED"
