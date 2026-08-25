@@ -204,4 +204,28 @@ assert_eq "leaves the old choice intact after a bad set" "tokyo-night" \
   "$(cat "$STATE_DIR/tmarchy/theme" 2>/dev/null)"
 rm -rf "$STATE_DIR"
 
+# The sentinel fixture from the "theme restore" section above is done being
+# used. Clean it up now rather than waiting for the exit trap: it lives in
+# themes/ alongside the real theme files, and the loop below counts and
+# iterates everything matching themes/*.conf.
+rm -f "$SENTINEL_PATH"
+
+echo "all themes"
+EXPECTED_KEYS="@theme-bg @theme-fg @theme-dim @theme-accent @theme-accent-alt @theme-border @theme-wait @theme-busy @theme-done @theme-remote"
+for theme_file in "$DIR"/themes/*.conf; do
+  theme_name="$(basename "$theme_file" .conf)"
+  tmux -L "$SOCK" source-file "$theme_file"
+  missing=""
+  for key in $EXPECTED_KEYS; do
+    value="$(tmux -L "$SOCK" show -gv "$key" 2>/dev/null)"
+    case "$value" in
+      '#'*|colour*) ;;
+      *) missing="$missing $key" ;;
+    esac
+  done
+  assert_eq "$theme_name defines every colour" "" "$missing"
+done
+
+assert_eq "nine themes are installed" "9" "$(ls -1 "$DIR"/themes/*.conf | wc -l | tr -d ' ')"
+
 exit "$FAILED"
