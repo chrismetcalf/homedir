@@ -204,6 +204,25 @@ assert_eq "leaves the old choice intact after a bad set" "tokyo-night" \
   "$(cat "$STATE_DIR/tmarchy/theme" 2>/dev/null)"
 rm -rf "$STATE_DIR"
 
+# An unwritable state dir must fail loudly rather than silently applying the
+# theme live while leaving the persisted choice stale — that divergence is
+# exactly what a reboot or new session would surface with nothing on screen
+# to explain it. This never touches the live server: the persistence check
+# runs (and, here, fails) before tmarchy-theme makes any tmux call at all,
+# so it's safe regardless of what socket a bare `tmux` would resolve to.
+RO_STATE_DIR="$(mktemp -d)"
+mkdir -p "$RO_STATE_DIR/tmarchy"
+chmod 000 "$RO_STATE_DIR/tmarchy"
+RO_OUT="$(XDG_STATE_HOME="$RO_STATE_DIR" "$DIR/bin/tmarchy-theme" set tokyo-night 2>&1)"
+RO_RC=$?
+chmod 700 "$RO_STATE_DIR/tmarchy"
+assert_eq "exits non-zero when it can't persist" "1" "$RO_RC"
+case "$RO_OUT" in
+  *"not applied"*) pass "reports the persistence failure" ;;
+  *) fail "reports the persistence failure" "a message mentioning 'not applied'" "$RO_OUT" ;;
+esac
+rm -rf "$RO_STATE_DIR"
+
 # The sentinel fixture from the "theme restore" section above is done being
 # used. Clean it up now rather than waiting for the exit trap: it lives in
 # themes/ alongside the real theme files, and the loop below counts and

@@ -33,8 +33,21 @@ case "${1:-current}" in
       echo "available: $(list_themes | tr '\n' ' ')" >&2
       exit 1
     fi
-    mkdir -p "$STATE_DIR"
-    printf '%s\n' "$name" > "$STATE"
+    # Persist before applying anything live, and refuse to apply live if
+    # persistence fails. The alternative — apply live anyway — makes the bar
+    # show $name while the state file still names the old theme, which is
+    # the exact silent-divergence bug this is fixing, just moved from "wrong
+    # exit code" to "wrong screen": the next tmux start (new session, reboot)
+    # would revert with nothing on screen to explain why. A loud failure here
+    # keeps the live bar and the persisted state in agreement at all times.
+    if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
+      echo "tmarchy-theme: failed to create $STATE_DIR — $name not applied" >&2
+      exit 1
+    fi
+    if ! printf '%s\n' "$name" > "$STATE" 2>/dev/null; then
+      echo "tmarchy-theme: failed to persist theme to $STATE — $name not applied (would silently revert on the next tmux start)" >&2
+      exit 1
+    fi
     if [ -n "${TMUX:-}" ] || tmux has-session 2>/dev/null; then
       tmux source-file "$DIR/themes/$name.conf"
       tmux set -g @tmarchy-theme "$name"
