@@ -94,17 +94,25 @@ assert_eq "bogus persisted theme falls back to default" "tokyo-night" "$(theme_o
 # mid-render; the two call sites below run sequentially so there's no
 # collision between them.
 #
-# Polls for a non-empty capture instead of a fixed sleep: this box's CLAUDE.md
-# documents routine multi-second process-spawn stalls under load, so a flat
-# wait either burns that margin needlessly when the box is quiet or isn't
-# enough when it's loaded. Polling degrades to "slower," never "flaky," and
-# is faster than a fixed sleep in the common case.
+# Polls for a CONVERGED capture instead of a fixed sleep: this box's
+# CLAUDE.md documents routine multi-second process-spawn stalls under load,
+# so a flat wait either burns that margin needlessly when the box is quiet or
+# isn't enough when it's loaded. Polling degrades to "slower," never "flaky."
+#
+# Non-empty isn't enough: a freshly attached client's first frame already has
+# drawable content, but can render before truecolor/RGB capability
+# negotiation with the outer terminal completes, so tmux falls back to the
+# 256-colour palette for that one frame and then redraws in truecolor a
+# moment later. Waiting for two consecutive identical samples (rather than
+# special-casing a colour marker here, which would just move the problem)
+# waits out that transient instead of accepting whichever frame lands first.
 render_status() {
   tmux -L "$OUTER_SOCK" -f /dev/null new-session -d -x 200 -y 24 "tmux -L $SOCK attach" 2>/dev/null
-  local waited=0 out=""
+  local waited=0 out="" prev=""
   while [ "$waited" -lt 3000 ]; do
     out="$(tmux -L "$OUTER_SOCK" capture-pane -p -e -t 0 2>/dev/null | tail -1)"
-    [ -n "$out" ] && break
+    [ -n "$out" ] && [ "$out" = "$prev" ] && break
+    prev="$out"
     sleep 0.1
     waited=$((waited + 100))
   done
