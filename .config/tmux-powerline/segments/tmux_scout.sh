@@ -3,7 +3,7 @@
 # https://github.com/qeesung/tmux-scout
 
 run_segment() {
-	local tint="$HOME/bin/tmux-scout-window-tint"
+	local tint="$HOME/.homedir/tmarchy/bin/tmarchy-tick"
 
 	# Silent ticker: each status refresh runs the tint script to update
 	# @scout-state on every tmux window. Backgrounded so node startup adds

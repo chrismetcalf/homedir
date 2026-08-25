@@ -1,99 +1,31 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { summarise, parseStatus } = require('../segments.d/agents')
+const { summarise } = require('../segments.d/agents')
+
+// summarise() now takes the Map that lib/scout.js scoutStates() returns —
+// window id -> state — rather than a second, independently parsed reading of
+// status.json. The fixture tests for parseStatus() are gone with the function:
+// the mapping they pinned now lives in test/scout.test.js, exercised through
+// paneStates(), so there is exactly one place where scout's vocabulary is
+// interpreted and the summary cannot disagree with the tab colours.
+const states = (...pairs) => new Map(pairs.map((s, i) => [`@${i + 1}`, s]))
 
 test('reports nothing when no agents are running', () => {
-  assert.strictEqual(summarise([]), null)
+  assert.strictEqual(summarise(new Map()), null)
 })
 
 test('waiting agents outrank busy ones', () => {
-  const sessions = [
-    { state: 'busy' }, { state: 'busy' }, { state: 'wait' },
-  ]
-  assert.strictEqual(summarise(sessions), '1 waiting')
+  assert.strictEqual(summarise(states('busy', 'busy', 'wait')), '1 waiting')
 })
 
 test('falls back to a busy count when nothing waits', () => {
-  assert.strictEqual(summarise([{ state: 'busy' }, { state: 'busy' }]), '2 busy')
+  assert.strictEqual(summarise(states('busy', 'busy')), '2 busy')
 })
 
 test('idle-only agents produce nothing to show', () => {
-  assert.strictEqual(summarise([{ state: 'idle' }, { state: 'done' }]), null)
+  assert.strictEqual(summarise(states('idle', 'done')), null)
 })
 
-// Fixture modeled on the live ~/.tmux-scout/status.json on this box (inspected
-// 2026-08-25): `sessions` is an OBJECT keyed by sessionId, not an array, and
-// carries decades of history — most entries are long-ended. State comes from
-// `phase` (authoritative) or `status` as a fallback, same as
-// bin/tmux-scout-window-tint's mapping, and `needsAttention`/`pendingInteraction`
-// mean "waiting" regardless of phase.
-const fixtureStatus = {
-  version: 1,
-  lastUpdated: 1787679777507,
-  sessions: {
-    'session-waiting': {
-      endedAt: null,
-      status: 'working',
-      phase: 'waitingForApproval',
-      needsAttention: true,
-      pendingInteraction: null,
-    },
-    'session-busy': {
-      endedAt: null,
-      status: 'working',
-      phase: 'running',
-      needsAttention: null,
-      pendingInteraction: null,
-    },
-    'session-idle': {
-      endedAt: null,
-      status: 'idle',
-      phase: 'idle',
-      needsAttention: null,
-      pendingInteraction: null,
-    },
-    'session-done': {
-      endedAt: null,
-      status: 'completed',
-      phase: 'completed',
-      needsAttention: null,
-      pendingInteraction: null,
-    },
-    'session-interrupted': {
-      // No wait/busy/done/idle mapping for this phase — must be dropped,
-      // not miscounted as busy.
-      endedAt: null,
-      status: 'interrupted',
-      phase: 'interrupted',
-      needsAttention: null,
-      pendingInteraction: null,
-    },
-    'session-long-ended': {
-      // The bulk of real status.json entries: a finished session that is
-      // still sitting in the file. Must not count toward a "live" summary.
-      endedAt: 1787594412705,
-      status: 'completed',
-      phase: 'completed',
-      needsAttention: null,
-      pendingInteraction: null,
-    },
-  },
-}
-
-test('parseStatus maps the real object-of-sessions shape, dropping ended and unmapped sessions', () => {
-  const sessions = parseStatus(fixtureStatus)
-  assert.deepStrictEqual(
-    sessions.map(s => s.state).sort(),
-    ['busy', 'done', 'idle', 'wait'],
-  )
-})
-
-test('parseStatus feeds summarise() correctly end-to-end on the real shape', () => {
-  assert.strictEqual(summarise(parseStatus(fixtureStatus)), '1 waiting')
-})
-
-test('parseStatus tolerates a missing or malformed sessions field', () => {
-  assert.deepStrictEqual(parseStatus({}), [])
-  assert.deepStrictEqual(parseStatus({ sessions: [] }), [])
-  assert.deepStrictEqual(parseStatus(null), [])
+test('counts every waiting window, not just the first', () => {
+  assert.strictEqual(summarise(states('wait', 'busy', 'wait')), '2 waiting')
 })

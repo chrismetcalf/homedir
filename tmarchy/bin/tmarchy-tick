@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+// tmarchy-tick — invoked once per status-interval by a #() in bar.conf.
+//
+// Prints NOTHING. It exists for its side effects: writing the values tmux
+// cannot compute itself into user options that bar.conf reads. Values are
+// therefore one interval stale, which is invisible at 5s and is the price of
+// never running a shell during a redraw.
+//
+// Renamed from bin/tmux-scout-window-tint; its per-window scout logic now lives
+// in lib/scout.js and still colours the tabs exactly as it did.
+const path = require('node:path')
+const { setOptions } = require('../lib/tmux')
+const { loadSegments, renderSegments } = require('../lib/segments')
+const { currentContext, allWindows, hasContext } = require('../lib/context')
+const { sshHostUnder } = require('../segments.d/remote')
+const { scoutStates } = require('../lib/scout')
+
+function main() {
+  const ops = []
+
+  // Per-window. A null value UNSETS the option, matching the behaviour of the
+  // old ticker: an idle window has no @scout-state at all rather than the
+  // string "idle", so the bar's #{==:...} comparisons fall through cleanly.
+  //
+  // A failed list-windows yields no windows, hence no ops, hence every window
+  // keeps the state it already had — the correct behaviour for a failed tick.
+  const states = scoutStates()
+  for (const win of allWindows()) {
+    ops.push({
+      scope: 'window',
+      target: win.id,
+      name: '@scout-state',
+      value: states.get(win.id) || null,
+    })
+    ops.push({
+      scope: 'window',
+      target: win.id,
+      name: '@remote-host',
+      value: win.command === 'ssh' ? sshHostUnder(win.pid) || 'ssh' : null,
+    })
+  }
+
+  // Global segment values for the current pane's context.
+  //
+  // lib/tmux.js cannot tell "the command printed nothing" from "the command
+  // failed", and for the pane query those differ: a live pane always has a pid,
+  // so an empty answer means the query failed, not that we are outside a repo
+  // and off ssh. Writing it anyway would UNSET @bar-branch and @bar-remote on
+  // a failed tick, which is exactly what this ticker promises not to do — so
+  // skip the whole group and leave the previous values standing.
+  const ctx = currentContext()
+  if (hasContext(ctx)) {
+    const values = renderSegments(loadSegments(path.join(__dirname, '..', 'segments.d')), ctx)
+    for (const name of ['load', 'agents', 'branch', 'remote', 'battery']) {
+      ops.push({ scope: 'global', name: `@bar-${name}`, value: values[name] || null })
+    }
+  }
+
+  setOptions(ops)
+}
+
+try {
+  main()
+} catch {
+  // A failed tick leaves every option at its previous value: the bar shows
+  // five-second-stale data rather than breaking.
+}
