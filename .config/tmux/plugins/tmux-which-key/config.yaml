@@ -112,6 +112,37 @@ items:
         key: y
         command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-yank/scripts/copy_pane_pwd.sh
 
+  - name: +Theme
+    key: T
+    menu:
+      - name: Tokyo Night
+        key: t
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set tokyo-night"
+      - name: Catppuccin
+        key: c
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set catppuccin"
+      - name: Everforest
+        key: e
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set everforest"
+      - name: Gruvbox
+        key: g
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set gruvbox"
+      - name: Kanagawa
+        key: k
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set kanagawa"
+      - name: Nord
+        key: n
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set nord"
+      - name: Rose Pine
+        key: r
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set rose-pine"
+      - name: Matte Black
+        key: m
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set matte-black"
+      - name: Jewel (pre-tmarchy)
+        key: j
+        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set jewel"
+
   - name: +Windows
     key: w
     menu:
@@ -341,7 +372,7 @@ items:
 
   - separator: true
   - name: Time
-    key: T
+    key: C-t
     command: clock-mode
   - name: Show messages
     key: M
