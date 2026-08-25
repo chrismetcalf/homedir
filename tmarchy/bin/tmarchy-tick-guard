@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# tmarchy-tick-guard — rate-limits the ticker. This is what bar.conf's single
+# #() invokes; tmarchy-tick itself stays directly runnable and unguarded.
+#
+# tmux re-runs a #() on every status REDRAW once the previous job exits, NOT on
+# status-interval. With a dozen agent panes producing output, redraws are
+# near-continuous: measured 2.0 node spawns/sec and 0.27 mean concurrent
+# processes where the design assumed 0.2/sec — about a quarter of a core burned
+# permanently, at ~58 MB and ~0.15 s per spawn. Since the cost IS node startup,
+# the guard has to decide before node ever runs.
+#
+# So: bash builtins only on the common path. No date, no cat, no test binary --
+# a skip forks nothing at all, which is the whole point. Two clients can still
+# race through the window between the read and the write and both spawn a tick;
+# that costs one extra node per interval at worst and is not worth a lock (any
+# lock primitive here would fork, defeating the guard on every single call).
+set -uo pipefail
+
+readonly DEFAULT_INTERVAL=5
+
+# One stamp per user, deliberately NOT per tmux server. tmux does export TMUX
+# (socket,pid,session) to status jobs, so keying on ${TMUX%%,*} would isolate
+# concurrent servers for free -- but the selftest uses a $$-unique socket name,
+# so that would mint a fresh /tmp file on every test run, and unbounded /tmp
+# accumulation is a documented cause of box-wide lag in this repo (see
+# CLAUDE.md). The cost of sharing is that two live tmarchy servers halve each
+# other's tick rate; the only realistic second server is a ~10s selftest, which
+# does not care. One file, forever, is the better trade.
+stamp="${TMPDIR:-/tmp}/tmarchy-tick-$UID.stamp"
+
+# EPOCHSECONDS is bash 5+. macOS ships bash 3.2 as /bin/bash, and while the
+# env-bash shebang above prefers a Homebrew bash 5 when one is installed, it
+# will land on 3.2 when one is not. printf '%(%s)T' covers 4.2+; only genuine
+# 3.2 pays for a date fork, which is still ~1 ms against node's ~150 ms. The
+# guard therefore degrades in cost, never in correctness.
+if [ -n "${EPOCHSECONDS:-}" ]; then
+  now=$EPOCHSECONDS
+elif (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2) )); then
+  printf -v now '%(%s)T' -1
+else
+  now=$(date +%s)
+fi
+
+# A truncated or half-written stamp must not wedge the bar: anything that isn't
+# a plain integer is treated as "no stamp", so the tick runs and rewrites it.
+last=0
+if [ -r "$stamp" ]; then
+  read -r last < "$stamp" || last=0
+  case $last in
+    '' | *[!0-9]*) last=0 ;;
+  esac
+fi
+
+(( now - last < ${TMARCHY_TICK_MIN_INTERVAL:-$DEFAULT_INTERVAL} )) && exit 0
+
+# An unwritable stamp must not emit a shell error, so swallow stderr. The order
+# matters and is not the obvious one: redirections are applied left to right, so
+# `> "$stamp" 2>/dev/null` still reports the failed open on the inherited stderr
+# because /dev/null isn't in place yet. 2>/dev/null has to come FIRST.
+# A failed write just means an unthrottled tick -- degraded, not broken.
+printf '%s\n' "$now" 2>/dev/null > "$stamp"
+
+# Resolve alongside this script rather than via PATH: bar.conf calls us by
+# absolute path, and the ticker must be the one from the same checkout. A
+# bare-name invocation leaves ${0%/*} as the name itself, so fall back to PATH
+# -- and if that isn't there either, exit quietly. "command not found" on stdout
+# would be drawn straight into the status line.
+tick="${BASH_SOURCE[0]%/*}/tmarchy-tick"
+if [ ! -x "$tick" ]; then
+  tick=$(command -v tmarchy-tick 2>/dev/null) || exit 0
+  [ -n "$tick" ] || exit 0
+fi
+exec "$tick"

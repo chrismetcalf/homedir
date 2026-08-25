@@ -155,4 +155,38 @@ case "$PROBE" in
   *) fail "#[fg=#{@theme-probe}] renders as SGR 38;5;203" "38;5;203" "$PROBE" ;;
 esac
 
+# The rate guard sits in front of the ticker in bar.conf's one #(), so anything
+# it prints is drawn straight into the status line. Both paths must be silent —
+# the skip path especially, since it is the one that runs several times a second.
+#
+# TMPDIR is redirected at its own scratch dir: the guard's stamp is shared per
+# user by design (see the comment in tmarchy-tick-guard), so testing against the
+# real one would both reset the live bar's throttle and make these assertions
+# depend on whatever a live tmux server did in the last five seconds.
+echo "tick guard"
+GUARD_TMP="$(mktemp -d)"
+
+guard_out() { TMPDIR="$GUARD_TMP" "$@" "$DIR/bin/tmarchy-tick-guard" 2>&1; }
+
+# No stamp yet, so this one runs the ticker for real.
+assert_eq "prints nothing when it runs the ticker" "" "$(guard_out env)"
+assert_eq "writes a stamp when it runs the ticker" "yes" \
+  "$([ -s "$GUARD_TMP/tmarchy-tick-$UID.stamp" ] && echo yes || echo no)"
+
+# Stamp is now fresh, so this one must be dropped before node ever starts.
+assert_eq "prints nothing when it skips" "" "$(guard_out env)"
+
+# A zero interval disables the throttle: proves the skip above was the guard
+# deciding, not the ticker silently failing.
+assert_eq "honours TMARCHY_TICK_MIN_INTERVAL" "" \
+  "$(guard_out env TMARCHY_TICK_MIN_INTERVAL=0)"
+
+# A truncated or garbage stamp must not wedge the bar or leak a shell error.
+printf 'not-a-number\n' > "$GUARD_TMP/tmarchy-tick-$UID.stamp"
+assert_eq "recovers from a corrupt stamp" "" "$(guard_out env)"
+assert_eq "rewrites a corrupt stamp" "yes" \
+  "$(grep -qE '^[0-9]+$' "$GUARD_TMP/tmarchy-tick-$UID.stamp" && echo yes || echo no)"
+
+rm -rf "$GUARD_TMP"
+
 exit "$FAILED"
