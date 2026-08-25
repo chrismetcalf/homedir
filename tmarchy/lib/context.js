@@ -1,6 +1,18 @@
 // One tmux query produces everything the segments need, so segments never
 // shell out themselves.
 //
+// TAB-separated, never space-separated. `#{pane_current_path}` is arbitrary
+// user data — this user's vault alone holds directories like
+// "00.10 - Projects Backup" — so splitting on a space silently mis-assigns
+// every field: "/home/me/my project zsh 123" parses as path "/home/me/my",
+// command "project", pid "zsh". That is worse than a failure, because
+// hasContext() sees a non-empty pid and the branch segment then resolves a
+// truncated path, which can land inside a DIFFERENT repo and render a
+// plausible-looking wrong branch. NUL would be the ideal separator, but the
+// format travels as an argv string and argv cannot carry a NUL; tab is the
+// strongest separator that survives, and the fields are parsed from the right
+// so even a tab inside a path cannot shift the command or the pid.
+//
 // lib/tmux.js returns '' both for "the command printed nothing" and for "the
 // command failed", and those two mean different things here. An empty
 // list-windows is harmless: no windows, no ops, every window option keeps its
@@ -12,13 +24,23 @@
 // ticker checks before it writes any global option.
 const { tmux } = require('./tmux')
 
-const PANE_FORMAT = '#{pane_current_path} #{pane_current_command} #{pane_pid}'
-const WINDOW_FORMAT = '#{window_id} #{pane_current_command} #{pane_pid}'
+const SEP = '\t'
+const PANE_FORMAT = ['#{pane_current_path}', '#{pane_current_command}', '#{pane_pid}'].join(SEP)
+const WINDOW_FORMAT = ['#{window_id}', '#{pane_current_command}', '#{pane_pid}'].join(SEP)
+
+const EMPTY_CONTEXT = { panePath: null, paneCommand: null, panePid: null }
 
 function parseContext(out) {
-  const [panePath = null, paneCommand = null, panePid = null] =
-    out.trim().length ? out.trim().split(' ') : []
-  return { panePath, paneCommand, panePid }
+  const line = out.replace(/\r?\n$/, '')
+  const parts = line.split(SEP)
+  // Parsed from the right: command and pid are the last two fields and cannot
+  // contain a tab, so whatever precedes them is the path, tabs and all.
+  if (parts.length < 3) return { ...EMPTY_CONTEXT }
+  const panePid = parts.pop()
+  const paneCommand = parts.pop()
+  const panePath = parts.join(SEP)
+  if (!panePid) return { ...EMPTY_CONTEXT }
+  return { panePath: panePath || null, paneCommand: paneCommand || null, panePid }
 }
 
 function parseWindows(out) {
@@ -26,9 +48,10 @@ function parseWindows(out) {
     .split('\n')
     .filter(Boolean)
     .map(line => {
-      const [id, command, pid] = line.split(' ')
+      const [id, command = null, pid = null] = line.split(SEP)
       return { id, command, pid }
     })
+    .filter(win => win.id)
 }
 
 // False when the pane query produced nothing, i.e. tmux failed or there is no
@@ -51,6 +74,7 @@ module.exports = {
   hasContext,
   currentContext,
   allWindows,
+  SEP,
   PANE_FORMAT,
   WINDOW_FORMAT,
 }

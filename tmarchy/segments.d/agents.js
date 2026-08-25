@@ -3,7 +3,10 @@
 // window", this answers "is anything waiting on me" without reading the tabs.
 //
 // Counts come from lib/scout.js so the summary and the per-tab dots can never
-// disagree: they are the same numbers, from the same call. This segment used to
+// disagree: scoutStates() is memoized per process, so this segment and the
+// ticker read one snapshot, not two readings of a file that is being rewritten
+// underneath them. Sharing the mapping alone would not be enough — two calls
+// ~130ms apart could still differ. This segment used to
 // parse ~/.tmux-scout/status.json itself, and that second reading had already
 // drifted from the tab mapping in three ways — no pane-content fallback for
 // sessions started before the PermissionRequest hook existed, an ad-hoc
@@ -14,6 +17,11 @@
 const { scoutStates } = require('../lib/scout')
 
 // states: the Map<windowId, state> that scoutStates() returns.
+//
+// Note the unit: these are WINDOWS, not sessions, despite the segment being
+// called "agents". Two agents waiting in two panes of the same window report
+// "1 waiting". That is deliberate — the count is meant to match the number of
+// tinted tabs you would go looking at, and prefix+~ navigates by window too.
 function summarise(states) {
   const values = [...states.values()]
   const waiting = values.filter(s => s === 'wait').length
@@ -27,5 +35,10 @@ module.exports = {
   name: 'agents',
   summarise,
   enabled: () => true, // scoutStates() returns an empty Map when scout is absent
-  render: () => summarise(scoutStates()),
+  // null means scout could not be read at all; the ticker drops the @bar-agents
+  // write entirely in that case, so the value returned here is never used.
+  render: () => {
+    const states = scoutStates()
+    return states ? summarise(states) : null
+  },
 }

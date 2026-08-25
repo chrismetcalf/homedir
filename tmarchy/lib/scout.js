@@ -64,34 +64,15 @@ function paneStates(active) {
   return paneState
 }
 
-function scoutStates() {
-  const scoutDir = tmux(['show-env', '-g', 'SCOUT_DIR']).replace(/^SCOUT_DIR=/m, '').trim()
-  if (!scoutDir || !fs.existsSync(scoutDir)) return new Map()
-
-  let sync, render
-  try {
-    sync = require(path.join(scoutDir, 'scripts/picker/sync'))
-    render = require(path.join(scoutDir, 'scripts/picker/render'))
-  } catch {
-    return new Map()
-  }
-
-  const statusFile = path.join(process.env.HOME || '', '.tmux-scout/status.json')
-  let cached
-  try {
-    cached = sync.run(statusFile)
-  } catch {
-    return new Map()
-  }
-  if (!cached || !cached.status) return new Map()
-
-  const paneState = paneStates(render.getActiveSessions(cached.status, cached.panes))
-
-  const panesRaw = tmux(['list-panes', '-a', '-F', '#{window_id} #{pane_id}']).trim()
-  if (!panesRaw) return new Map()
+// Roll pane states up to their windows, highest priority winning. Returns null
+// when the pane list is empty, which is not an answer: a live tmux server always
+// has at least one pane, so an empty result means the query failed.
+function windowStates(panesRaw, paneState) {
+  const raw = panesRaw.trim()
+  if (!raw) return null
 
   const winState = new Map()
-  for (const line of panesRaw.split('\n')) {
+  for (const line of raw.split('\n')) {
     const [winId, paneId] = line.split(' ')
     if (!winId) continue
     const state = paneState.get(paneId)
@@ -102,4 +83,68 @@ function scoutStates() {
   return winState
 }
 
-module.exports = { scoutStates, paneIsPrompting, paneStates, PRIO }
+// Returns a Map<windowId, state>, or null when scout could not be read at all.
+//
+// The distinction matters because callers unset @scout-state for every window
+// the Map does not mention. That is right for a genuine zero ("scout is
+// installed and nothing is running", "scout is not installed at all") and wrong
+// for a failure ("scout blipped this tick"), where clearing every tint means
+// acting on no information. Unsetting stays the DEFAULT — a frozen `wait` tint
+// is worse than a five-second flicker, because prefix+~ navigates by wait state
+// and a stale red tab sends you to a pane that is not asking anything, the same
+// failure class that got the pendingToolUse heuristic deleted (see CLAUDE.md).
+// null is reserved for the cases where we genuinely learned nothing.
+function computeScoutStates() {
+  const scoutDir = tmux(['show-env', '-g', 'SCOUT_DIR']).replace(/^SCOUT_DIR=/m, '').trim()
+  // Scout absent, rather than unreadable: a genuine zero. Any tint still on a
+  // window is left over from a scout that is no longer there, so clear it.
+  if (!scoutDir || !fs.existsSync(scoutDir)) return new Map()
+
+  let sync, render
+  try {
+    sync = require(path.join(scoutDir, 'scripts/picker/sync'))
+    render = require(path.join(scoutDir, 'scripts/picker/render'))
+  } catch {
+    return null // scout is there but its libraries would not load
+  }
+
+  const statusFile = path.join(process.env.HOME || '', '.tmux-scout/status.json')
+  let cached
+  try {
+    cached = sync.run(statusFile)
+  } catch {
+    return null // torn read, bad JSON, transient I/O — no information
+  }
+  if (!cached || !cached.status) return null
+
+  const paneState = paneStates(render.getActiveSessions(cached.status, cached.panes))
+  return windowStates(tmux(['list-panes', '-a', '-F', '#{window_id} #{pane_id}']), paneState)
+}
+
+// Memoized for the life of the process. The ticker and the agents segment both
+// want this, and two calls ~130ms apart would take two independent snapshots of
+// a file another process rewrites continuously, plus two independent
+// capture-pane sweeps — so the tab colours and the summary would share a
+// mapping but not a snapshot, and could disagree. One call per tick makes them
+// literally the same numbers, and halves the ticker's fork count into the
+// bargain. There is no cross-tick cache: the process exits in a few hundred ms.
+let memo // undefined = not computed yet; null is a legitimate computed value
+
+function scoutStates() {
+  if (memo === undefined) memo = computeScoutStates()
+  return memo
+}
+
+function resetScoutStates() {
+  memo = undefined
+}
+
+module.exports = {
+  scoutStates,
+  resetScoutStates,
+  computeScoutStates,
+  windowStates,
+  paneIsPrompting,
+  paneStates,
+  PRIO,
+}

@@ -24,14 +24,22 @@ function main() {
   //
   // A failed list-windows yields no windows, hence no ops, hence every window
   // keeps the state it already had — the correct behaviour for a failed tick.
+  //
+  // scoutStates() returns null when scout could not be read at all, as opposed
+  // to an empty Map for "read fine, nothing is running". Only the latter is
+  // grounds for clearing tints; on null we write no @scout-state at all and the
+  // previous tick's colours stand for another five seconds. @remote-host is
+  // independent of scout and is written either way.
   const states = scoutStates()
   for (const win of allWindows()) {
-    ops.push({
-      scope: 'window',
-      target: win.id,
-      name: '@scout-state',
-      value: states.get(win.id) || null,
-    })
+    if (states) {
+      ops.push({
+        scope: 'window',
+        target: win.id,
+        name: '@scout-state',
+        value: states.get(win.id) || null,
+      })
+    }
     ops.push({
       scope: 'window',
       target: win.id,
@@ -52,6 +60,10 @@ function main() {
   if (hasContext(ctx)) {
     const values = renderSegments(loadSegments(path.join(__dirname, '..', 'segments.d')), ctx)
     for (const name of ['load', 'agents', 'branch', 'remote', 'battery']) {
+      // Same reasoning as the tints above, and it has to match them: if scout
+      // was unreadable this tick, blanking the summary while the tabs keep
+      // their colours would make the bar contradict itself.
+      if (name === 'agents' && states === null) continue
       ops.push({ scope: 'global', name: `@bar-${name}`, value: values[name] || null })
     }
   }
