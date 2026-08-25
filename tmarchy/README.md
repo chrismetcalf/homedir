@@ -152,27 +152,54 @@ correctly, and that every shipped theme defines every required colour.
 
 ## Rollback
 
-**`git revert 2d92d6b`, alone.** Do not revert Task 7 (`9cddda7`) — it
-updated `.config/tmux-powerline/segments/tmux_scout.sh` to the renamed
-ticker path in its own commit, so powerline's scout segment keeps working
-either way, and reverting it isn't needed and isn't harmless.
+```
+git checkout 2d92d6b^ -- .tmux.conf     # 2d92d6b^ == 85d4fd3
+tmux source-file ~/.tmux.conf           # or prefix + r, to apply it live
+```
+
+That is the whole rollback. `2d92d6b` (the commit that stood tmarchy up and
+retired powerline) touched **`.tmux.conf` and nothing else**, so restoring
+that one file to its pre-tmarchy revision restores the pre-tmarchy tmux
+config exactly. Verified: exit 0, and the resulting `.tmux.conf` is
+byte-identical to the pre-tmarchy one. The `tmarchy/` tree stays on disk but
+nothing sources it, so rolling *forward* again is a `git checkout` away too.
+
+Do not revert Task 7 (`9cddda7`) — it updated
+`.config/tmux-powerline/segments/tmux_scout.sh` to the renamed ticker path in
+its own commit, so powerline's scout segment keeps working either way, and
+reverting it isn't needed and isn't harmless.
+
+### Why not `git revert`
+
+**`git revert 2d92d6b` does not apply.** It was the documented instruction
+twice, and it has been wrong both times. `f2bbe0c` ("correct the rollback
+instruction") rewrote the very comment block `2d92d6b` introduced, so
+reverting the earlier commit alone conflicts in `.tmux.conf` — in the
+emergency procedure, during the emergency, on a config that lives on three
+machines.
+
+`git revert --no-commit f2bbe0c 2d92d6b` *does* apply cleanly today (exit 0,
+`.tmux.conf` byte-identical). It is still the wrong thing to document,
+because it is a chain that has to be extended by hand every time anything
+edits `.tmux.conf` — which is precisely how this instruction broke the first
+time. The checkout above has no such coupling: it names a fixed pre-tmarchy
+revision of one file and cannot conflict with anything committed after it.
+
+### Why not just uncomment the plugin line
 
 Do **not** "roll back" by uncommenting the `# set -g @plugin
-'erikw/tmux-powerline'` line in `.tmux.conf` and leaving the rest alone.
-That was the original plan for this rollback and it is wrong — actively
-dangerous, not just incomplete. `2d92d6b` didn't only add tmarchy: it also
-deleted the native window-status formats and the post-tpm `status-interval
-5` reassertion that were holding tmux-powerline in check. Uncommenting the
-plugin line without reverting the rest of that commit hands tmux-powerline
-back its per-window `#()` callout at `status-interval` 1 — which is the
-2026-08-21 fork storm, verbatim (12 windows × 1 Hz × a forked shell, 1,180
-forks/sec measured at 73% idle CPU). This was verified by running exactly
-that combination on a throwaway server. `.tmux.conf` documents this at the
-commented plugin line; this section exists so the same warning is
-findable from here too.
-
-After reverting, `tmux source-file ~/.tmux.conf` (or `prefix + r`) to apply
-it to a live session.
+'erikw/tmux-powerline'` line in `.tmux.conf` and leaving the rest alone. That
+was the original plan for this rollback and it is wrong — actively dangerous,
+not just incomplete. `2d92d6b` didn't only add tmarchy: it also deleted the
+native window-status formats and the post-tpm `status-interval 5`
+reassertion that were holding tmux-powerline in check. Uncommenting the
+plugin line without restoring the rest of the file hands tmux-powerline back
+its per-window `#()` callout at `status-interval` 1 — which is the 2026-08-21
+fork storm, verbatim (12 windows × 1 Hz × a forked shell, 1,180 forks/sec
+measured at 73% idle CPU). This was verified by running exactly that
+combination on a throwaway server. `.tmux.conf` documents this at the
+commented plugin line; this section exists so the same warning is findable
+from here too.
 
 ## Things that cost real debugging time here
 
