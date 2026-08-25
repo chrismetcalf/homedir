@@ -93,12 +93,24 @@ assert_eq "bogus persisted theme falls back to default" "tokyo-night" "$(theme_o
 # per call, so the trap's cleanup covers this even if we're interrupted
 # mid-render; the two call sites below run sequentially so there's no
 # collision between them.
+#
+# Polls for a non-empty capture instead of a fixed sleep: this box's CLAUDE.md
+# documents routine multi-second process-spawn stalls under load, so a flat
+# wait either burns that margin needlessly when the box is quiet or isn't
+# enough when it's loaded. Polling degrades to "slower," never "flaky," and
+# is faster than a fixed sleep in the common case.
 render_status() {
   tmux -L "$OUTER_SOCK" -f /dev/null new-session -d -x 200 -y 24 "tmux -L $SOCK attach" 2>/dev/null
-  sleep 1
-  tmux -L "$OUTER_SOCK" capture-pane -p -e -t 0 2>/dev/null | tail -1
+  local waited=0 out=""
+  while [ "$waited" -lt 3000 ]; do
+    out="$(tmux -L "$OUTER_SOCK" capture-pane -p -e -t 0 2>/dev/null | tail -1)"
+    [ -n "$out" ] && break
+    sleep 0.1
+    waited=$((waited + 100))
+  done
   tmux -L "$OUTER_SOCK" kill-server 2>/dev/null
   rm -f "$OUTER_SOCK_PATH"
+  printf '%s' "$out"
 }
 
 echo "rendering"
@@ -110,14 +122,22 @@ case "$STATUS" in
   *) fail "session name appears in the bar" "tmarchytest" "$STATUS" ;;
 esac
 
+# Proves the real pipeline end-to-end: tokyo-night's actual @theme-bg
+# (#1a1b26) survives load -> bar.conf's status-style -> a real render,
+# encoded as its truecolor SGR (48;2;26;27;38). Stock tmux's default status
+# line uses reverse-video (30/42) and never this triplet, so — unlike a bare
+# "an escape sequence is present" check — this can't pass against vanilla
+# tmux with no tmarchy config loaded.
 case "$STATUS" in
-  *$'\033['*) pass "bar is styled (escape sequences present)" ;;
-  *) fail "bar is styled (escape sequences present)" "an SGR sequence" "$STATUS" ;;
+  *'48;2;26;27;38'*) pass "tokyo-night's @theme-bg renders as SGR 48;2;26;27;38" ;;
+  *) fail "tokyo-night's @theme-bg renders as SGR 48;2;26;27;38" "48;2;26;27;38" "$STATUS" ;;
 esac
 
-# The load-bearing mechanism: a user option expanded INSIDE a style spec.
-# Uses a 256-colour value because its SGR encoding is stable, unlike truecolor
-# which tmux may downsample depending on the test terminal.
+# The load-bearing MECHANISM, distinct from the check above: a user option
+# expanded INSIDE a style spec, proven with a synthetic probe rather than the
+# real theme so it can't be confused with "the theme file happens to be
+# right." Uses a 256-colour value because its SGR encoding is stable, unlike
+# truecolor which tmux may downsample depending on the test terminal.
 echo "theme indirection"
 tmux -L "$SOCK" set -g @theme-probe "colour203"
 tmux -L "$SOCK" set -g status-left "#[fg=#{@theme-probe}]PROBE#[default] "
