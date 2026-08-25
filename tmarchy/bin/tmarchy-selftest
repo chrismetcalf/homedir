@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
 # tmarchy-selftest — asserts tmarchy loads and renders correctly.
-# Uses throwaway tmux servers so it never touches a live session.
+# Uses a throwaway tmux server AND a throwaway XDG_STATE_HOME so it never
+# touches a live session or a real persisted theme choice.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOCK="tmarchy-test-$$"
+SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK"
+STATE_HOME="$(mktemp -d)"
+export XDG_STATE_HOME="$STATE_HOME"
 FAILED=0
 
-cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; }
+cleanup() {
+  tmux -L "$SOCK" kill-server 2>/dev/null
+  # kill-server doesn't reliably unlink its socket, and this repo has a
+  # documented history of /tmp accumulation causing box-wide lag (see
+  # CLAUDE.md troubleshooting notes) — so remove it ourselves rather than
+  # trusting the side effect.
+  rm -f "$SOCK_PATH"
+  rm -rf "$STATE_HOME"
+}
 trap cleanup EXIT
 
 pass() { printf '  ok   %s\n' "$1"; }
@@ -17,18 +29,35 @@ assert_eq() { # name expected actual
   [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"
 }
 
-start_server() {
-  tmux -L "$SOCK" -f /dev/null new-session -d -x 200 -y 24
-  tmux -L "$SOCK" run-shell "$DIR/tmarchy.tmux"
-}
+# Captures tmarchy.tmux's own stdout/stderr so a noisy or erroring load can't
+# hide behind assertions that only check the options it happens to set.
+load_tmarchy() { tmux -L "$SOCK" run-shell "$DIR/tmarchy.tmux" 2>&1; }
+theme_option() { tmux -L "$SOCK" show -gv "$1" 2>/dev/null; }
 
 echo "tmarchy selftest"
-start_server
+tmux -L "$SOCK" -f /dev/null new-session -d -x 200 -y 24
+
+echo "load"
+out="$(load_tmarchy)"
+assert_eq "tmarchy.tmux loads without error" "" "$out"
 
 echo "theme options"
-assert_eq "@theme-bg is set"   "#1a1b26" "$(tmux -L "$SOCK" show -gv @theme-bg)"
-assert_eq "@theme-fg is set"   "#c0caf5" "$(tmux -L "$SOCK" show -gv @theme-fg)"
-assert_eq "@theme-wait is set" "#f7768e" "$(tmux -L "$SOCK" show -gv @theme-wait)"
-assert_eq "active theme recorded" "tokyo-night" "$(tmux -L "$SOCK" show -gv @tmarchy-theme)"
+assert_eq "@theme-bg is set"   "#1a1b26" "$(theme_option @theme-bg)"
+assert_eq "@theme-fg is set"   "#c0caf5" "$(theme_option @theme-fg)"
+assert_eq "@theme-wait is set" "#f7768e" "$(theme_option @theme-wait)"
+assert_eq "active theme recorded" "tokyo-night" "$(theme_option @tmarchy-theme)"
+
+echo "theme restore"
+mkdir -p "$STATE_HOME/tmarchy"
+
+printf 'tokyo-night\n' > "$STATE_HOME/tmarchy/theme"
+out="$(load_tmarchy)"
+assert_eq "valid persisted theme loads without error" "" "$out"
+assert_eq "valid persisted theme is honoured" "tokyo-night" "$(theme_option @tmarchy-theme)"
+
+printf 'no-such-theme\n' > "$STATE_HOME/tmarchy/theme"
+out="$(load_tmarchy)"
+assert_eq "bogus persisted theme loads without error" "" "$out"
+assert_eq "bogus persisted theme falls back to default" "tokyo-night" "$(theme_option @tmarchy-theme)"
 
 exit "$FAILED"
