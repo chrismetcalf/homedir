@@ -189,4 +189,19 @@ assert_eq "rewrites a corrupt stamp" "yes" \
 
 rm -rf "$GUARD_TMP"
 
+echo "theme switcher"
+assert_eq "lists tokyo-night" "yes" \
+  "$("$DIR/bin/tmarchy-theme" list | grep -qx 'tokyo-night' && echo yes || echo no)"
+
+STATE_DIR="$(mktemp -d)"
+XDG_STATE_HOME="$STATE_DIR" "$DIR/bin/tmarchy-theme" set tokyo-night >/dev/null 2>&1
+assert_eq "persists the chosen theme" "tokyo-night" \
+  "$(cat "$STATE_DIR/tmarchy/theme" 2>/dev/null)"
+
+XDG_STATE_HOME="$STATE_DIR" "$DIR/bin/tmarchy-theme" set no-such-theme >/dev/null 2>&1
+assert_eq "refuses an unknown theme" "1" "$?"
+assert_eq "leaves the old choice intact after a bad set" "tokyo-night" \
+  "$(cat "$STATE_DIR/tmarchy/theme" 2>/dev/null)"
+rm -rf "$STATE_DIR"
+
 exit "$FAILED"

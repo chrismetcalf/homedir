@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# tmarchy-theme — list, report, or change the active theme.
+#
+# Switching is a one-shot source-file plus refresh-client. It is NOT a
+# per-redraw lookup: the bar reads @theme-* options that this sets once.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy"
+STATE="$STATE_DIR/theme"
+
+usage() {
+  echo "usage: tmarchy-theme [list|current|set <name>]" >&2
+  exit 2
+}
+
+list_themes() {
+  find "$DIR/themes" -maxdepth 1 -name '*.conf' -exec basename {} .conf \; | sort
+}
+
+case "${1:-current}" in
+  list)
+    list_themes
+    ;;
+  current)
+    tmux show -gv @tmarchy-theme 2>/dev/null || cat "$STATE" 2>/dev/null || echo tokyo-night
+    ;;
+  set)
+    name="${2:-}"
+    [ -n "$name" ] || usage
+    if [ ! -f "$DIR/themes/$name.conf" ]; then
+      echo "tmarchy-theme: no such theme: $name" >&2
+      echo "available: $(list_themes | tr '\n' ' ')" >&2
+      exit 1
+    fi
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$name" > "$STATE"
+    if [ -n "${TMUX:-}" ] || tmux has-session 2>/dev/null; then
+      tmux source-file "$DIR/themes/$name.conf"
+      tmux set -g @tmarchy-theme "$name"
+      tmux refresh-client -S 2>/dev/null
+      tmux display-message "tmarchy: $name"
+    fi
+    ;;
+  *)
+    usage
+    ;;
+esac
