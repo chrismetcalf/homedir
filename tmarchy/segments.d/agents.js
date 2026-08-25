@@ -49,8 +49,19 @@ function mapState(s) {
 }
 
 // Turn a parsed status.json document into the array of {state} objects
-// summarise() expects. Tolerant of a missing/malformed sessions field so a
-// scout version bump degrades to "nothing to show" instead of throwing.
+// summarise() expects. Tolerant of a missing/malformed `sessions` field so a
+// scout version bump degrades to "nothing to show" instead of throwing — but
+// that's the only tolerance this function offers. A torn/truncated read of
+// status.json (it's written continuously by another process) fails earlier,
+// in readSessions()'s JSON.parse, and relies entirely on lib/segments.js's
+// per-segment try/catch to keep a bad tick from taking the bar with it.
+//
+// This mapping (mapState + the endedAt filter) duplicates the one in
+// bin/tmux-scout-window-tint rather than sharing it — same phase/status
+// priority, but no pane-content fallback, no dedup, and endedAt filtering
+// standing in for scout's own getActiveSessions() liveness check. That's
+// slated to be folded onto a shared lib/scout.js in Task 7; don't take the
+// duplication here as a deliberate design choice.
 function parseStatus(data) {
   const rawSessions = data && typeof data.sessions === 'object' && !Array.isArray(data.sessions)
     ? Object.values(data.sessions)
