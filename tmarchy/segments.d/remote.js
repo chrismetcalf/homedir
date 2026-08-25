@@ -5,9 +5,12 @@
 const fs = require('node:fs')
 
 function hostFromArgv(argv) {
+  // Every value-taking flag from `man ssh` (checked systematically, not just
+  // patched for the two the reviewer found: -B bind_interface, -P tag).
   const FLAGS_WITH_VALUES = new Set([
     '-p', '-l', '-i', '-o', '-F', '-b', '-c', '-D', '-E', '-e',
     '-I', '-J', '-L', '-m', '-O', '-Q', '-R', '-S', '-W', '-w',
+    '-B', '-P',
   ])
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]

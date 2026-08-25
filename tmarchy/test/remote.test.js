@@ -21,3 +21,11 @@ test('ignores a trailing remote command', () => {
 test('returns null when there is no host', () => {
   assert.strictEqual(hostFromArgv(['ssh']), null)
 })
+
+test('ignores -B bind_interface and its value', () => {
+  assert.strictEqual(hostFromArgv(['ssh', '-B', 'eth0', 'realhost']), 'realhost')
+})
+
+test('ignores -P tag and its value', () => {
+  assert.strictEqual(hostFromArgv(['ssh', '-P', 'mytag', 'realhost']), 'realhost')
+})

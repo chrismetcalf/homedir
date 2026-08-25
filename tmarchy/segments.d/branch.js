@@ -27,7 +27,11 @@ function branchOf(dir) {
       }
       if (stat.isFile()) {
         const pointer = fs.readFileSync(dotgit, 'utf8').trim()
-        const gitdir = pointer.replace(/^gitdir:\s*/, '')
+        const raw = pointer.replace(/^gitdir:\s*/, '')
+        // Worktree pointers are absolute; submodule pointers (e.g. this
+        // repo's `.oh-my-zsh` -> `../.git/modules/.oh-my-zsh`) are relative
+        // to the directory containing this .git file, not to cwd.
+        const gitdir = path.isAbsolute(raw) ? raw : path.resolve(current, raw)
         return headToBranch(fs.readFileSync(path.join(gitdir, 'HEAD'), 'utf8'))
       }
     } catch {

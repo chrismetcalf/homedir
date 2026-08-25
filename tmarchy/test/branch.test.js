@@ -62,6 +62,24 @@ test('resolves a worktree whose .git is a file', () => {
   }
 })
 
+test('resolves a submodule whose .git file has a relative gitdir', () => {
+  // Real submodule pointers look like `gitdir: ../.git/modules/name`,
+  // relative to the directory holding the .git file — not to cwd. This repo's
+  // own .oh-my-zsh submodule is exactly this shape and exposed the bug.
+  const main = repo('ref: refs/heads/master\n')
+  try {
+    const gitdir = path.join(main, '.git', 'modules', 'sub')
+    fs.mkdirSync(gitdir, { recursive: true })
+    fs.writeFileSync(path.join(gitdir, 'HEAD'), 'ref: refs/heads/subfeature\n')
+    const sub = path.join(main, 'sub')
+    fs.mkdirSync(sub)
+    fs.writeFileSync(path.join(sub, '.git'), 'gitdir: ../.git/modules/sub\n')
+    assert.strictEqual(branchOf(sub), 'subfeature')
+  } finally {
+    cleanup(main)
+  }
+})
+
 test('returns null outside a repo', () => {
   assert.strictEqual(branchOf(os.tmpdir()), null)
 })
