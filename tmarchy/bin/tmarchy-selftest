@@ -9,6 +9,14 @@ SOCK="tmarchy-test-$$"
 SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK"
 STATE_HOME="$(mktemp -d)"
 export XDG_STATE_HOME="$STATE_HOME"
+# tokyo-night is both the shipped default AND the only valid persisted-theme
+# value available, so persisting "tokyo-night" can't distinguish "restore
+# applied it" from "restore is dead code and the default just matched by
+# coincidence." A throwaway fixture with a colour value that tokyo-night
+# could never produce closes that gap.
+SENTINEL_THEME="tmarchy-selftest-sentinel"
+SENTINEL_PATH="$DIR/themes/$SENTINEL_THEME.conf"
+SENTINEL_BG="#c0ffee"
 FAILED=0
 
 cleanup() {
@@ -19,6 +27,7 @@ cleanup() {
   # trusting the side effect.
   rm -f "$SOCK_PATH"
   rm -rf "$STATE_HOME"
+  rm -f "$SENTINEL_PATH"
 }
 trap cleanup EXIT
 
@@ -50,10 +59,18 @@ assert_eq "active theme recorded" "tokyo-night" "$(theme_option @tmarchy-theme)"
 echo "theme restore"
 mkdir -p "$STATE_HOME/tmarchy"
 
-printf 'tokyo-night\n' > "$STATE_HOME/tmarchy/theme"
+cat > "$SENTINEL_PATH" <<CONF
+# throwaway fixture for tmarchy-selftest — deleted by the trap. A sentinel
+# colour proves the persisted theme's file was actually sourced, not just
+# that its name was accepted and echoed back.
+set -g @theme-bg "$SENTINEL_BG"
+CONF
+
+printf '%s\n' "$SENTINEL_THEME" > "$STATE_HOME/tmarchy/theme"
 out="$(load_tmarchy)"
 assert_eq "valid persisted theme loads without error" "" "$out"
-assert_eq "valid persisted theme is honoured" "tokyo-night" "$(theme_option @tmarchy-theme)"
+assert_eq "valid persisted theme is honoured" "$SENTINEL_THEME" "$(theme_option @tmarchy-theme)"
+assert_eq "valid persisted theme's colours are applied" "$SENTINEL_BG" "$(theme_option @theme-bg)"
 
 printf 'no-such-theme\n' > "$STATE_HOME/tmarchy/theme"
 out="$(load_tmarchy)"
