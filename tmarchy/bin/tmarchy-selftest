@@ -13,8 +13,11 @@ export XDG_STATE_HOME="$STATE_HOME"
 # value available, so persisting "tokyo-night" can't distinguish "restore
 # applied it" from "restore is dead code and the default just matched by
 # coincidence." A throwaway fixture with a colour value that tokyo-night
-# could never produce closes that gap.
-SENTINEL_THEME="tmarchy-selftest-sentinel"
+# could never produce closes that gap. $$-suffixed like SOCK: concurrent
+# selftest runs against the same checkout are routine here, and a shared
+# fixture path lets one run's cleanup delete the file out from under another
+# run mid-flight.
+SENTINEL_THEME="tmarchy-selftest-sentinel-$$"
 SENTINEL_PATH="$DIR/themes/$SENTINEL_THEME.conf"
 SENTINEL_BG="#c0ffee"
 FAILED=0
