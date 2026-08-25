@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# tmarchy-selftest — asserts tmarchy loads and renders correctly.
+# Uses throwaway tmux servers so it never touches a live session.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOCK="tmarchy-test-$$"
+FAILED=0
+
+cleanup() { tmux -L "$SOCK" kill-server 2>/dev/null; }
+trap cleanup EXIT
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+
+assert_eq() { # name expected actual
+  [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"
+}
+
+start_server() {
+  tmux -L "$SOCK" -f /dev/null new-session -d -x 200 -y 24
+  tmux -L "$SOCK" run-shell "$DIR/tmarchy.tmux"
+}
+
+echo "tmarchy selftest"
+start_server
+
+echo "theme options"
+assert_eq "@theme-bg is set"   "#1a1b26" "$(tmux -L "$SOCK" show -gv @theme-bg)"
+assert_eq "@theme-fg is set"   "#c0caf5" "$(tmux -L "$SOCK" show -gv @theme-fg)"
+assert_eq "@theme-wait is set" "#f7768e" "$(tmux -L "$SOCK" show -gv @theme-wait)"
+assert_eq "active theme recorded" "tokyo-night" "$(tmux -L "$SOCK" show -gv @tmarchy-theme)"
+
+exit "$FAILED"
