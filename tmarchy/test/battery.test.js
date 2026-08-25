@@ -24,3 +24,8 @@ test('icon reflects charge level', () => {
   assert.strictEqual(icon(55), '󰁽')
   assert.strictEqual(icon(5), '󱃍')
 })
+
+test('icon thresholds are inclusive at their boundaries', () => {
+  assert.strictEqual(icon(80), '󰂁')
+  assert.strictEqual(icon(20), '󰁽')
+})
