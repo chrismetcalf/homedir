@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# tmux-cmd — a command palette for tmux, on prefix + p.
+#
+# The source of commands is the which-key config, NOT `list-keys`. That config
+# is already a curated, labelled, hierarchical list of everything worth running
+# here — the stock tmux verbs and this repo's own tools alike — and reusing it
+# means the palette cannot drift from the menu: both read the same file. A
+# palette built from list-keys would instead be 314 rows of raw tmux commands
+# with no labels, which is the thing prefix + ? already exists to avoid.
+#
+# Rows are "COMMAND<TAB>KIND<TAB>DISPLAY" and fzf shows only from field 3, the
+# same shape tmux-goto and tmux-ssh use, so the command is never recovered from
+# display text.
+#
+# Sourced with TMUX_CMD_LIB=1 it defines its functions and exits.
+set -uo pipefail
+
+CONFIG="${TMUX_CMD_CONFIG:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
+
+# Menu entries can carry several commands (a macro). They travel through one
+# row as US-separated fields and become one line each in the file tmux sources,
+# because a tmux config is line-oriented and joining them with ';' would depend
+# on shell quoting this deliberately avoids.
+CMD_SEP=$'\037'
+
+GLYPH_CMD='󰘳'
+GLYPH_PATH='›'
+
+C_ACCENT=""
+C_DIM=""
+C_RESET=""
+
+ansi_for() {
+    local v="${1:-}"
+    case "$v" in
+        '#'??????)
+            printf '\033[38;2;%d;%d;%dm' \
+                "$((16#${v:1:2}))" "$((16#${v:3:2}))" "$((16#${v:5:2}))" ;;
+        colour[0-9]*|color[0-9]*)
+            printf '\033[38;5;%dm' "${v#colo*r}" ;;
+    esac
+}
+
+load_theme() {
+    C_ACCENT=$(ansi_for "$(tmux show -gv @theme-accent 2>/dev/null)")
+    C_DIM=$(ansi_for "$(tmux show -gv @theme-dim 2>/dev/null)")
+    if [ -n "$C_ACCENT$C_DIM" ]; then C_RESET=$'\033[0m'; else C_RESET=""; fi
+}
+
+# YAML is parsed by pyyaml rather than by awk. The nesting here is real
+# (menus inside menus inside menus) and an indentation-counting parser would be
+# a second, worse implementation of the file format the plugin itself reads.
+flatten_menu() {
+    printf '%s' "${1:-}" | python3 -c '
+import sys, os
+sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
+try:
+    import yaml
+except Exception:
+    sys.exit(0)
+
+SEP = "\x1f"
+
+DQ = chr(34)
+SQ = chr(39)
+
+
+def quote_bare_formats(cmd):
+    # Quote #{...}, #[...] and #X formats that are not already inside quotes.
+    #
+    # These commands run by being written to a file tmux sources, and in a tmux
+    # config a bare # starts a COMMENT. which-key never hit this because it
+    # renders commands into a display-menu, where they are format-expanded
+    # instead. Sourced verbatim, "neww -c #{pane_current_path}" loses its
+    # argument and errors with "-c expects an argument".
+    #
+    # No literal quote characters appear in this block on purpose: it is itself
+    # embedded inside python3 -c with single quotes around it.
+    out = []
+    i = 0
+    in_single = False
+    in_double = False
+    while i < len(cmd):
+        ch = cmd[i]
+        if ch == SQ and not in_double:
+            in_single = not in_single
+        elif ch == DQ and not in_single:
+            in_double = not in_double
+        elif ch == chr(35) and not in_single and not in_double and i + 1 < len(cmd):
+            nxt = cmd[i + 1]
+            if nxt in chr(123) + chr(91):
+                close = chr(125) if nxt == chr(123) else chr(93)
+                depth = 0
+                j = i + 1
+                while j < len(cmd):
+                    if cmd[j] == nxt:
+                        depth += 1
+                    elif cmd[j] == close:
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    j += 1
+                if j < len(cmd):
+                    out.append(DQ + cmd[i:j + 1] + DQ)
+                    i = j + 1
+                    continue
+            elif nxt.isalpha():
+                out.append(DQ + cmd[i:i + 2] + DQ)
+                i += 2
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def emit(items, macros, trail, out):
+    for item in items or []:
+        if not isinstance(item, dict) or item.get("separator"):
+            continue
+        name = str(item.get("name", "")).strip()
+        key = str(item.get("key", ""))
+        if not name:
+            continue
+        path = trail + [name]
+        if "menu" in item:
+            emit(item["menu"], macros, path, out)
+            continue
+        cmds = []
+        if "command" in item and item["command"] is not None:
+            cmds = [str(item["command"])]
+        elif "macro" in item:
+            # A macro is a named list of commands defined at the top of the
+            # file; resolve it here so the palette runs the same thing the
+            # menu would rather than a name nothing else understands.
+            cmds = [str(c) for c in macros.get(str(item["macro"]), [])]
+        if not cmds:
+            continue
+        # Strip the "+" that marks a submenu heading; it is noise in a flat list.
+        pretty = [p[1:] if p.startswith("+") else p for p in path]
+        cmds = [quote_bare_formats(c) for c in cmds]
+        out.append("\t".join([SEP.join(cmds), key, " ".join(pretty[:-1]), pretty[-1]]))
+
+try:
+    doc = yaml.safe_load(sys.stdin.read()) or {}
+except Exception:
+    sys.exit(0)
+macros = {}
+for m in doc.get("macros") or []:
+    if isinstance(m, dict) and m.get("name"):
+        macros[str(m["name"])] = m.get("commands") or []
+out = []
+emit(doc.get("items"), macros, [], out)
+print("\n".join(out))
+' 2>/dev/null
+}
+
+# flat rows are "commands<TAB>key<TAB>trail<TAB>leaf"
+rows_from_flat() {
+    local flat="${1:-}" line rest cmds key trail leaf label
+    # NOT `IFS=$'\t' read -r a b c d`: tab counts as IFS whitespace, so bash
+    # collapses runs of it and strips leading and trailing ones. A top-level
+    # entry has an empty trail field, and that read silently shifts every field
+    # after it left, dropping the row entirely. Split explicitly instead.
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        cmds=${line%%$'\t'*}; rest=${line#*$'\t'}
+        key=${rest%%$'\t'*};  rest=${rest#*$'\t'}
+        trail=${rest%%$'\t'*}
+        leaf=${rest#*$'\t'}
+        [ -n "$cmds" ] || continue
+        [ -n "$leaf" ] || continue
+        if [ -n "$trail" ]; then
+            label="$trail $GLYPH_PATH $leaf"
+        else
+            label="$leaf"
+        fi
+        printf '%s\tmenu\t%s%s%s %s  %s%s%s\n' \
+            "$cmds" \
+            "$C_ACCENT" "$GLYPH_CMD" "${C_ACCENT:+$C_RESET}" \
+            "$label" \
+            "$C_DIM" "${key:+[$key]}" "${C_DIM:+$C_RESET}"
+    done <<< "$flat"
+}
+
+collect_rows() {
+    [ -r "$CONFIG" ] || return 0
+    rows_from_flat "$(flatten_menu "$(cat "$CONFIG")")"
+}
+
+# Run through a file that tmux sources, never through the shell. Several of
+# these commands contain \; separators, #{} formats and %% placeholders that a
+# shell would mangle or expand; source-file hands them to tmux's own parser,
+# which is the parser they were written for.
+#
+# run-shell -b so the popup this is running inside has closed by the time the
+# command fires: several entries open popups of their own, and tmux will not
+# nest one inside another.
+run_command() {
+    local blob="${1:-}" file
+    [ -n "$blob" ] || return 0
+    file=$(mktemp "${TMPDIR:-/tmp}/tmux-cmd-XXXXXX") || return 1
+    printf '%s\n' "$blob" | tr "$CMD_SEP" '\n' > "$file"
+    # The file deletes itself after tmux has read it; leaving these behind is
+    # how /tmp bloats, and /tmp bloat is a documented source of lag here.
+    tmux run-shell -b "tmux source-file '$file'; rm -f '$file'"
+}
+
+main() {
+    TMUX_CMD_MAIN_RAN=1
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf 'tmux-cmd: fzf is not installed\n' >&2
+        exit 1
+    fi
+    load_theme
+    local choice
+    choice=$(collect_rows | fzf --ansi \
+        --delimiter=$'\t' --with-nth=3.. \
+        --prompt='cmd > ' --height=100% --reverse --no-multi) || exit 0
+    [ -n "$choice" ] || exit 0
+    run_command "${choice%%$'\t'*}"
+}
+
+[ "${TMUX_CMD_LIB:-}" = "1" ] || main "$@"

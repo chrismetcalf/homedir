@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# tmux-cmd-selftest — fixture-driven tests for bin/tmux-cmd.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+export TMUX_CMD_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-cmd"
+
+echo "tmux-cmd selftest"
+echo "library mode"
+assert_eq "sourcing does not run main" "" "${TMUX_CMD_MAIN_RAN:-}"
+assert_eq "flatten_menu is defined" "function" "$(type -t flatten_menu)"
+assert_eq "run_command is defined" "function" "$(type -t run_command)"
+
+YAML='macros:
+  - name: reload-config
+    commands:
+      - display "reloading"
+      - source-file $HOME/.tmux.conf
+items:
+  - name: Run
+    key: space
+    command: command-prompt
+  - separator: true
+  - name: +Windows
+    key: w
+    menu:
+      - name: Split horizontal
+        key: /
+        command: splitw -h -c "#{pane_current_path}"
+      - name: Rename
+        key: R
+        command: command-prompt -p "Rename window:" -I "#W" "renamew -- \"%%\""
+      - name: +Layout
+        key: l
+        menu:
+          - name: Tiled
+            key: t
+            command: selectl tiled
+  - name: +Client
+    key: C
+    menu:
+      - name: Reload config
+        key: r
+        macro: reload-config
+  - name: Empty section
+    key: z
+    menu:
+      - separator: true'
+
+echo "flatten_menu"
+flat=$(flatten_menu "$YAML")
+
+assert_eq "a top-level command is found" "1" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Run"' | grep -c .)"
+assert_eq "its command survives" "command-prompt" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Run"{print $1}')"
+assert_eq "a top-level entry has no trail" "" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Run"{print $3}')"
+
+# The whole point of a palette is reaching things buried in submenus.
+assert_eq "a nested command is found" "1" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Split horizontal"' | grep -c .)"
+assert_eq "its trail names the section" "Windows" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Split horizontal"{print $3}')"
+# Two levels down, and the + markers are stripped from both.
+assert_eq "a doubly nested command keeps its full trail" "Windows Layout" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Tiled"{print $3}')"
+assert_eq "the key is carried" "/" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Split horizontal"{print $2}')"
+
+# Commands carry quotes, #{} formats and %% placeholders; the palette must not
+# mangle them, since tmux is the thing that will parse them.
+assert_eq "quoting and formats survive intact" 'splitw -h -c "#{pane_current_path}"' \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Split horizontal"{print $1}')"
+printf '%s\n' "$flat" | awk -F'\t' '$4=="Rename"{print $1}' | grep -q '%%' \
+  && pass "a %% placeholder survives" || fail "a %% placeholder survives" "%%" "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Rename"{print $1}')"
+
+# A macro is a list of commands; running its name would do nothing.
+macro=$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Reload config"{print $1}')
+assert_eq "a macro resolves to its commands" "2" \
+    "$(printf '%s' "$macro" | tr "$CMD_SEP" '\n' | grep -c .)"
+printf '%s' "$macro" | grep -q 'source-file' \
+  && pass "macro commands are the real ones" || fail "macro commands are the real ones" "source-file" "$macro"
+
+# Structure that is not a command must never become a row.
+assert_eq "separators are skipped" "0" "$(printf '%s\n' "$flat" | grep -c 'separator')"
+assert_eq "a submenu heading is not itself a row" "0" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="+Windows" || $4=="Windows"' | grep -c .)"
+assert_eq "an empty section contributes nothing" "0" \
+    "$(printf '%s\n' "$flat" | awk -F'\t' '$4=="Empty section"' | grep -c .)"
+
+assert_eq "malformed yaml yields nothing rather than garbage" "0" \
+    "$(flatten_menu 'items: [ unclosed' | grep -c .)"
+
+echo "bare format quoting"
+# These commands are run by sourcing a file, and in a tmux config a bare # is a
+# COMMENT -- so an unquoted #{...} silently eats the rest of the line. which-key
+# itself never hit this because display-menu format-expands instead.
+# A quoted heredoc, not a single-quoted string: these fixtures must contain
+# single quotes, and this file has already been bitten once by nesting them.
+QY=$(cat <<'YAMLFIX'
+items:
+  - name: New
+    key: c
+    command: 'neww -c #{pane_current_path}'
+  - name: Already quoted
+    key: q
+    command: 'splitw -h -c "#{pane_current_path}"'
+  - name: Short format
+    key: s
+    command: 'renamew -- #W'
+  - name: Style
+    key: y
+    command: 'display #[fg=red]hi'
+  - name: Inside single quotes
+    key: i
+    command: "run-shell 'echo #{pane_id}'"
+  - name: No format at all
+    key: n
+    command: detach-client
+YAMLFIX
+)
+qf=$(flatten_menu "$QY")
+
+assert_eq "a bare brace format gets quoted" 'neww -c "#{pane_current_path}"' \
+    "$(printf '%s\n' "$qf" | awk -F'\t' '$4=="New"{print $1}')"
+# Double-quoting an already-quoted format would break it just as badly.
+assert_eq "an already quoted format is left alone" 'splitw -h -c "#{pane_current_path}"' \
+    "$(printf '%s\n' "$qf" | awk -F'\t' '$4=="Already quoted"{print $1}')"
+assert_eq "a short #W format gets quoted" 'renamew -- "#W"' \
+    "$(printf '%s\n' "$qf" | awk -F'\t' '$4=="Short format"{print $1}')"
+assert_eq "a #[style] gets quoted" 'display "#[fg=red]"hi' \
+    "$(printf '%s\n' "$qf" | awk -F'\t' '$4=="Style"{print $1}')"
+# Inside single quotes the # is already safe from the config parser.
+assert_eq "a format inside single quotes is untouched" "run-shell 'echo #{pane_id}'" \
+    "$(printf '%s\n' "$qf" | awk -F'\t' '$4=="Inside single quotes"{print $1}')"
+assert_eq "a command with no format is unchanged" "detach-client" \
+    "$(printf '%s\n' "$qf" | awk -F'\t' '$4=="No format at all"{print $1}')"
+
+# The live config: the commands that were genuinely bare must now be quoted.
+# Not a blanket grep for " #{" -- a format inside a double-quoted argument is
+# already safe, and flagging those would be a false alarm.
+if [ -r "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml" ]; then
+    live=$(flatten_menu "$(cat "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml")")
+    assert_eq "the live New command is quoted" 'neww -c "#{pane_current_path}"' \
+        "$(printf '%s\n' "$live" | awk -F'\t' '$1 ~ /^neww/ {print $1; exit}')"
+    assert_eq "the live splits are quoted" "2" \
+        "$(printf '%s\n' "$live" | cut -f1 | grep -c '^splitw -[hv] -c "#{pane_current_path}"$')"
+fi
+
+echo "rows_from_flat"
+out=$(rows_from_flat "$flat")
+assert_eq "one row per command" "5" "$(printf '%s\n' "$out" | grep -c .)"
+assert_eq "command is field 1" "command-prompt" \
+    "$(printf '%s\n' "$out" | grep -m1 'Run' | cut -f1)"
+assert_eq "kind is field 2" "menu" "$(printf '%s\n' "$out" | head -1 | cut -f2)"
+printf '%s\n' "$out" | cut -f3 | grep -q "Windows $GLYPH_PATH Split horizontal" \
+  && pass "nested rows show their path" || fail "nested rows show their path" "Windows > Split horizontal" "$(printf '%s\n' "$out" | cut -f3)"
+printf '%s\n' "$out" | cut -f3 | grep -q '\[/\]' \
+  && pass "the key is shown so it can be learned" || fail "the key is shown" "[/]" "$(printf '%s\n' "$out" | cut -f3)"
+assert_eq "rows lead with a glyph" "$GLYPH_CMD" \
+    "$(printf '%s\n' "$out" | head -1 | cut -f3 | cut -d' ' -f1)"
+
+echo "run_command"
+SHIM=$(mktemp -d)
+tmux() { printf '%s\n' "$*" >> "$SHIM/calls"; printf '%s\n' "$*" >> "$SHIM/calls.all"; }
+
+: > "$SHIM/calls"
+run_command 'display "hi"'
+# Never eval: these commands contain \; and #{} that a shell would mangle.
+grep -q 'source-file' "$SHIM/calls" \
+  && pass "the command is sourced, not evalled" || fail "the command is sourced" "source-file" "$(cat "$SHIM/calls")"
+# run-shell -b so the popup has closed before a command that opens its own runs.
+grep -q 'run-shell -b' "$SHIM/calls" \
+  && pass "it runs detached from the popup" || fail "it runs detached" "run-shell -b" "$(cat "$SHIM/calls")"
+
+written=$(sed -n "s/.*source-file '\([^']*\)'.*/\1/p" "$SHIM/calls")
+assert_eq "the sourced file holds the command" 'display "hi"' "$(cat "$written" 2>/dev/null)"
+
+: > "$SHIM/calls"
+run_command "$(printf 'display a%sdisplay b' "$CMD_SEP")"
+written=$(sed -n "s/.*source-file '\([^']*\)'.*/\1/p" "$SHIM/calls")
+# A tmux config is line-oriented, so a macro's commands must land one per line.
+assert_eq "a macro becomes one command per line" "2" "$(grep -c . "$written" 2>/dev/null)"
+
+: > "$SHIM/calls"
+run_command ""
+assert_eq "an empty choice runs nothing" "" "$(cat "$SHIM/calls")"
+
+# The shim swallowed every run-shell, so the files run_command wrote were
+# never sourced and never cleaned up by it. Clear them here: /tmp bloat is a
+# documented cause of box-wide lag in this repo, and a suite that leaks a
+# handful of files per run is a slow version of that same bug.
+while IFS= read -r leaked; do
+    [ -n "$leaked" ] && rm -f "$leaked"
+done < <(sed -n "s/.*source-file '\([^']*\)'.*/\1/p" "$SHIM/calls.all" 2>/dev/null)
+assert_eq "the suite leaves no temp files behind" "0" \
+    "$(ls "${TMPDIR:-/tmp}"/tmux-cmd-* 2>/dev/null | wc -l | tr -d ' ')"
+
+unset -f tmux
+[ "$(type -t tmux)" != "function" ] \
+  && pass "tmux shim removed" || fail "tmux shim removed" "not function" "$(type -t tmux)"
+rm -rf "$SHIM"
+
+echo "against the real config"
+if [ -r "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml" ]; then
+    real=$(flatten_menu "$(cat "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml")")
+    n=$(printf '%s\n' "$real" | grep -c .)
+    [ "$n" -gt 40 ] && pass "the live config flattens to $n commands" \
+      || fail "the live config flattens to a plausible count" ">40" "$n"
+    # The palette exists to reach this repo's own tools too, not just tmux verbs.
+    for want in tmux-goto tmux-ssh tmarchy-theme; do
+        printf '%s\n' "$real" | grep -q "$want" \
+          && pass "$want is reachable from the palette" \
+          || fail "$want is reachable from the palette" "$want" "absent"
+    done
+    assert_eq "every row carries a command" "0" \
+        "$(printf '%s\n' "$real" | awk -F'\t' 'NF && $1==""' | grep -c .)"
+else
+    echo "  skip (no live which-key config)"
+fi
+
+exit "$FAILED"

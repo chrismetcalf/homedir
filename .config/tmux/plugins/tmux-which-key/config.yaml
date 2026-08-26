@@ -64,6 +64,12 @@ items:
   # menu command parses fine as an option value but TRUNCATES the inline
   # display-menu that prefix + m is bound to, silently dropping every entry
   # after it -- which is exactly how the root menu lost 12 items once.
+  # Key P, not p: the root menu already gives p to +Panes, and the builder
+  # asserts on a duplicate rather than warning -- which leaves the whole menu
+  # unbuilt. The palette's own binding is still prefix + p.
+  - name: Command palette
+    key: P
+    command: 'display-popup -E -w 70% -h 70% "~/bin/tmux-cmd"'
   - name: SSH to a host
     key: S
     command: 'display-popup -E -w 60% -h 70% "~/bin/tmux-ssh"'
