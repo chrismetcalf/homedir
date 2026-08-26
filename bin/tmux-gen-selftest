@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# tmux-gen-selftest — fixture-driven tests for bin/tmux-gen.
+#
+# Never calls the real Claude: TMUX_GEN_CLAUDE points at a stub. A suite that
+# costs money per run gets run less, and one that needs the network is flaky.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+# Source tmux-gen as a library: main() must not run.
+export TMUX_GEN_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-gen"
+
+echo "tmux-gen selftest"
+echo "library mode"
+assert_eq "sourcing does not run main" "1" "$TMUX_GEN_LIB"
+assert_eq "parse_reply is defined"     "function" "$(type -t parse_reply)"
+assert_eq "gather_context is defined"  "function" "$(type -t gather_context)"
+assert_eq "query is defined"           "function" "$(type -t query)"
+
+exit "$FAILED"

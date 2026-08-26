@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# tmux-gen — ask Claude for a shell command, insert it WITHOUT running it.
+#
+# Bound to prefix + g via display-popup. Deliberately toolless: the query has
+# no filesystem access, so a wrong answer costs a wasted popup, not a deleted
+# directory. Nothing here ever appends a newline to send-keys — the governing
+# rule is that this tool may put text on your prompt line and nothing else.
+#
+# Sourced with TMUX_GEN_LIB=1 it defines its functions and exits, so
+# bin/tmux-gen-selftest can test the pure parts without a popup or an API call.
+set -uo pipefail
+
+CLAUDE_BIN="${TMUX_GEN_CLAUDE:-$HOME/.local/bin/claude}"
+TIMEOUT="${TMUX_GEN_TIMEOUT:-30}"
+MODEL="${TMUX_GEN_MODEL:-sonnet}"
+
+# Measured, not guessed: without this prompt claude -p took 20-41s and answered
+# as an agent that cannot run things ("Bash is disabled, so I can't run git
+# status"). With it: 5-6.5s and one clean line. Treat it as load-bearing.
+SYSTEM_PROMPT='You generate shell commands and short terminal answers. You have no tools and are not expected to run anything.
+
+Reply with ONE JSON object and nothing else:
+  {"kind":"command","command":"<a single shell command>","note":"<short why, max 12 words>"}
+  {"kind":"answer","note":"<answer, max 3 short lines>"}
+
+Use "command" when the user wants something done in a shell. Use "answer" when they want an explanation.
+Never wrap the JSON in markdown fences. The command must be a single line, safe to paste at a prompt.'
+
+gather_context() { :; }
+query() { :; }
+parse_reply() { :; }
+render_and_act() { :; }
+main() { :; }
+
+[ "${TMUX_GEN_LIB:-}" = "1" ] || main "$@"
