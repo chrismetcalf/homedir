@@ -167,4 +167,112 @@ grep -q "^branch:" "$STUB_RECORD_STDIN" \
 rm -rf "$STUB_DIR"
 unset TMUX_GEN_CLAUDE STUB_REPLY STUB_RECORD_STDIN STUB_RECORD_ARGS
 
+echo "safety: insert must not execute"
+
+# The whole tool exists to put text on a prompt line WITHOUT running it. This
+# section is the only test that proves it end to end, against a real tmux pane.
+#
+# A throwaway server needs BOTH -L and -f /dev/null. Without the latter it
+# sources the real ~/.tmux.conf, drags in tpm, and leaks an orphaned
+# tmux-autoreload watcher when the server dies. And note every tmux call below
+# carries -L "$SAFE_SOCK": tmux-gen's own `tmux send-keys` resolves through $TMUX,
+# which is why the tool is run INSIDE this server (see the split-window) rather
+# than from here with $TMUX massaged by hand. $TMUX="" is NOT isolation — tmux
+# falls back to the default socket, i.e. the user's live session.
+if ! command -v tmux >/dev/null 2>&1; then
+    echo "  skip (no tmux on this host)"
+else
+
+SAFE_SOCK="tmux-gen-test-$$"
+CANARY="/tmp/tmux-gen-canary-$$"
+SAFE_STUB=$(mktemp -d)
+SAFE_SOCK_PATH=""
+SAFE_DONE="$SAFE_STUB/finished"
+SAFE_BARRIER="$SAFE_STUB/barrier"
+
+cleanup_safety() {
+    tmux -L "$SAFE_SOCK" kill-server 2>/dev/null
+    rm -f "$CANARY" ${SAFE_SOCK_PATH:+"$SAFE_SOCK_PATH"}
+    rm -rf "$SAFE_STUB"
+}
+trap cleanup_safety EXIT
+
+# Poll, never sleep a fixed span: a timing margin tuned on an idle box is the
+# classic load-sensitive flake. $1 is a test command, $2 a deadline in 0.1s ticks.
+poll_for() {
+    local i=0
+    while [ "$i" -lt "$2" ]; do
+        eval "$1" >/dev/null 2>&1 && return 0
+        sleep 0.1
+        i=$((i + 1))
+    done
+    return 1
+}
+
+# The stub answers with a command that is destructive ON PURPOSE. If tmux-gen
+# ever submits what it inserts, this deletes the canary and the suite says so.
+cat > "$SAFE_STUB/claude" <<STUB
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%s' '{"kind":"command","command":"rm -rf $CANARY","note":"destructive on purpose"}'
+STUB
+chmod +x "$SAFE_STUB/claude"
+
+: > "$CANARY"
+
+# The target pane must run a REAL INTERACTIVE SHELL. This is the load-bearing
+# detail of the whole test: a pane running anything else (a bare `sleep`, or the
+# tool itself) has nothing that would execute a submitted line, so the canary
+# survives even when tmux-gen appends Enter — the test passes while the bug
+# ships. The barrier assertion below exists to keep that mistake caught.
+tmux -L "$SAFE_SOCK" -f /dev/null new-session -d -x 120 -y 24 "bash --norc --noprofile -i"
+SAFE_SOCK_PATH=$(tmux -L "$SAFE_SOCK" display-message -p '#{socket_path}')
+TARGET=$(tmux -L "$SAFE_SOCK" display-message -p '#{pane_id}')
+
+# Drive the tool from a SECOND pane, targeting the shell pane — the same shape
+# as production, where a popup targets the pane you invoked it from. -d keeps
+# focus on the target. Both prompts arrive on stdin: the question, then an empty
+# line that `read -n1` takes as the [Enter] insert choice. No sleep, no
+# out-of-band keystroke, so there is nothing here to tune.
+#
+# `env -u TMUX_GEN_LIB` is not optional: this suite exports TMUX_GEN_LIB=1 to
+# source tmux-gen as a library, the throwaway server inherits it, and the tool
+# would then define its functions and exit without ever running main. The canary
+# survives beautifully when nothing runs — which is exactly why the "reached the
+# target pane" assertion above is checked as well, and not taken on trust.
+tmux -L "$SAFE_SOCK" split-window -d -t "$TARGET" \
+  "printf 'delete the canary\n\n' | env -u TMUX_GEN_LIB TMUX_GEN_CLAUDE='$SAFE_STUB/claude' bash '$DIR/tmux-gen' '$TARGET'; touch '$SAFE_DONE'; sleep 300"
+
+poll_for "[ -f '$SAFE_DONE' ]" 300 \
+  || fail "tmux-gen ran to completion" "exits within 30s" "still running after 30s"
+
+# Captured before the C-u below, while the inserted text is still pending on the
+# prompt line. A plain substring match is enough here precisely because the tool
+# renders its own UI in the OTHER pane: anything on this one arrived by send-keys.
+SAFE_SCREEN=$(tmux -L "$SAFE_SOCK" capture-pane -p -t "$TARGET" 2>/dev/null)
+case "$SAFE_SCREEN" in
+    *"rm -rf $CANARY"*) pass "the command text reached the target pane" ;;
+    *) fail "the command text reached the target pane" "rm -rf $CANARY on the prompt line" "$(printf '%s' "$SAFE_SCREEN" | grep -v '^$' | tail -2)" ;;
+esac
+
+# Positive control, and a barrier. C-u discards the pending (unsubmitted) line
+# so the barrier command cannot be concatenated onto it; the barrier file then
+# appearing proves two things at once: this shell really does run what is
+# submitted to it, and it has finished consuming everything sent before it — so
+# the canary check below is not just reading a race it happened to win.
+tmux -L "$SAFE_SOCK" send-keys -t "$TARGET" C-u
+tmux -L "$SAFE_SOCK" send-keys -t "$TARGET" -l -- "touch '$SAFE_BARRIER'"
+tmux -L "$SAFE_SOCK" send-keys -t "$TARGET" Enter
+poll_for "[ -f '$SAFE_BARRIER' ]" 300 \
+  && pass "the target shell does execute a submitted line" \
+  || fail "the target shell does execute a submitted line" "barrier command ran" "no barrier after 30s — the canary result below proves nothing"
+
+[ -f "$CANARY" ] \
+  && pass "canary survived: the command was inserted, not executed" \
+  || fail "canary survived: the command was inserted, not executed" "canary exists" "canary was DELETED"
+
+cleanup_safety
+trap - EXIT
+fi
+
 exit "$FAILED"
