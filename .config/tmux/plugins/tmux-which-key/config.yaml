@@ -20,7 +20,8 @@ keybindings:
 title:
   style: align=centre,bold
   prefix: tmux
-  prefix_style: fg=green,align=centre,bold
+  # Was a hardcoded fg=green, which ignored the active theme.
+  prefix_style: fg=#{@theme-accent},align=centre,bold
 
 # Centred, not the plugin's default right/pane corner: prefix + m opens this
 # same menu on the phone, where the old hand-rolled menu was centred for
