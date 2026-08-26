@@ -97,16 +97,25 @@ One rule governs all of it: **the tool may only put text on the prompt line, and
 | 30s timeout | "timed out", insert nothing |
 | Reply is not parseable JSON | display raw text **as an answer** — `Enter` is not offered |
 | `kind` is `command` but the command is empty or missing | treat it as an answer — `Enter` is not offered |
-| The command contains a newline | treat it as an answer — see below |
+| The command contains ANY control character | treat it as an answer — see below |
 | Popup killed mid-query | nothing inserted; no partial state |
 
-**A command containing a newline is not insertable.** `send-keys -l` sends a literal
+**A command containing any control character is not insertable.** `send-keys -l` sends a literal
 newline byte, and a terminal in canonical mode flushes a line to the shell on any
 newline byte — not only on the Enter key. So `{"command":"echo hi\nrm -rf /"}` would
 execute `echo hi` the moment it was inserted, with no keypress from the user. The
 guarantee "we never append Enter" is about the call site; it says nothing about a
-newline carried inside the payload. Enforced in `parse_reply` (the gate) and asserted
-again at the `send-keys` call site, because this is the property the whole tool exists
+newline carried inside the payload. A newline is not the only byte that does this, and blacklisting it alone is not enough:
+
+- **CR (0x0D)** submits the line exactly like LF — it is what the Enter key physically sends.
+- **ESC (0x1B)** reaches readline's dispatcher; `ESC` then `C-e` is `shell-expand-line`, which
+  performs command substitution. `echo $(touch /tmp/x)\x1b\x05` was demonstrated creating the
+  file with no keypress, leaving only `bash-5.2$ echo` visible afterwards.
+- **C-o (0x0F)** executes the line in bash; **C-u (0x15)** and **BS/DEL** silently discard the
+  benign-looking prefix the user just read, so they approve one thing and run another.
+
+So the rule is a whitelist violation, not a blacklist: any `[[:cntrl:]]` byte disqualifies.
+Enforced in `parse_reply` (the gate) and asserted again at the `send-keys` call site, because this is the property the whole tool exists
 to provide.
 
 The third row is the load-bearing one. When we cannot tell whether the model produced a command, the failure mode is "you read some text", never "something plausible-looking landed on your prompt". No code path appends a newline.
