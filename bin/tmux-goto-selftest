@@ -42,9 +42,14 @@ printf '%s\n' "$out" | cut -f2 | grep -q '^\[pane\]' && pass "pane rows tagged" 
 # The running command is what you actually recognise among worktree-named windows.
 printf '%s\n' "$out" | grep -q 'node' && pass "pane rows show the command" || fail "pane rows show the command" "node" "$out"
 
-# Scout state marks agents waiting on you; an unset state renders nothing, not "[]".
+# Scout state marks agents waiting on you; an unset state renders nothing, not an empty "<>".
 printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fail "scout state shown when set" "wait" "$out"
-printf '%s\n' "$out" | grep -q '\[\]' && fail "unset scout state renders nothing" "no empty brackets" "$out" || pass "unset scout state renders nothing"
+# Pin the whole row rather than grepping for one marker shape: an earlier
+# version of this assertion looked for empty square brackets while the row
+# renders angle brackets, so it passed no matter how broken the guard was.
+assert_eq "unset scout state renders nothing" \
+    "$(printf '@1\t[win]  main:1 homedir')" \
+    "$(printf '%s\n' "$out" | grep -m1 '\[win\]  main:1 homedir')"
 
 # A window name with a space must survive intact.
 printf '%s\n' "$out" | grep -q 'my project' && pass "spaces in names survive" || fail "spaces in names survive" "my project" "$out"
