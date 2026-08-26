@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# tmux-keys-selftest — fixture-driven tests for bin/tmux-keys.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+export TMUX_KEYS_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-keys"
+
+echo "tmux-keys selftest"
+echo "library mode"
+assert_eq "sourcing does not run main" "" "${TMUX_KEYS_MAIN_RAN:-}"
+assert_eq "custom_keys is defined" "function" "$(type -t custom_keys)"
+assert_eq "split_binding is defined" "function" "$(type -t split_binding)"
+assert_eq "conf_keys is defined" "function" "$(type -t conf_keys)"
+
+echo "normalise"
+# tmux pads its listing, so identical bindings differ by whitespace alone.
+assert_eq "runs of blanks collapse" "bind-key -T prefix c new-window" \
+    "$(printf 'bind-key   -T prefix    c   new-window\n' | normalise)"
+assert_eq "trailing blanks go" "bind-key -T prefix c new-window" \
+    "$(printf 'bind-key -T prefix c new-window   \n' | normalise)"
+
+echo "custom_keys"
+STOCK=$'bind-key -T prefix c new-window\nbind-key -T prefix d detach-client\nbind-key -T prefix z resize-pane -Z'
+LIVE=$'bind-key -T prefix c new-window -c "#{pane_current_path}"\nbind-key -T prefix d detach-client\nbind-key -T prefix u display-popup -E /home/me/bin/tmux-goto\nbind-key -T prefix z resize-pane -Z'
+
+got=$(custom_keys "$STOCK" "$LIVE")
+assert_eq "only non-default lines survive" "2" "$(printf '%s\n' "$got" | grep -c .)"
+printf '%s\n' "$got" | grep -q 'tmux-goto' \
+  && pass "a purely new binding is reported" || fail "a purely new binding is reported" "tmux-goto" "$got"
+# An overridden default differs only in its command, so it must still show.
+printf '%s\n' "$got" | grep -q 'pane_current_path' \
+  && pass "an overridden default is reported" || fail "an overridden default is reported" "pane_current_path" "$got"
+printf '%s\n' "$got" | grep -q 'detach-client' \
+  && fail "an untouched default is hidden" "no detach-client" "$got" || pass "an untouched default is hidden"
+
+echo "conf_keys"
+CONF='# a comment
+bind r source-file ~/.tmux.conf
+bind-key u display-popup -E "~/bin/tmux-goto"
+bind -r H resize-pane -L 5
+bind -n MouseDown1Pane select-pane
+bind -T copy-mode-vi v send -X begin-selection
+bind '"'"'~'"'"' run-shell tmux-scout-next-wait
+set -g status-interval 5'
+known=$(conf_keys "$CONF")
+
+assert_eq "plain bind is found" "1" "$(printf '%s\n' "$known" | grep -cx 'r')"
+assert_eq "bind-key spelling is found" "1" "$(printf '%s\n' "$known" | grep -cx 'u')"
+# Flags sit between the word and the key; missing them would capture "-r".
+assert_eq "repeat flag is skipped" "1" "$(printf '%s\n' "$known" | grep -cx 'H')"
+assert_eq "root-table flag is skipped" "1" "$(printf '%s\n' "$known" | grep -cx 'MouseDown1Pane')"
+assert_eq "explicit table is skipped" "1" "$(printf '%s\n' "$known" | grep -cx 'v')"
+assert_eq "quoted key is unquoted" "1" "$(printf '%s\n' "$known" | grep -cx '~')"
+assert_eq "no flag leaks in as a key" "0" "$(printf '%s\n' "$known" | grep -c '^-')"
+assert_eq "a set line is not a binding" "0" "$(printf '%s\n' "$known" | grep -cx 'status-interval')"
+
+echo "classify_key"
+# The honest question is "did I bind this", and only .tmux.conf answers it: a
+# plugin binding is often a plain tmux command with no plugin path in it.
+assert_eq "a key bound in the conf is config" "config" "$(classify_key 'u' "$known")"
+assert_eq "a key absent from the conf is plugin" "plugin" "$(classify_key 'J' "$known")"
+assert_eq "a plain-command plugin key is still plugin" "plugin" "$(classify_key '<' "$known")"
+# tmux escapes some keys in list-keys output but not in the config.
+assert_eq "an escaped key still matches" "config" "$(classify_key '\~' "$known")"
+
+echo "truncate_cmd"
+assert_eq "a short command is untouched" "new-window" "$(truncate_cmd 'new-window' 96)"
+assert_eq "a long command is cut to length" "10" "$(truncate_cmd 'abcdefghijklmnopqrstuvwxyz' 10 | wc -m | tr -d ' ')"
+printf '%s' "$(truncate_cmd 'abcdefghijklmnopqrstuvwxyz' 10)" | grep -q '…' \
+  && pass "a cut command is marked" || fail "a cut command is marked" "ellipsis" "$(truncate_cmd 'abcdefghijklmnopqrstuvwxyz' 10)"
+
+echo "split_binding"
+split_binding 'bind-key -T prefix u display-popup -E /home/me/bin/tmux-goto'
+assert_eq "table parsed" "prefix" "$BIND_TABLE"
+assert_eq "key parsed" "u" "$BIND_KEY"
+assert_eq "command parsed" "display-popup -E /home/me/bin/tmux-goto" "$BIND_CMD"
+
+# -r (repeatable) bindings carry an extra flag before the table.
+split_binding 'bind-key -r -T prefix H resize-pane -L 5'
+assert_eq "repeat flag does not shift the table" "prefix" "$BIND_TABLE"
+assert_eq "repeat flag does not shift the key" "H" "$BIND_KEY"
+assert_eq "repeat flag does not shift the command" "resize-pane -L 5" "$BIND_CMD"
+
+split_binding 'bind-key -T copy-mode-vi v send -X begin-selection'
+assert_eq "non-prefix table parsed" "copy-mode-vi" "$BIND_TABLE"
+
+split_binding 'not a binding at all' \
+  && fail "a non-binding line is rejected" "non-zero" "0" || pass "a non-binding line is rejected"
+
+echo "render"
+ROWS=$'bind-key -T prefix u display-popup -E /home/me/bin/tmux-goto\nbind-key -T prefix F run-shell -b /home/me/.tmux/plugins/tmux-fzf/main.sh\nbind-key -T copy-mode-vi v send -X begin-selection'
+KNOWN=$'u'
+out=$(render "$ROWS" prefix "$KNOWN")
+
+printf '%s\n' "$out" | grep -q 'Set in .tmux.conf' \
+  && pass "config section rendered" || fail "config section rendered" "Set in .tmux.conf" "$out"
+printf '%s\n' "$out" | grep -q 'Added by plugins' \
+  && pass "plugin section rendered" || fail "plugin section rendered" "Added by plugins" "$out"
+# Grouping is the point: a plugin's binding must not appear under "this config".
+assert_eq "tmux-goto sorts under config" "1" \
+    "$(printf '%s\n' "$out" | sed -n '/Set in .tmux.conf/,/Added by plugins/p' | grep -c 'tmux-goto')"
+assert_eq "tmux-fzf sorts under plugins" "0" \
+    "$(printf '%s\n' "$out" | sed -n '/Set in .tmux.conf/,/Added by plugins/p' | grep -c 'tmux-fzf')"
+# Only the requested table is listed, or the prefix view fills with copy-mode.
+assert_eq "other tables are excluded" "0" \
+    "$(printf '%s\n' "$out" | grep -c 'begin-selection')"
+
+out2=$(render "$ROWS" root "$KNOWN")
+printf '%s\n' "$out2" | grep -q 'no custom bindings' \
+  && pass "an empty table says so" || fail "an empty table says so" "no custom bindings" "$out2"
+
+echo "colour"
+assert_eq "hex becomes truecolor ansi" "$(printf '\033[38;2;122;162;247m')" "$(ansi_for '#7aa2f7')"
+assert_eq "colourNNN becomes 256-colour ansi" "$(printf '\033[38;5;214m')" "$(ansi_for 'colour214')"
+assert_eq "an unparseable colour yields nothing" "" "$(ansi_for 'periwinkle')"
+
+echo "against a real server"
+if ! [ -x /usr/bin/tmux ]; then
+    echo "  skip (no /usr/bin/tmux)"
+else
+    # stock_keys must produce tmux's real defaults, and must leave nothing
+    # behind: a probe server or socket surviving each run is how /tmp bloats.
+    stock=$(stock_keys)
+    assert_eq "probe returns a plausible default set" "yes" \
+        "$([ "$(printf '%s\n' "$stock" | grep -c .)" -gt 100 ] && echo yes || echo no)"
+    printf '%s\n' "$stock" | grep -q 'bind-key -T prefix d detach-client' \
+      && pass "probe includes a known tmux default" || fail "probe includes a known tmux default" "detach-client" "$(printf '%s\n' "$stock" | head -3)"
+    # The probe must be stock, not this config: if -f /dev/null ever stopped
+    # working we would diff the config against itself and report nothing.
+    printf '%s\n' "$stock" | grep -q 'tmux-goto' \
+      && fail "probe is free of this config" "no tmux-goto" "probe saw our bindings" || pass "probe is free of this config"
+
+    assert_eq "probe leaves no socket behind" "0" \
+        "$(ls -1 "${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/" 2>/dev/null | grep -c 'tmux-keys-probe')"
+    assert_eq "probe leaves no server behind" "0" \
+        "$(pgrep -f 'tmux -L tmux-keys-probe' 2>/dev/null | grep -c .)"
+fi
+
+exit "$FAILED"

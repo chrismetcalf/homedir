@@ -55,6 +55,16 @@ items:
   - name: Last pane
     key: '`'
     command: last-pane
+  # Quoted scalars throughout: unquoted, YAML reads ` #{...}` as a comment and
+  # silently truncates the command.
+  - name: Go to session/window/pane
+    key: u
+    command: 'display-popup -E -w 70% -h 60% "~/bin/tmux-goto"'
+  # display-popup does NOT format-expand #{}, so the pane id has to be
+  # resolved by the run-shell wrapper before the popup ever starts.
+  - name: Ask Claude for a command
+    key: g
+    command: 'run-shell -b "tmux display-popup -E -w 80% -h 60% \"~/bin/tmux-gen #{pane_id}\""'
   - name: Copy
     key: c
     menu:
@@ -378,6 +388,14 @@ items:
   - name: Show messages
     key: M
     command: show-messages
-  - name: +Keys (raw list-keys)
+  - name: +Keys
     key: '?'
-    command: list-keys -N
+    menu:
+      # The custom-only view: list-keys shows ~314 bindings here and ~262 of
+      # them are tmux's own, so the diff is what makes it readable.
+      - name: Custom bindings only
+        key: c
+        command: 'display-popup -E -w 85% -h 75% "~/bin/tmux-keys"'
+      - name: Raw list-keys (everything)
+        key: '?'
+        command: list-keys -N

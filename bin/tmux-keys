@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# tmux-keys — list only the bindings this config adds.
+#
+# `list-keys` shows ~314 bindings here, of which ~262 are tmux's own defaults.
+# The 50-odd that are actually ours are the ones worth reading, so this diffs
+# the live server against a stock one (-f /dev/null, so it sources no config)
+# and prints only what survives. That baseline is computed rather than
+# hardcoded: it stays correct across tmux upgrades that add or drop defaults.
+#
+# For the labelled, curated view of these same keys use prefix + ? (which-key).
+# This is the flat, complete, "what did I actually customise" listing.
+#
+# Sourced with TMUX_KEYS_LIB=1 it defines its functions and exits, so the pure
+# diff and classification are testable with no server involved.
+set -uo pipefail
+
+# Same conversion as tmux-goto's: eight themes give #rrggbb, jewel gives
+# colourNNN, and anything else must yield no colour rather than a broken
+# escape. Kept as its own copy because the two scripts share no library and
+# one small function is a cheaper dependency than inventing one.
+ansi_for() {
+    local v="${1:-}"
+    case "$v" in
+        '#'??????)
+            printf '\033[38;2;%d;%d;%dm' \
+                "$((16#${v:1:2}))" "$((16#${v:3:2}))" "$((16#${v:5:2}))" ;;
+        colour[0-9]*|color[0-9]*)
+            printf '\033[38;5;%dm' "${v#colo*r}" ;;
+    esac
+}
+
+C_KEY=""
+C_DIM=""
+C_HEAD=""
+C_RESET=""
+
+load_theme() {
+    C_KEY=$(ansi_for "$(tmux show -gv @theme-accent 2>/dev/null)")
+    C_DIM=$(ansi_for "$(tmux show -gv @theme-dim 2>/dev/null)")
+    C_HEAD=$(ansi_for "$(tmux show -gv @theme-accent-alt 2>/dev/null)")
+    if [ -n "$C_KEY$C_DIM$C_HEAD" ]; then C_RESET=$'\033[0m'; else C_RESET=""; fi
+}
+
+# tmux pads its listing for alignment, so two logically identical bindings can
+# differ by whitespace alone. Collapse runs of blanks before comparing or the
+# diff reports every line as changed.
+normalise() {
+    sed 's/[[:space:]]\+/ /g' | sed 's/[[:space:]]*$//' | sort -u
+}
+
+# The pure core: given two normalised listings, the custom ones are the lines
+# present in the live server and absent from stock.
+custom_keys() {
+    local stock="${1:-}" live="${2:-}"
+    comm -13 <(printf '%s\n' "$stock") <(printf '%s\n' "$live")
+}
+
+# Which keys .tmux.conf binds itself. Sniffing the command for a plugin path
+# does NOT work: a plugin binding is usually a plain tmux command -- tmux-pain-
+# control's "resize-pane -L 5", tmux-sensible's second reload key -- with
+# nothing in it to give away its origin. The config file is the only honest
+# source for "did I set this, or did a plugin?".
+conf_keys() {
+    printf '%s\n' "${1:-}" \
+        | sed -n 's/^[[:space:]]*bind\(-key\)\?[[:space:]]\+//p' \
+        | sed -e 's/^-[rn][[:space:]]\+//' -e 's/^-T[[:space:]]\+[^[:space:]]\+[[:space:]]\+//' \
+              -e 's/^-[rn][[:space:]]\+//' \
+        | awk '{print $1}' \
+        | sed -e "s/^'\(.*\)'$/\1/" -e 's/^"\(.*\)"$/\1/' \
+        | sed 's/^\\//' \
+        | grep -v '^$' | sort -u
+}
+
+classify_key() {
+    local key="${1:-}" known="${2:-}"
+    key=${key#\\}
+    if printf '%s\n' "$known" | grep -qxF -- "$key"; then printf 'config'; else printf 'plugin'; fi
+}
+
+# The which-key menu binds itself to a single enormous display-menu line. Left
+# whole it buries every other row, so cut it and mark the cut.
+truncate_cmd() {
+    local cmd="${1:-}" max="${2:-96}"
+    if [ "${#cmd}" -gt "$max" ]; then
+        printf '%s…' "${cmd:0:$((max - 1))}"
+    else
+        printf '%s' "$cmd"
+    fi
+}
+
+# Strip the leading "bind-key [-r] -T <table> " so the key and its command are
+# what shows, and keep the table for grouping.
+split_binding() {
+    local line="${1:-}"
+    BIND_TABLE=""
+    BIND_KEY=""
+    BIND_CMD=""
+    case "$line" in
+        bind-key*) ;;
+        *) return 1 ;;
+    esac
+    line=${line#bind-key }
+    line=${line#-r }
+    case "$line" in
+        -T\ *)
+            line=${line#-T }
+            BIND_TABLE=${line%% *}
+            line=${line#* }
+            ;;
+        *) return 1 ;;
+    esac
+    BIND_KEY=${line%% *}
+    BIND_CMD=${line#* }
+    [ "$BIND_CMD" = "$BIND_KEY" ] && BIND_CMD=""
+    return 0
+}
+
+stock_keys() {
+    # -L gives the probe its own socket and -f /dev/null stops it sourcing the
+    # real config; without the second it would pull in tpm and report this
+    # config's own bindings as defaults, hiding exactly what we came to find.
+    local sock="tmux-keys-probe-$$"
+    tmux -L "$sock" -f /dev/null new-session -d -x 80 -y 24 2>/dev/null || return 1
+    tmux -L "$sock" list-keys 2>/dev/null | normalise
+    tmux -L "$sock" kill-server 2>/dev/null
+    rm -f "${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$sock"
+}
+
+live_keys() {
+    tmux list-keys 2>/dev/null | normalise
+}
+
+render() {
+    local rows="${1:-}" want_table="${2:-prefix}" known="${3:-}" kind heading shown=0
+    for kind in config plugin; do
+        heading=0
+        while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            split_binding "$line" || continue
+            [ "$BIND_TABLE" = "$want_table" ] || continue
+            [ "$(classify_key "$BIND_KEY" "$known")" = "$kind" ] || continue
+            if [ "$heading" -eq 0 ]; then
+                heading=1
+                shown=1
+                if [ "$kind" = config ]; then
+                    printf '\n%sSet in .tmux.conf%s\n' "$C_HEAD" "$C_RESET"
+                else
+                    printf '\n%sAdded by plugins%s\n' "$C_HEAD" "$C_RESET"
+                fi
+            fi
+            printf '  %s%-8s%s %s%s%s\n' \
+                "$C_KEY" "$BIND_KEY" "$C_RESET" "$C_DIM" "$(truncate_cmd "$BIND_CMD")" "$C_RESET"
+        done <<< "$rows"
+    done
+    [ "$shown" -eq 1 ] || printf '  (no custom bindings in the %s table)\n' "$want_table"
+}
+
+main() {
+    TMUX_KEYS_MAIN_RAN=1
+    load_theme
+    local stock live rows
+    stock=$(stock_keys) || {
+        printf 'tmux-keys: could not start a probe server\n' >&2
+        exit 1
+    }
+    live=$(live_keys)
+    rows=$(custom_keys "$stock" "$live")
+    local known
+    known=$(conf_keys "$(cat "$HOME/.tmux.conf" 2>/dev/null)")
+
+    {
+        printf '%sBindings this config adds, on top of %s tmux defaults%s\n' \
+            "$C_HEAD" "$(printf '%s\n' "$stock" | grep -c .)" "$C_RESET"
+        render "$rows" prefix "$known"
+        printf '\n%sFor the labelled version of these keys: prefix + ?%s\n' \
+            "$C_DIM" "$C_RESET"
+        # ? and m are listed as plugin bindings because which-key generates
+        # them, but what they open is this repo's own versioned menu.
+        printf '%s? and m open which-key; its menu is versioned at%s\n' "$C_DIM" "$C_RESET"
+        printf '%s.config/tmux/plugins/tmux-which-key/config.yaml%s\n' "$C_DIM" "$C_RESET"
+    } | if [ -t 1 ]; then ${PAGER:-less -R -S -X -F}; else cat; fi
+}
+
+[ "${TMUX_KEYS_LIB:-}" = "1" ] || main "$@"
