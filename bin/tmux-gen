@@ -44,17 +44,20 @@ parse_reply() {
 
     if [ -n "$json" ] && printf '%s' "$json" | jq -e . >/dev/null 2>&1; then
         REPLY_KIND=$(printf '%s' "$json" | jq -r '.kind // ""')
-        REPLY_CMD=$(printf '%s' "$json" | jq -r '.command // ""')
+        # Type-checked: jq -r on a number, bool, array or object renders it as
+        # text, so `"command": 5` would otherwise be insertable as "5".
+        REPLY_CMD=$(printf '%s' "$json" | jq -r 'if (.command|type)=="string" then .command else "" end')
         REPLY_NOTE=$(printf '%s' "$json" | jq -r '.note // ""')
     fi
 
-    # A newline inside the command is NOT insertable. send-keys -l sends a
-    # literal newline byte, and a terminal in canonical mode submits the line on
-    # any newline byte — not just the Enter key — so an embedded one executes
-    # without the user pressing anything. "We never append Enter" is a promise
-    # about the call site; this closes the payload side of it.
+    # A control character inside the command is NOT insertable. send-keys -l
+    # sends it literally, and terminals act on control bytes the moment they
+    # arrive: CR/LF submit the line in canonical mode, ESC reaches readline's
+    # dispatcher (ESC C-e runs command substitution), C-o runs the line, C-u/BS
+    # erase what the user already approved. "We never append Enter" is a
+    # promise about the call site; this closes the payload side of it.
     case "$REPLY_CMD" in
-        *$'\n'*) REPLY_KIND="answer" ;;
+        *[[:cntrl:]]*) REPLY_KIND="answer" ;;
     esac
 
     if [ "$REPLY_KIND" != "command" ] || [ -z "$REPLY_CMD" ]; then

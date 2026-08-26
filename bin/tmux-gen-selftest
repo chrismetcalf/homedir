@@ -65,4 +65,22 @@ parse_reply '{"kind":"command","command":"echo hi\nrm -rf /tmp/x","note":"n"}'
 assert_eq "embedded newline degrades to answer" "answer" "$REPLY_KIND"
 assert_eq "embedded newline offers nothing"     ""       "$REPLY_CMD"
 
+# CR is what the Enter key physically sends, so a model producing CRLF-ish
+# output emits it naturally; send-keys -l would submit the line just like LF.
+parse_reply '{"kind":"command","command":"echo hi\rrm -rf /tmp/x","note":"n"}'
+assert_eq "embedded CR degrades to answer" "answer" "$REPLY_KIND"
+assert_eq "embedded CR offers nothing"     ""       "$REPLY_CMD"
+
+# ESC reaches readline's dispatcher — e.g. ESC C-e runs shell-expand-line,
+# which performs command substitution with no keypress from the user at all.
+parse_reply '{"kind":"command","command":"echo $(touch /tmp/x)\u001bx","note":"n"}'
+assert_eq "embedded ESC degrades to answer" "answer" "$REPLY_KIND"
+assert_eq "embedded ESC offers nothing"     ""       "$REPLY_CMD"
+
+# jq -r on a non-string renders it as text, so a bare number would otherwise
+# be insertable as "5".
+parse_reply '{"kind":"command","command":5,"note":"n"}'
+assert_eq "non-string command degrades to answer" "answer" "$REPLY_KIND"
+assert_eq "non-string command offers nothing"     ""       "$REPLY_CMD"
+
 exit "$FAILED"
