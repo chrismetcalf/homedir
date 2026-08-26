@@ -48,6 +48,15 @@ parse_reply() {
         REPLY_NOTE=$(printf '%s' "$json" | jq -r '.note // ""')
     fi
 
+    # A newline inside the command is NOT insertable. send-keys -l sends a
+    # literal newline byte, and a terminal in canonical mode submits the line on
+    # any newline byte — not just the Enter key — so an embedded one executes
+    # without the user pressing anything. "We never append Enter" is a promise
+    # about the call site; this closes the payload side of it.
+    case "$REPLY_CMD" in
+        *$'\n'*) REPLY_KIND="answer" ;;
+    esac
+
     if [ "$REPLY_KIND" != "command" ] || [ -z "$REPLY_CMD" ]; then
         REPLY_KIND="answer"
         REPLY_CMD=""

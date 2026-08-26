@@ -58,17 +58,11 @@ assert_eq "empty command offers nothing"     ""       "$REPLY_CMD"
 parse_reply ''
 assert_eq "empty reply degrades to answer" "answer" "$REPLY_KIND"
 
-# KNOWN SAFETY GAP, found in adversarial review, not yet fixed: JSON lets
-# "command" carry an embedded newline (\n) even though the system prompt asks
-# for a single line. jq faithfully unescapes it into a real newline byte in
-# REPLY_CMD. render_and_act is documented to insert via send-keys "without a
-# newline", but that guarantee is about the call site, not about the payload:
-# an embedded newline inside REPLY_CMD itself would submit whatever precedes
-# it to the shell the moment it is typed, running that fragment without the
-# user ever pressing Enter. parse_reply currently treats this as a positively
-# identified command. It should not. Left red on purpose to make the gap
-# visible until it is closed.
-parse_reply '{"kind":"command","command":"echo hi\nrm -rf /","note":"n"}'
-assert_eq "embedded newline in command degrades to answer" "answer" "$REPLY_KIND"
+# jq unescapes \n into a REAL newline byte. send-keys -l would then submit the
+# first line to the shell with no keypress at all, which defeats the tool's
+# entire reason for existing.
+parse_reply '{"kind":"command","command":"echo hi\nrm -rf /tmp/x","note":"n"}'
+assert_eq "embedded newline degrades to answer" "answer" "$REPLY_KIND"
+assert_eq "embedded newline offers nothing"     ""       "$REPLY_CMD"
 
 exit "$FAILED"
