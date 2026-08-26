@@ -132,7 +132,21 @@ render_and_act() {
                 # as send-keys flags. -R silently resets the pane's terminal.
                 case "$REPLY_CMD" in
                     *[[:cntrl:]]*) : ;;
-                    *) tmux send-keys -t "$pane" -l -- "$REPLY_CMD" ;;
+                    *)
+                        # send-keys refuses a payload over roughly 16-20KB with
+                        # "command too long" and exit 1. That status was being
+                        # dropped, so the popup closed exactly as it does on
+                        # success and the user was left looking at an unchanged
+                        # prompt with no idea why. Report it and hold the popup
+                        # open; the success path is untouched.
+                        local err
+                        if ! err=$(tmux send-keys -t "$pane" -l -- "$REPLY_CMD" 2>&1); then
+                            printf '\n  insert failed: %s\n' "${err:-send-keys exited non-zero}"
+                            printf '  nothing was inserted. [y] would copy it instead.\n'
+                            printf '\n  [q] close  '
+                            IFS= read -r -n1 -s _
+                        fi
+                        ;;
                 esac
                 ;;
             y|Y)

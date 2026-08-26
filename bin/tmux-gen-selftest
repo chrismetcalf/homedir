@@ -167,6 +167,41 @@ grep -q "^branch:" "$STUB_RECORD_STDIN" \
 rm -rf "$STUB_DIR"
 unset TMUX_GEN_CLAUDE STUB_REPLY STUB_RECORD_STDIN STUB_RECORD_ARGS
 
+echo "render_and_act"
+
+# send-keys refuses a payload over roughly 16-20KB with "command too long" and
+# exit 1. Ignoring that closed the popup exactly as a success does, leaving the
+# user at an unchanged prompt with no explanation. A shell function shadows the
+# real binary, so this needs no tmux server at all.
+tmux() { printf 'command too long\n' >&2; return 1; }
+
+REPLY_KIND="command"; REPLY_CMD="printf hi"; REPLY_NOTE="n"
+# Two newlines: the first is the [Enter] insert choice, the second dismisses the
+# failure notice. A run that never reports would block on the first read.
+rka_out=$(printf '\n\n' | render_and_act '%0' 2>&1)
+case "$rka_out" in
+    *"insert failed"*) pass "a failed send-keys is reported, not swallowed" ;;
+    *) fail "a failed send-keys is reported, not swallowed" "an 'insert failed' notice" "$rka_out" ;;
+esac
+# Matched as one string on purpose: before the fix tmux's stderr leaked to the
+# terminal unredirected, so "command too long" appeared on its own either way.
+case "$rka_out" in
+    *"insert failed: command too long"*) pass "the notice quotes tmux's own reason" ;;
+    *) fail "the notice quotes tmux's own reason" "insert failed: command too long" "$rka_out" ;;
+esac
+
+# ...and a successful insert still says nothing and asks for nothing.
+tmux() { return 0; }
+rka_out=$(printf '\n' | render_and_act '%0' 2>&1)
+case "$rka_out" in
+    *"insert failed"*) fail "a successful insert stays quiet" "no failure notice" "$rka_out" ;;
+    *) pass "a successful insert stays quiet" ;;
+esac
+
+# The stub must not outlive this section: the safety test below needs real tmux.
+unset -f tmux
+assert_eq "the tmux stub is gone" "file" "$(type -t tmux)"
+
 echo "safety: insert must not execute"
 
 # The whole tool exists to put text on a prompt line WITHOUT running it. This
