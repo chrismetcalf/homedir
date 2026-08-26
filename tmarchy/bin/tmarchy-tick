@@ -11,7 +11,7 @@
 const path = require('node:path')
 const { setOptions } = require('../lib/tmux')
 const { loadSegments, renderSegments } = require('../lib/segments')
-const { currentContext, allWindows, hasContext } = require('../lib/context')
+const { currentContext, allWindows, allPanes, hasContext } = require('../lib/context')
 const { sshHostUnder } = require('../segments.d/remote')
 const { renamePlan, planToOps } = require('../lib/ssh-name')
 const { scoutStates } = require('../lib/scout')
@@ -31,6 +31,18 @@ function main() {
   // grounds for clearing tints; on null we write no @scout-state at all and the
   // previous tick's colours stand for another five seconds. @remote-host is
   // independent of scout and is written either way.
+  // Which window holds an ssh session, looking at EVERY pane. The window list
+  // only reports its active pane's command, so an ssh in a background pane of a
+  // split used to get neither the remote glyph nor the rename.
+  const sshPaneByWindow = new Map()
+  for (const pane of allPanes()) {
+    if (pane.command !== 'ssh') continue
+    const held = sshPaneByWindow.get(pane.windowId)
+    // Prefer the active pane, so a window with two ssh sessions names itself
+    // after the one you are actually looking at.
+    if (!held || (pane.active && !held.active)) sshPaneByWindow.set(pane.windowId, pane)
+  }
+
   const states = scoutStates()
   for (const win of allWindows()) {
     if (states) {
@@ -43,8 +55,9 @@ function main() {
     }
     // Resolve once: the /proc walk is the expensive part and both the tab
     // glyph and the window name want the same answer.
-    const sshing = win.command === 'ssh'
-    const host = sshing ? sshHostUnder(win.pid) : null
+    const sshPane = sshPaneByWindow.get(win.id)
+    const sshing = !!sshPane
+    const host = sshing ? sshHostUnder(sshPane.pid) : null
     ops.push({
       scope: 'window',
       target: win.id,

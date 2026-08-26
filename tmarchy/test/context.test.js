@@ -1,7 +1,8 @@
 const test = require('node:test')
 const assert = require('node:assert')
 const {
-  parseContext, parseWindows, hasContext, PANE_FORMAT, WINDOW_FORMAT,
+  parseContext, parseWindows, parsePanes, hasContext,
+  PANE_FORMAT, WINDOW_FORMAT, PANE_LIST_FORMAT,
 } = require('../lib/context')
 
 test('parses the active pane context from one tmux query', () => {
@@ -91,6 +92,32 @@ test('a malformed window row keeps its id so its options still get written', () 
   assert.deepStrictEqual(parseWindows('@4\n'), [
     { id: '@4', command: null, pid: null, autoRename: false, marker: '', name: '' },
   ])
+})
+
+// An ssh in a background pane of a split used to be invisible: a window list
+// reports only its ACTIVE pane's command.
+test('parses the pane list, including inactive panes', () => {
+  const out = '@1\tssh\t12\t0\n@1\tzsh\t13\t1\n@2\tclaude\t14\t1\n'
+  assert.deepStrictEqual(parsePanes(out), [
+    { windowId: '@1', command: 'ssh', pid: '12', active: false },
+    { windowId: '@1', command: 'zsh', pid: '13', active: true },
+    { windowId: '@2', command: 'claude', pid: '14', active: true },
+  ])
+})
+
+test('only the literal 1 means a pane is active', () => {
+  assert.strictEqual(parsePanes('@1\tzsh\t9\t0\n')[0].active, false)
+  assert.strictEqual(parsePanes('@1\tzsh\t9\t\n')[0].active, false)
+})
+
+test('a malformed pane row is dropped rather than half-parsed', () => {
+  assert.deepStrictEqual(parsePanes('\n'), [])
+})
+
+test('the pane format asks for the window id so panes can be grouped', () => {
+  assert.ok(PANE_LIST_FORMAT.includes('#{window_id}'))
+  assert.ok(PANE_LIST_FORMAT.includes('#{pane_active}'))
+  assert.ok(PANE_LIST_FORMAT.includes('\t'))
 })
 
 test('the formats ask tmux for tab-separated fields', () => {

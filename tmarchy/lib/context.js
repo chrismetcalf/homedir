@@ -39,6 +39,16 @@ const WINDOW_FORMAT = [
   '#{window_name}',
 ].join(SEP)
 
+// Panes, not just each window's active one. #{pane_current_command} on a
+// list-windows reports the ACTIVE pane, so an ssh sitting in a background pane
+// of a split window was invisible: no remote glyph, no rename.
+const PANE_LIST_FORMAT = [
+  '#{window_id}',
+  '#{pane_current_command}',
+  '#{pane_pid}',
+  '#{pane_active}',
+].join(SEP)
+
 const EMPTY_CONTEXT = { panePath: null, paneCommand: null, panePid: null }
 
 function parseContext(out) {
@@ -87,6 +97,21 @@ function currentContext() {
   return parseContext(tmux(['display-message', '-p', PANE_FORMAT]))
 }
 
+function parsePanes(out) {
+  return out
+    .split('\n')
+    .filter(Boolean)
+    .map(line => {
+      const [windowId, command = null, pid = null, active = ''] = line.split(SEP)
+      return { windowId, command: command || null, pid: pid || null, active: active === '1' }
+    })
+    .filter(pane => pane.windowId)
+}
+
+function allPanes() {
+  return parsePanes(tmux(['list-panes', '-a', '-F', PANE_LIST_FORMAT]))
+}
+
 function allWindows() {
   return parseWindows(tmux(['list-windows', '-a', '-F', WINDOW_FORMAT]))
 }
@@ -94,6 +119,9 @@ function allWindows() {
 module.exports = {
   parseContext,
   parseWindows,
+  parsePanes,
+  allPanes,
+  PANE_LIST_FORMAT,
   hasContext,
   currentContext,
   allWindows,
