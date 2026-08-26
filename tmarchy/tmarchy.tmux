@@ -24,6 +24,20 @@ tmux set -g @tmarchy-theme "$THEME"
 # status when the guarded branch doesn't run (it's the last command below).
 if [ -f "$DIR/themes/$THEME.conf" ]; then
   tmux source-file "$DIR/themes/$THEME.conf"
+
+# Colour-type options cannot take a format, so they cannot live in bar.conf with
+# everything else — tmux rejects `#{@theme-accent}` as a bad colour at set time.
+# Read the values the theme just set and apply them concretely. Kept here rather
+# than duplicated into all nine theme files so a theme stays a pure colour table.
+apply_theme_colours() {
+    local dim accent
+    dim=$(tmux show -gv @theme-dim 2>/dev/null)
+    accent=$(tmux show -gv @theme-accent 2>/dev/null)
+    [ -n "$dim" ] && tmux set -g display-panes-colour "$dim"
+    [ -n "$accent" ] && tmux set -g display-panes-active-colour "$accent"
+    [ -n "$accent" ] && tmux set -g clock-mode-colour "$accent"
+}
+apply_theme_colours
 fi
 
 # bar.conf lands in Task 2; guard it the same way so a checkout that only has

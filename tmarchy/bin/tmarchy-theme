@@ -49,8 +49,17 @@ case "${1:-current}" in
       exit 1
     fi
     if [ -n "${TMUX:-}" ] || tmux has-session 2>/dev/null; then
-      tmux source-file "$DIR/themes/$name.conf"
-      tmux set -g @tmarchy-theme "$name"
+      # Re-run the entry point rather than re-applying the theme by hand. It is
+      # idempotent by design, reads the theme we just persisted, and is the ONLY
+      # place that knows about the parts a plain source-file cannot cover — the
+      # colour-type options (display-panes-*, clock-mode-colour), which tmux
+      # rejects as formats and so must be resolved concretely after load.
+      #
+      # Duplicating those three lines here instead would work today and drift
+      # tomorrow: switching a theme would stop matching what a fresh tmux start
+      # produces, and nothing would report the difference. One code path, one
+      # behaviour.
+      "$DIR/tmarchy.tmux"
       tmux refresh-client -S 2>/dev/null
       tmux display-message "tmarchy: $name"
     fi
