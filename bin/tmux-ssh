@@ -77,8 +77,9 @@ hosts_from_ssh_config() {
 }
 
 # ~/.ssh/config is mostly an Include here, so the hosts live one file deeper.
-# One level only: nested includes are not a thing in this config and following
-# them blindly invites a loop.
+# Globs and ~ are expanded, since ssh accepts both. One level only: nested
+# includes are not a thing in this config and following them blindly invites a
+# loop.
 read_ssh_config() {
     local main="${1:-$HOME/.ssh/config}" dir text line target
     [ -r "$main" ] || return 0
@@ -86,11 +87,26 @@ read_ssh_config() {
     printf '%s\n' "$text"
     dir=$(dirname "$main")
     printf '%s\n' "$text" | sed -n 's/^[[:space:]]*[Ii]nclude[[:space:]]\+//p' | while read -r line; do
+        # One Include line may name several targets.
         for target in $line; do
+            # ssh accepts ~ and globs here and both were silently dropped: a
+            # conf.d/*.conf layout -- a common way to organise this file --
+            # contributed no hosts at all, with nothing to say so.
             case "$target" in
-                /*) [ -r "$target" ] && cat "$target" ;;
-                *)  [ -r "$dir/$target" ] && cat "$dir/$target" ;;
+                '~/'*) target="$HOME/${target#\~/}" ;;
             esac
+            case "$target" in
+                /*) ;;
+                *)  target="$dir/$target" ;;
+            esac
+            # Deliberately unquoted: this is where the glob expands. A pattern
+            # matching nothing stays literal and the -r test discards it. The
+            # cost is that a path containing spaces is split, which ssh config
+            # paths effectively never have -- and quoting would disable the
+            # globbing this exists to support.
+            for path in $target; do
+                [ -r "$path" ] && cat "$path"
+            done
         done
     done
 }

@@ -68,6 +68,38 @@ assert_eq "an offline node is offline" "offline" "$(printf '%s\n' "$got" | grep 
 # tailscale prints health warnings that are not nodes.
 assert_eq "non-node lines are ignored" "0" "$(printf '%s\n' "$got" | grep -c 'warning')"
 
+echo "read_ssh_config Include handling"
+# ssh accepts globs and ~ in Include. Both were silently dropped, so a
+# conf.d/*.conf layout contributed no hosts at all and said nothing about it.
+INC=$(mktemp -d)
+mkdir -p "$INC/.ssh/conf.d" "$INC/elsewhere"
+printf 'Include conf.d/*.conf\nInclude ~/.ssh/tilde.conf\nInclude %s/abs.conf\nInclude missing.conf two.conf\nHost base\n' \
+    "$INC/elsewhere" > "$INC/.ssh/config"
+printf 'Host from-glob-a\n'  > "$INC/.ssh/conf.d/a.conf"
+printf 'Host from-glob-b\n'  > "$INC/.ssh/conf.d/b.conf"
+printf 'Host from-tilde\n'   > "$INC/.ssh/tilde.conf"
+printf 'Host from-abs\n'     > "$INC/elsewhere/abs.conf"
+printf 'Host from-second\n'  > "$INC/.ssh/two.conf"
+
+inc=$(HOME="$INC" read_ssh_config "$INC/.ssh/config")
+got=$(hosts_from_ssh_config "$inc")
+
+assert_eq "the main file is read" "1" "$(printf '%s\n' "$got" | grep -cx 'base')"
+# A glob must expand, and to every match.
+assert_eq "a glob Include expands" "1" "$(printf '%s\n' "$got" | grep -cx 'from-glob-a')"
+assert_eq "and picks up every match" "1" "$(printf '%s\n' "$got" | grep -cx 'from-glob-b')"
+assert_eq "a ~ Include is expanded" "1" "$(printf '%s\n' "$got" | grep -cx 'from-tilde')"
+assert_eq "an absolute Include still works" "1" "$(printf '%s\n' "$got" | grep -cx 'from-abs')"
+# One Include line may name several targets, and a missing one must not abort
+# the rest of the line.
+assert_eq "a second target on the same line is read" "1" "$(printf '%s\n' "$got" | grep -cx 'from-second')"
+assert_eq "a missing Include is skipped quietly" "0" "$(printf '%s\n' "$got" | grep -c 'missing')"
+# An unmatched glob stays literal; it must not be offered as a host.
+printf 'Include nothing.d/*.conf\nHost only\n' > "$INC/.ssh/config"
+assert_eq "an unmatched glob yields no phantom host" "only" \
+    "$(hosts_from_ssh_config "$(HOME="$INC" read_ssh_config "$INC/.ssh/config")" | tr '\n' ' ' | sed 's/ $//')"
+rm -rf "$INC"
+
 echo "hosts_from_known_hosts"
 # Hashing is per-host: Debian/Ubuntu set HashKnownHosts in /etc/ssh/ssh_config,
 # macOS does not. So this file is the only source on some machines and useless
