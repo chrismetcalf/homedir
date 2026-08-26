@@ -17,8 +17,18 @@ set -uo pipefail
 
 CONFIG="${TMUX_CMD_CONFIG:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
 
+# Resolve through symlinks: ~/bin may be a symlink to the repo, or a real
+# directory of per-file symlinks depending on how gitfix ran. Sourcing a
+# missing lib used to fail with one stderr line and then leave frecency_sort
+# undefined, which made collect_rows emit nothing -- an empty picker whose
+# every preflight check passed.
+TMUX_CMD_SELF="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+    TMUX_CMD_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+fi
+TMUX_CMD_LIBDIR="$(dirname "$TMUX_CMD_SELF")/lib"
 # shellcheck source=lib/tmux-frecency.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
+[ -r "$TMUX_CMD_LIBDIR/tmux-frecency.sh" ] && . "$TMUX_CMD_LIBDIR/tmux-frecency.sh"
 
 # Menu entries can carry several commands (a macro). They travel through one
 # row as US-separated fields and become one line each in the file tmux sources,
@@ -296,6 +306,15 @@ symlink, so on a fresh checkout run:  bin/gitfix"
 tmux-cmd parses the menu YAML with it."
         return 1
     fi
+    if ! command -v frecency_sort >/dev/null 2>&1 && ! type frecency_sort >/dev/null 2>&1; then
+        PREFLIGHT_ERROR="the shared ranking library did not load:
+  $TMUX_CMD_LIBDIR/tmux-frecency.sh
+
+bin/lib/ is a subdirectory added recently. If ~/bin is a directory of
+per-file symlinks rather than one symlink to the repo, it will not be
+there yet. Fix with:  bin/gitfix"
+        return 1
+    fi
     if ! python3 -c 'import sys, os
 sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
 import yaml' 2>/dev/null; then
@@ -343,5 +362,36 @@ main() {
     frecency_record "$(frecency_path cmd)" "$(frecency_key_cmd "$choice")"
     run_command "${choice%%$'\t'*}"
 }
+
+# `tmux-cmd --doctor` reports each stage's row count, which localises an empty
+# picker to the exact step that dropped everything.
+doctor() {
+    printf 'tmux-cmd doctor\n\n'
+    printf '  host           %s %s\n' "$(uname -s)" "$(uname -m)"
+    printf '  bash           %s\n' "${BASH_VERSION:-unknown}"
+    printf '  config         %s\n' "$CONFIG"
+    printf '  readable       %s\n' "$([ -r "$CONFIG" ] && echo yes || echo NO)"
+    printf '  lib dir        %s\n' "$TMUX_CMD_LIBDIR"
+    printf '  frecency_sort  %s\n' "$(type -t frecency_sort 2>/dev/null || echo MISSING)"
+    printf '  python3        %s\n' "$(command -v python3 || echo MISSING)"
+    printf '  yaml module    %s\n' "$(python3 -c 'import sys,os
+sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
+import yaml; print("ok")' 2>/dev/null || echo MISSING)"
+    local flat rows
+    flat=$(flatten_menu "$(cat "$CONFIG" 2>/dev/null)" 2>/dev/null)
+    rows=$(rows_from_flat "$flat" 2>/dev/null)
+    printf '\n  flatten_menu   %s rows\n' "$(printf '%s' "$flat" | grep -c .)"
+    printf '  rows_from_flat %s rows\n' "$(printf '%s' "$rows" | grep -c .)"
+    printf '  collect_rows   %s rows\n' "$(collect_rows 2>/dev/null | grep -c .)"
+    if preflight; then
+        printf '\n  preflight      ok\n'
+    else
+        printf '\n  preflight      FAILED\n\n%s\n' "$PREFLIGHT_ERROR"
+    fi
+}
+
+case "${1:-}" in
+    --doctor) [ "${TMUX_CMD_LIB:-}" = "1" ] || { doctor; exit 0; } ;;
+esac
 
 [ "${TMUX_CMD_LIB:-}" = "1" ] || main "$@"

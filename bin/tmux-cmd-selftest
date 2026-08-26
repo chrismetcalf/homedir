@@ -226,7 +226,20 @@ preflight && fail "a missing config is caught" "non-zero" "0" || pass "a missing
 printf '%s' "$PREFLIGHT_ERROR" | grep -q 'gitfix' \
   && pass "and it names the fix (gitfix)" || fail "it names the fix" "gitfix" "$PREFLIGHT_ERROR"
 
+# The failure that actually happened: bin/lib/ is a recently added
+# subdirectory, so on a host where ~/bin is per-file symlinks it was never
+# linked. Sourcing failed, frecency_sort stayed undefined, collect_rows emitted
+# nothing -- and config, python3 and yaml all still reported healthy.
 CONFIG="$CONFIG_SAVE"
+saved_fn=$(declare -f frecency_sort)
+unset -f frecency_sort
+preflight && fail "a missing ranking library is caught" "non-zero" "0" \
+  || pass "a missing ranking library is caught"
+printf '%s' "$PREFLIGHT_ERROR" | grep -q 'gitfix' \
+  && pass "and it names the fix (gitfix)" || fail "it names the fix" "gitfix" "$PREFLIGHT_ERROR"
+eval "$saved_fn"
+assert_eq "the library is restored for later tests" "function" "$(type -t frecency_sort)"
+
 preflight && pass "a healthy host passes preflight" \
   || fail "a healthy host passes preflight" "0" "$PREFLIGHT_ERROR"
 assert_eq "and reports no error" "" "$PREFLIGHT_ERROR"
