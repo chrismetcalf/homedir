@@ -275,18 +275,68 @@ run_command() {
     tmux run-shell -b "tmux source-file '$file'; rm -f '$file'"
 }
 
+# Every reason this can come up empty, named. All four used to be silent: a
+# missing config returned 0 rows, a missing pyyaml exited 0 from inside the
+# embedded python, a YAML parse error did the same, and a missing python3 was
+# swallowed by 2>/dev/null. The result was an empty picker on a fresh host with
+# nothing at all to say why.
+PREFLIGHT_ERROR=""
+preflight() {
+    PREFLIGHT_ERROR=""
+    if [ ! -r "$CONFIG" ]; then
+        PREFLIGHT_ERROR="no which-key config at:
+  $CONFIG
+
+That file is versioned in this repo but reaches ~/.config through a
+symlink, so on a fresh checkout run:  bin/gitfix"
+        return 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        PREFLIGHT_ERROR="python3 not found.
+tmux-cmd parses the menu YAML with it."
+        return 1
+    fi
+    if ! python3 -c 'import sys, os
+sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
+import yaml' 2>/dev/null; then
+        PREFLIGHT_ERROR="python3 has no yaml module.
+tmux-which-key vendors a copy, so the usual fix is to install the tmux
+plugins:  prefix + I
+Otherwise:  pip install --user pyyaml"
+        return 1
+    fi
+    return 0
+}
+
+# -E closes the popup the instant this exits, so an error would flash past
+# unread. Hold it until a key is pressed.
+die_in_popup() {
+    printf '\ntmux-cmd: %s\n\n  [any key] close  ' "${1:-unknown error}" >&2
+    IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+    exit 1
+}
+
 main() {
     TMUX_CMD_MAIN_RAN=1
     if ! command -v fzf >/dev/null 2>&1; then
         printf 'tmux-cmd: fzf is not installed\n' >&2
         exit 1
     fi
+    preflight || die_in_popup "$PREFLIGHT_ERROR"
     load_theme
     local choice
     # --tiebreak=index so equal-scoring matches fall back to the frecency order
     # above. The default is `length`, which would quietly rank by row width and
     # undo the sort entirely.
-    choice=$(collect_rows | fzf --ansi --tiebreak=index \
+    local rows
+    rows=$(collect_rows)
+    # Preflight passed but nothing came back: the config parsed to no commands
+    # at all. Better to say so than to open an empty picker.
+    if [ -z "$rows" ]; then
+        die_in_popup "the menu config parsed to no commands:
+  $CONFIG"
+    fi
+    choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index \
         --delimiter=$'\t' --with-nth=3.. \
         --prompt='cmd > ' --height=100% --reverse --no-multi) || exit 0
     [ -n "$choice" ] || exit 0

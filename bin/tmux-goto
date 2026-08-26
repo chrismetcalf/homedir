@@ -21,7 +21,7 @@ set -uo pipefail
 #
 # Pure: it takes the text rather than calling tmux, so the whole shape is
 # testable from fixtures without a server. Field 1 is the target because fzf
-# is configured --with-nth=3.., so the id never has to be recovered from
+# is configured --with-nth=3, so the id never has to be recovered from
 # display text — which would break on the window names containing spaces that
 # this repo's agent worktrees routinely produce.
 # Nerd Font (Material Design Icons) glyphs, the same family tmarchy's bar
@@ -188,7 +188,7 @@ _collect_rows_raw() {
 # Dispatch on the row's own kind field, never on the target's first character
 # and never on display text: a session name may legally begin with @ or %, so
 # sniffing the sigil would send a session called "@release" to select-window.
-# Field 2 exists purely to carry the kind and fzf hides it (--with-nth=3..), so
+# Field 2 exists purely to carry the kind and fzf hides it (--with-nth=3), so
 # the action reads a value that cannot be perturbed by a glyph, by a window
 # name containing spaces, or by anything the display picks up later. Selecting
 # a pane also selects its window (verified: select-window accepts a pane id),
@@ -216,9 +216,22 @@ main() {
         exit 1
     fi
     load_theme
-    local choice
-    choice=$(collect_rows | fzf --ansi \
-        --delimiter=$'\t' --with-nth=3.. \
+    local choice rows
+    rows=$(collect_rows)
+    # Legitimately possible: one session, one window, one pane means every row
+    # is somewhere you already are. Say so rather than opening an empty picker
+    # that just looks broken.
+    if [ -z "$rows" ]; then
+        printf '\ntmux-goto: nowhere else to go -- this is the only window\n'
+        printf 'and pane in the only session.\n\n  [any key] close  '
+        IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+        exit 0
+    fi
+    # --with-nth=3 exactly, NOT 3..: field 4 carries the frecency key and must
+    # stay hidden. --tiebreak=index so equal-scoring matches keep the frecency
+    # order; the default `length` ranks by row width and would undo the sort.
+    choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index \
+        --delimiter=$'\t' --with-nth=3 \
         --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
     frecency_record "$(frecency_path goto)" "$(frecency_key_goto "$choice")"
     act_on "$choice"

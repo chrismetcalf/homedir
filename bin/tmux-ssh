@@ -168,10 +168,20 @@ main() {
         exit 1
     fi
     load_theme
-    local out key choice
+    local out key choice rows
+    rows=$(collect_rows)
+    if [ -z "$rows" ]; then
+        printf '\ntmux-ssh: no hosts found.\n\n'
+        printf 'Hosts come from ~/.ssh/config (and its Includes) and from\n'
+        printf 'tailscale status. known_hosts is hashed, so it yields none.\n'
+        printf 'Check:  tailscale status    grep -c Host ~/.ssh/config\n'
+        printf '\n  [any key] close  '
+        IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+        exit 0
+    fi
     # --tiebreak=index so equal-scoring matches keep the frecency order above;
     # the default `length` would rank by hostname width instead.
-    out=$(collect_rows | fzf --ansi --expect=ctrl-v --tiebreak=index \
+    out=$(printf '%s\n' "$rows" | fzf --ansi --expect=ctrl-v --tiebreak=index \
         --delimiter=$'\t' --with-nth=3.. \
         --prompt='ssh to > ' --height=100% --reverse --no-multi) || exit 0
     key=$(printf '%s\n' "$out" | head -1)

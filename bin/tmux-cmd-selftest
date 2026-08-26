@@ -216,6 +216,54 @@ if [ -r "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml" ]; then
       || fail "the live palette shows several glyphs" ">=5" "$variety"
 fi
 
+echo "preflight"
+# An empty palette on a fresh host is the failure this exists to prevent. Each
+# of these four used to return zero rows and say nothing at all.
+CONFIG_SAVE="$CONFIG"
+
+CONFIG="/nonexistent/config.yaml"
+preflight && fail "a missing config is caught" "non-zero" "0" || pass "a missing config is caught"
+printf '%s' "$PREFLIGHT_ERROR" | grep -q 'gitfix' \
+  && pass "and it names the fix (gitfix)" || fail "it names the fix" "gitfix" "$PREFLIGHT_ERROR"
+
+CONFIG="$CONFIG_SAVE"
+preflight && pass "a healthy host passes preflight" \
+  || fail "a healthy host passes preflight" "0" "$PREFLIGHT_ERROR"
+assert_eq "and reports no error" "" "$PREFLIGHT_ERROR"
+
+# A host with no python3 at all: shadow it with an empty PATH entry.
+SHADOW=$(mktemp -d)
+(
+    PATH="$SHADOW"
+    preflight
+    printf '%s' "$PREFLIGHT_ERROR" > "$SHADOW/err"
+) 2>/dev/null
+grep -q 'python3' "$SHADOW/err" 2>/dev/null \
+  && pass "a missing python3 is caught" || fail "a missing python3 is caught" "python3" "$(cat "$SHADOW/err" 2>/dev/null)"
+
+# python3 present but without yaml: a stub that fails every import.
+printf '#!/bin/sh\nexit 1\n' > "$SHADOW/python3"
+chmod +x "$SHADOW/python3"
+(
+    PATH="$SHADOW:$PATH"
+    preflight
+    printf '%s' "$PREFLIGHT_ERROR" > "$SHADOW/err2"
+) 2>/dev/null
+grep -q 'yaml' "$SHADOW/err2" 2>/dev/null \
+  && pass "a missing yaml module is caught" || fail "a missing yaml module is caught" "yaml" "$(cat "$SHADOW/err2" 2>/dev/null)"
+grep -q 'prefix + I' "$SHADOW/err2" 2>/dev/null \
+  && pass "and it names the fix (prefix + I)" || fail "it names the fix" "prefix + I" "$(cat "$SHADOW/err2" 2>/dev/null)"
+rm -rf "$SHADOW"
+
+# A config that is readable but yields nothing must not open an empty picker.
+EMPTY=$(mktemp)
+printf 'items: []\n' > "$EMPTY"
+CONFIG="$EMPTY"
+preflight && pass "an empty config still passes preflight" || fail "an empty config passes preflight" "0" "$PREFLIGHT_ERROR"
+assert_eq "but it produces no rows, which main reports" "0" "$(collect_rows | grep -c .)"
+rm -f "$EMPTY"
+CONFIG="$CONFIG_SAVE"
+
 echo "run_command"
 SHIM=$(mktemp -d)
 tmux() { printf '%s\n' "$*" >> "$SHIM/calls"; printf '%s\n' "$*" >> "$SHIM/calls.all"; }

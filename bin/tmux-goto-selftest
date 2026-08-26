@@ -306,4 +306,22 @@ PF2=$'*\tsess\tS star\tsess:*\n@5\twin\tW five\twin:main:five'
 assert_eq "a glob-like session name filters only itself" "@5" \
     "$(promote_and_filter "$PF2" "" "" "*" "" | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
 
+echo "the shipped fzf invocation"
+# Read the script itself. Both of the last bugs in this area were verified
+# against a synthetic fixture rather than against what actually ships, so this
+# asserts on the source.
+SRC=$(cat "$DIR/tmux-goto")
+
+# --with-nth=3.. would DISPLAY field 4, which is the frecency key.
+printf '%s' "$SRC" | grep -q -- "--with-nth=3 " \
+  && pass "fzf is told to show only field 3" \
+  || fail "fzf shows only field 3" "--with-nth=3" "$(printf '%s' "$SRC" | grep -o -- '--with-nth=[0-9.]*')"
+printf '%s' "$SRC" | grep -q -- "--with-nth=3\.\." \
+  && fail "field 4 is not displayed" "no --with-nth=3.." "found --with-nth=3.." \
+  || pass "field 4 is not displayed"
+# Without this, fzf breaks ties by row length and the frecency sort is undone.
+printf '%s' "$SRC" | grep -q -- "--tiebreak=index" \
+  && pass "ties fall back to the frecency order" \
+  || fail "ties fall back to the frecency order" "--tiebreak=index" "absent"
+
 exit "$FAILED"
