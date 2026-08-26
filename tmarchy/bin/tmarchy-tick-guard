@@ -2,12 +2,17 @@
 # tmarchy-tick-guard — rate-limits the ticker. This is what bar.conf's single
 # #() invokes; tmarchy-tick itself stays directly runnable and unguarded.
 #
-# tmux re-runs a #() on every status REDRAW once the previous job exits, NOT on
-# status-interval. With a dozen agent panes producing output, redraws are
-# near-continuous: measured 2.0 node spawns/sec and 0.27 mean concurrent
-# processes where the design assumed 0.2/sec — about a quarter of a core burned
-# permanently, at ~58 MB and ~0.15 s per spawn. Since the cost IS node startup,
-# the guard has to decide before node ever runs.
+# tmux re-runs this #() roughly once per status-interval PER ATTACHED CLIENT,
+# plus once for every explicit `refresh-client -S`. Pane output does not drive
+# it at all — measured: interval 5 idle and interval 5 with a pane in a tight
+# echo loop both sit at 0.20/sec, while interval 1 with 1/2/3 clients measures
+# 1.00/1.90/3.00/sec and interval 5 with refresh-client -S at 10 Hz measures
+# 9.60/sec. The 2.0 node spawns/sec that originally motivated this guard was 2
+# attached clients on tmux-powerline's status-interval 1, not redraw storms
+# from busy panes. So this is cheap insurance against a low interval, many
+# attached clients, or a `refresh-client -S` caller — not a defense against
+# pane output. Since the cost IS node startup, the guard has to decide before
+# node ever runs.
 #
 # So: bash builtins only on the common path. No date, no cat, no test binary --
 # a skip forks nothing at all, which is the whole point. Two clients can still

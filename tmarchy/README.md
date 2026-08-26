@@ -11,22 +11,35 @@ segment per window per redraw.
 
 ## The governing invariant
 
-**Nothing in the status bar forks a shell on a redraw.** Under
-tmux-powerline, with a dozen agent-worktree windows open, status-bar forks
-ran at 7.7/sec; under tmarchy the same session runs 0.5/sec. That number is
-the whole point of this rewrite, and every design choice below exists to
-protect it.
+**Node runs at most once per status-interval.** Under tmux-powerline, with a
+dozen agent-worktree windows open, status-bar forks ran at 7.7/sec; under
+tmarchy the same session runs 0.5/sec. That number is the whole point of this
+rewrite, and every design choice below exists to protect it.
 
-The reason it's hard to hold: tmux does not re-run a `#()` callout on
-`status-interval`. It re-runs it on every status **redraw**, as soon as the
-previous invocation's process has exited. With one pane, redraws roughly
-track `status-interval`. With a dozen busy agent panes producing terminal
-output, tmux redraws the status line far more often than that — redraws were
-measured close to continuous, and an *unguarded* ticker under that load
-spawned node at ~2.0/sec (about a quarter of a core, permanently, just from
-process startup). `status-interval` bounds how fresh the data is; it does
-not bound how often the callout runs. Only a guard that runs *before* any
-expensive process starts can bound that.
+Note the precise claim: *node* runs at most once per interval, not *nothing
+forks a shell*. tmux does fork a shell for the `#()` callout on every
+invocation — that shell is `tmarchy-tick-guard`, and it's cheap because it
+exits on bash builtins alone without ever starting node.
+
+What drives how often that callout runs is not redraws from busy panes. It's
+`status-interval` × the number of attached clients, plus one more for every
+explicit `refresh-client -S`. Measured: `status-interval 5` idle and
+`status-interval 5` with a pane in a tight echo loop both sit at 0.20/sec —
+pane output does not move the number at all. `status-interval 1` with 1, 2,
+and 3 attached clients measures 1.00/sec, 1.90/sec, and 3.00/sec. And
+`status-interval 5` with something calling `refresh-client -S` at 10 Hz
+measures 9.60/sec. The 2.0 node spawns/sec that originally motivated this
+guard was 2 attached clients on tmux-powerline's `status-interval 1` — not a
+redraw storm from a dozen busy panes.
+
+The guard is still worth keeping: a low interval, several attached clients
+(tmux over multiple terminals/ShellFish connections, say), or anything
+polling with `refresh-client -S` can drive the callout often enough that an
+*unguarded* ticker would burn real CPU on node startup alone (~58 MB and
+~0.15s per spawn). `status-interval` bounds how fresh the data is; without
+the guard, attached-client count and any `refresh-client -S` caller would
+still bound how often node actually runs. Only a guard that runs *before* any
+expensive process starts can bound that unconditionally.
 
 ## The four layers
 
@@ -216,13 +229,15 @@ from here too.
   style — a live server that still has `status-bg` set from a pre-tmarchy
   session will visibly ignore `bar.conf`'s `status-style` until `status-bg`
   is explicitly unset (`set -gu status-bg`), which is what `.tmux.conf` does.
-- **tmux re-runs a `#()` on every status *redraw* once the previous job
-  exits — not on `status-interval`.** This is the reason
-  `tmarchy-tick-guard` exists at all; a ticker that assumes it's called
-  roughly every `status-interval` seconds is assuming something tmux does
-  not guarantee, and will fork far more than expected under load (agent
-  panes producing lots of terminal output redraw the status line
-  continuously).
+- **A `#()` callout re-runs roughly once per `status-interval` *per attached
+  client*, plus once per explicit `refresh-client -S` — not once per
+  `status-interval` total, and not driven by pane output at all.** This is
+  the reason `tmarchy-tick-guard` exists: a ticker that assumes it's called
+  once per interval, full stop, is wrong the moment a second client attaches
+  (tmux over two terminals, say) or something starts polling with
+  `refresh-client -S`. Measured rates are in the README's "governing
+  invariant" section above; a dozen busy agent panes producing terminal
+  output did not move the callout rate at all.
 - **`node --test <directory>` does not glob-search on this node build.**
   It reports a bogus `1 test, 1 fail` instead of an error or a real
   collection failure, which reads exactly like "the suite has one test and
