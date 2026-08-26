@@ -30,6 +30,9 @@ gather_context() { :; }
 query() { :; }
 parse_reply() { :; }
 render_and_act() { :; }
-main() { :; }
+# TMUX_GEN_MAIN_RAN is a sentinel for the selftest: it is the only observable
+# proof that the library-mode guard below actually skipped main. Keep it as
+# main's first statement when the real body lands in Task 5.
+main() { TMUX_GEN_MAIN_RAN=1; :; }
 
 [ "${TMUX_GEN_LIB:-}" = "1" ] || main "$@"

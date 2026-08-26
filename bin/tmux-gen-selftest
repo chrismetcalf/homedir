@@ -19,7 +19,7 @@ export TMUX_GEN_LIB=1
 
 echo "tmux-gen selftest"
 echo "library mode"
-assert_eq "sourcing does not run main" "1" "$TMUX_GEN_LIB"
+assert_eq "sourcing does not run main" "" "${TMUX_GEN_MAIN_RAN:-}"
 assert_eq "parse_reply is defined"     "function" "$(type -t parse_reply)"
 assert_eq "gather_context is defined"  "function" "$(type -t gather_context)"
 assert_eq "query is defined"           "function" "$(type -t query)"
