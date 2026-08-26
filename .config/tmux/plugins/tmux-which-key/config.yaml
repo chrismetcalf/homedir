@@ -62,6 +62,9 @@ items:
     command: 'display-popup -E -w 70% -h 60% "~/bin/tmux-goto"'
   # display-popup does NOT format-expand #{}, so the pane id has to be
   # resolved by the run-shell wrapper before the popup ever starts.
+  - name: SSH to a host
+    key: S
+    command: 'display-popup -E -w 60% -h 70% "~/bin/tmux-ssh"'
   - name: Ask Claude for a command
     key: g
     command: 'run-shell -b "tmux display-popup -E -w 80% -h 60% \"~/bin/tmux-gen #{pane_id}\""'

@@ -26,7 +26,18 @@ const { tmux } = require('./tmux')
 
 const SEP = '\t'
 const PANE_FORMAT = ['#{pane_current_path}', '#{pane_current_command}', '#{pane_pid}'].join(SEP)
-const WINDOW_FORMAT = ['#{window_id}', '#{pane_current_command}', '#{pane_pid}'].join(SEP)
+// window_name goes LAST because it is the only field that may contain the
+// separator: a window can legitimately be named with a tab in it, and the
+// parser below joins the tail back together rather than truncating it. The
+// same class of bug already bit parseContext once, with a path.
+const WINDOW_FORMAT = [
+  '#{window_id}',
+  '#{pane_current_command}',
+  '#{pane_pid}',
+  '#{automatic-rename}',
+  '#{@tmarchy-ssh-name}',
+  '#{window_name}',
+].join(SEP)
 
 const EMPTY_CONTEXT = { panePath: null, paneCommand: null, panePid: null }
 
@@ -48,8 +59,20 @@ function parseWindows(out) {
     .split('\n')
     .filter(Boolean)
     .map(line => {
-      const [id, command = null, pid = null] = line.split(SEP)
-      return { id, command, pid }
+      const parts = line.split(SEP)
+      const [id, command = null, pid = null, auto = '', marker = ''] = parts
+      return {
+        id,
+        command: command || null,
+        pid: pid || null,
+        // '1' when tmux is still naming the window itself. Anything else --
+        // including a tmux too old to expose the option as a format -- counts
+        // as "hands off", which fails safe: we decline to rename rather than
+        // risk eating a name that was set deliberately.
+        autoRename: auto === '1',
+        marker: marker || '',
+        name: parts.slice(5).join(SEP),
+      }
     })
     .filter(win => win.id)
 }

@@ -18,12 +18,18 @@ function tmux(args) {
 }
 
 // ops: [{ scope: 'global' | 'window', target?: '@3', name: '@x', value: 'v' }]
+//      [{ scope: 'command', argv: ['rename-window', '-t', '@3', 'altair'] }]
 // A null value unsets the option, which is how an idle window loses its tint.
+// The command form exists so the ssh rename rides in the same invocation as
+// the option writes: two tmux calls per tick would double the fork cost this
+// whole design exists to avoid.
 function buildArgv(ops) {
   const argv = []
   for (const op of ops) {
     if (argv.length) argv.push(';')
-    if (op.scope === 'window') {
+    if (op.scope === 'command') {
+      argv.push(...op.argv)
+    } else if (op.scope === 'window') {
       if (op.value === null) argv.push('set-option', '-uwt', op.target, op.name)
       else argv.push('set-option', '-wt', op.target, op.name, String(op.value))
     } else if (op.value === null) {

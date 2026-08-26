@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# tmux-ssh-selftest — fixture-driven tests for bin/tmux-ssh.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+export TMUX_SSH_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-ssh"
+
+echo "tmux-ssh selftest"
+echo "library mode"
+assert_eq "sourcing does not run main" "" "${TMUX_SSH_MAIN_RAN:-}"
+assert_eq "rows_from_sources is defined" "function" "$(type -t rows_from_sources)"
+assert_eq "valid_host is defined" "function" "$(type -t valid_host)"
+
+echo "valid_host"
+# The host is pasted into a command line, so this is a safety gate, not tidying.
+for good in host1 my-box.example.com user@box box_1 10.0.0.4; do
+    valid_host "$good" && pass "accepts $good" || fail "accepts $good" "accepted" "rejected"
+done
+for bad in 'a;rm -rf /' 'a b' 'a$(id)' 'a`id`' 'a|b' 'a&b' '-oProxyCommand=x' '' 'a>b' "a'b" 'a"b' 'a
+b'; do
+    valid_host "$bad" && fail "rejects [$bad]" "rejected" "accepted" || pass "rejects [$(printf '%s' "$bad" | tr -d '\n')]"
+done
+
+echo "hosts_from_ssh_config"
+CFG='# comment
+Host alpha
+    HostName 10.0.0.1
+Host beta gamma
+    User me
+Host *
+    ServerAliveInterval 60
+Host build-?
+    User ci
+host lowercase-keyword'
+got=$(hosts_from_ssh_config "$CFG")
+assert_eq "a plain Host is found" "1" "$(printf '%s\n' "$got" | grep -cx 'alpha')"
+# One Host line may declare several aliases.
+assert_eq "multiple names on one line are split" "1" "$(printf '%s\n' "$got" | grep -cx 'gamma')"
+assert_eq "the keyword is case-insensitive" "1" "$(printf '%s\n' "$got" | grep -cx 'lowercase-keyword')"
+# "Host *" is a rule, not a machine; offering it would be a dead row.
+assert_eq "a wildcard is skipped" "0" "$(printf '%s\n' "$got" | grep -cx '\*')"
+assert_eq "a glob pattern is skipped" "0" "$(printf '%s\n' "$got" | grep -cx 'build-?')"
+assert_eq "HostName values are not hosts" "0" "$(printf '%s\n' "$got" | grep -cx '10.0.0.1')"
+
+echo "hosts_from_tailscale"
+TS='100.112.74.126   docker-host            chrismetcalf@   linux    idle; offers exit node
+100.78.125.61    altair                 chrismetcalf@   macOS    active; direct 192.168.1.4:41641
+100.79.1.4       bazarr                 tagged-devices  linux    -
+100.79.1.9       sleepy                 tagged-devices  linux    offline
+# Health check:
+    - some warning line'
+got=$(hosts_from_tailscale "$TS")
+assert_eq "one row per node" "4" "$(printf '%s\n' "$got" | grep -c .)"
+assert_eq "host is field 1" "docker-host" "$(printf '%s\n' "$got" | head -1 | cut -f1)"
+assert_eq "os is field 2" "linux" "$(printf '%s\n' "$got" | head -1 | cut -f2)"
+assert_eq "an active node is online" "online" "$(printf '%s\n' "$got" | grep '^altair' | cut -f3)"
+# "offers exit node" contains no "offline"; a substring match would misread it.
+assert_eq "an idle node is not offline" "online" "$(printf '%s\n' "$got" | grep '^docker-host' | cut -f3)"
+assert_eq "an offline node is offline" "offline" "$(printf '%s\n' "$got" | grep '^sleepy' | cut -f3)"
+# tailscale prints health warnings that are not nodes.
+assert_eq "non-node lines are ignored" "0" "$(printf '%s\n' "$got" | grep -c 'warning')"
+
+echo "rows_from_sources"
+CFGH=$'alpha\nbazarr'
+TSH=$'docker-host\tlinux\tonline\nbazarr\tlinux\tonline\nsleepy\tlinux\toffline'
+out=$(rows_from_sources "$CFGH" "$TSH")
+
+assert_eq "every source contributes" "4" "$(printf '%s\n' "$out" | grep -c .)"
+assert_eq "target is field 1" "alpha" "$(printf '%s\n' "$out" | head -1 | cut -f1)"
+assert_eq "kind field is exact" "cfg cfg net net" \
+    "$(printf '%s\n' "$out" | cut -f2 | tr '\n' ' ' | sed 's/ $//')"
+# An ssh-config entry may carry a user, port or ProxyJump the bare tailscale
+# name would lose, so it must win and the duplicate must not appear twice.
+assert_eq "a host in both sources appears once" "1" "$(printf '%s\n' "$out" | cut -f1 | grep -cx 'bazarr')"
+assert_eq "and it keeps the ssh-config kind" "cfg" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="bazarr"{print $2}')"
+printf '%s\n' "$out" | grep -q 'offline' \
+  && pass "an offline node is marked" || fail "an offline node is marked" "offline" "$out"
+printf '%s\n' "$out" | cut -f3 | grep -q '\[ssh\]' \
+  && pass "config rows tagged" || fail "config rows tagged" "[ssh]" "$out"
+printf '%s\n' "$out" | cut -f3 | grep -q '\[net\]' \
+  && pass "tailscale rows tagged" || fail "tailscale rows tagged" "[net]" "$out"
+assert_eq "rows lead with a glyph" "$GLYPH_HOST" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="net"{print $3; exit}' | cut -d' ' -f1)"
+
+# A crafted config or node name must never reach a row.
+EVIL=$'good-host\nevil;rm -rf /\nevil host'
+out2=$(rows_from_sources "$EVIL" "")
+assert_eq "an injecting host never becomes a row" "1" "$(printf '%s\n' "$out2" | grep -c .)"
+assert_eq "and the safe one survives" "good-host" "$(printf '%s\n' "$out2" | cut -f1)"
+
+echo "act_on"
+SHIM=$(mktemp -d)
+tmux() { printf '%s\n' "$*" >> "$SHIM/calls"; }
+
+: > "$SHIM/calls"
+act_on "$(printf 'altair\tnet\t%s [net] altair' "$GLYPH_HOST")" ""
+grep -q 'new-window -n altair ssh altair' "$SHIM/calls" \
+  && pass "enter opens a named window" || fail "enter opens a named window" "new-window -n altair ssh altair" "$(cat "$SHIM/calls")"
+
+: > "$SHIM/calls"
+act_on "$(printf 'altair\tnet\t%s [net] altair' "$GLYPH_HOST")" "ctrl-v"
+grep -q 'split-window' "$SHIM/calls" \
+  && pass "ctrl-v splits instead" || fail "ctrl-v splits instead" "split-window" "$(cat "$SHIM/calls")"
+grep -q 'new-window' "$SHIM/calls" \
+  && fail "ctrl-v does not also open a window" "no new-window" "$(cat "$SHIM/calls")" || pass "ctrl-v does not also open a window"
+
+: > "$SHIM/calls"
+act_on "" ""
+assert_eq "an empty selection does nothing" "" "$(cat "$SHIM/calls")"
+
+# The last line of defence: even if a bad row reached act_on, it must not run.
+: > "$SHIM/calls"
+act_on "$(printf 'evil;id\tnet\tevil')" "" 2>/dev/null
+assert_eq "an injecting row runs no command" "" "$(cat "$SHIM/calls")"
+
+unset -f tmux
+[ "$(type -t tmux)" != "function" ] \
+  && pass "tmux shim removed" || fail "tmux shim removed" "not function" "$(type -t tmux)"
+rm -rf "$SHIM"
+
+echo "colour"
+assert_eq "hex becomes truecolor ansi" "$(printf '\033[38;2;125;207;255m')" "$(ansi_for '#7dcfff')"
+assert_eq "colourNNN becomes 256-colour ansi" "$(printf '\033[38;5;110m')" "$(ansi_for 'colour110')"
+assert_eq "an unparseable colour yields nothing" "" "$(ansi_for 'seafoam')"
+
+exit "$FAILED"

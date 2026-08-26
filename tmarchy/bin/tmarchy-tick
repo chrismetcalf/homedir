@@ -13,6 +13,7 @@ const { setOptions } = require('../lib/tmux')
 const { loadSegments, renderSegments } = require('../lib/segments')
 const { currentContext, allWindows, hasContext } = require('../lib/context')
 const { sshHostUnder } = require('../segments.d/remote')
+const { renamePlan, planToOps } = require('../lib/ssh-name')
 const { scoutStates } = require('../lib/scout')
 
 function main() {
@@ -40,12 +41,24 @@ function main() {
         value: states.get(win.id) || null,
       })
     }
+    // Resolve once: the /proc walk is the expensive part and both the tab
+    // glyph and the window name want the same answer.
+    const sshing = win.command === 'ssh'
+    const host = sshing ? sshHostUnder(win.pid) : null
     ops.push({
       scope: 'window',
       target: win.id,
       name: '@remote-host',
-      value: win.command === 'ssh' ? sshHostUnder(win.pid) || 'ssh' : null,
+      value: sshing ? host || 'ssh' : null,
     })
+
+    // Name the window after the host it is sitting on. An ssh whose host could
+    // NOT be resolved is deliberately skipped rather than passed through as
+    // "not ssh": that would read as the session having ended and would hand
+    // back a name mid-session, on nothing worse than one failed /proc walk.
+    if (!sshing || host) {
+      ops.push(...planToOps(renamePlan(win, host), win))
+    }
   }
 
   // Global segment values for the current pane's context.
@@ -59,7 +72,10 @@ function main() {
   const ctx = currentContext()
   if (hasContext(ctx)) {
     const values = renderSegments(loadSegments(path.join(__dirname, '..', 'segments.d')), ctx)
-    for (const name of ['load', 'agents', 'branch', 'remote', 'battery']) {
+    // 'remote' is gone: the host now names the window instead of sitting in
+    // status-left, where one pane's ssh session read as a property of the
+    // whole session. The per-tab glyph still comes from @remote-host above.
+    for (const name of ['load', 'agents', 'branch', 'battery']) {
       // Same reasoning as the tints above, and it has to match them: if scout
       // was unreadable this tick, blanking the summary while the tabs keep
       // their colours would make the bar contradict itself.

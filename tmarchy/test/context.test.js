@@ -54,24 +54,43 @@ test('a real pane query is recognised as context', () => {
 })
 
 test('parses the window list', () => {
-  const out = '@1\tzsh\t12\n@2\tssh\t34\n'
+  const out = '@1\tzsh\t12\t1\t\tshell\n@2\tssh\t34\t0\taltair\taltair\n'
   assert.deepStrictEqual(parseWindows(out), [
-    { id: '@1', command: 'zsh', pid: '12' },
-    { id: '@2', command: 'ssh', pid: '34' },
+    { id: '@1', command: 'zsh', pid: '12', autoRename: true, marker: '', name: 'shell' },
+    { id: '@2', command: 'ssh', pid: '34', autoRename: false, marker: 'altair', name: 'altair' },
   ])
+})
+
+// A window name is the one field a user can put anything in, tabs included, so
+// it is parsed as the tail rather than as a fixed column.
+test('a window name containing the separator survives', () => {
+  const [win] = parseWindows('@5\tzsh\t78\t1\t\tone\ttwo\n')
+  assert.strictEqual(win.name, 'one\ttwo')
+  assert.strictEqual(win.pid, '78')
+})
+
+// Only the literal '1' means tmux is still naming the window. A tmux too old to
+// expose the option as a format yields '', and that must read as "hands off"
+// rather than as permission to rename.
+test('anything but 1 counts as not auto-named', () => {
+  assert.strictEqual(parseWindows('@6\tzsh\t9\t0\t\tx\n')[0].autoRename, false)
+  assert.strictEqual(parseWindows('@7\tzsh\t9\t\t\tx\n')[0].autoRename, false)
+  assert.strictEqual(parseWindows('@8\tzsh\t9\t1\t\tx\n')[0].autoRename, true)
 })
 
 // pane_current_command is process-supplied and can carry a space just as a path
 // can; splitting on one would report command "my" for "my helper", quietly
 // losing the `ssh` match that drives @remote-host.
 test('a window whose command contains a space stays intact', () => {
-  assert.deepStrictEqual(parseWindows('@3\tmy helper\t56\n'), [
-    { id: '@3', command: 'my helper', pid: '56' },
+  assert.deepStrictEqual(parseWindows('@3\tmy helper\t56\t1\t\tshell\n'), [
+    { id: '@3', command: 'my helper', pid: '56', autoRename: true, marker: '', name: 'shell' },
   ])
 })
 
 test('a malformed window row keeps its id so its options still get written', () => {
-  assert.deepStrictEqual(parseWindows('@4\n'), [{ id: '@4', command: null, pid: null }])
+  assert.deepStrictEqual(parseWindows('@4\n'), [
+    { id: '@4', command: null, pid: null, autoRename: false, marker: '', name: '' },
+  ])
 })
 
 test('the formats ask tmux for tab-separated fields', () => {
