@@ -104,10 +104,84 @@ parse_reply() {
         [ -n "$REPLY_NOTE" ] || REPLY_NOTE="$raw"
     fi
 }
-render_and_act() { :; }
+# Draws the result and waits for one key. Enter is offered ONLY for a command;
+# an answer gets no insert path at all, which is what makes an unparseable
+# reply harmless.
+render_and_act() {
+    local pane="${1:-}"
+    printf '\n'
+    if [ "$REPLY_KIND" = "command" ]; then
+        printf '  %s\n' "$REPLY_CMD"
+        [ -n "$REPLY_NOTE" ] && printf '  %s\n' "$REPLY_NOTE"
+        printf '\n  [Enter] insert   [y] copy   [q] close  '
+        local key
+        IFS= read -r -n1 -s key
+        case "$key" in
+            "")
+                # -l is mandatory: without it tmux reads tokens as key NAMES, so
+                # a command containing Enter, Space or ';' becomes keystrokes.
+                # No newline is ever sent: inserting is not running.
+                #
+                # The control-character check is deliberate belt-and-braces.
+                # parse_reply already degrades such a command to an answer, so
+                # this should be unreachable — but it is the last line of defence
+                # for the one property the tool exists to provide, and a future
+                # edit to the gate must not be able to silently open it.
+                #
+                # `--` matters: a command starting with '-' is otherwise parsed
+                # as send-keys flags. -R silently resets the pane's terminal.
+                case "$REPLY_CMD" in
+                    *[[:cntrl:]]*) : ;;
+                    *) tmux send-keys -t "$pane" -l -- "$REPLY_CMD" ;;
+                esac
+                ;;
+            y|Y)
+                # load-buffer -w, not set-buffer: reading from stdin avoids any
+                # argument-quoting question for arbitrary command text, and -w
+                # routes through OSC 52 to the host clipboard — the same path
+                # @override_copy_command already uses, so this works in ShellFish.
+                printf '%s' "$REPLY_CMD" | tmux load-buffer -w -
+                ;;
+        esac
+    else
+        printf '  %s\n' "$REPLY_NOTE"
+        printf '\n  [q] close  '
+        IFS= read -r -n1 -s _
+    fi
+    printf '\n'
+}
 # TMUX_GEN_MAIN_RAN is a sentinel for the selftest: it is the only observable
 # proof that the library-mode guard below actually skipped main. Keep it as
 # main's first statement when the real body lands in Task 5.
-main() { TMUX_GEN_MAIN_RAN=1; :; }
+main() {
+    # Sentinel for the selftest's library-mode assertion — see Task 1. Without
+    # it, "sourcing does not run main" has nothing observable to check and
+    # passes even when the guard is broken.
+    TMUX_GEN_MAIN_RAN=1
+    local pane="${1:-}" question
+    gather_context "$pane"
+
+    printf 'ask (%s%s)\n' "${CTX_CWD##*/}" "${CTX_BRANCH:+ @$CTX_BRANCH}"
+    IFS= read -r -e -p '> ' question || exit 0
+    [ -n "${question// /}" ] || exit 0
+
+    printf '\n  thinking...\r'
+    local raw
+    raw=$(query "$question")
+    local rc=$?
+
+    # ANY non-zero status is a failure, even with output. A timeout returns 124
+    # having already emitted whatever partial text the model produced, and that
+    # partial text is indistinguishable from a genuine short answer — so trusting
+    # it would present a truncated reply as a complete one. Measured, not assumed.
+    if [ $rc -ne 0 ]; then
+        printf '  query failed (exit %s)\n\n  [q] close  ' "$rc"
+        IFS= read -r -n1 -s _
+        exit 1
+    fi
+
+    parse_reply "$raw"
+    render_and_act "$pane"
+}
 
 [ "${TMUX_GEN_LIB:-}" = "1" ] || main "$@"
