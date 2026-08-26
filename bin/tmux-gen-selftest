@@ -83,4 +83,42 @@ parse_reply '{"kind":"command","command":5,"note":"n"}'
 assert_eq "non-string command degrades to answer" "answer" "$REPLY_KIND"
 assert_eq "non-string command offers nothing"     ""       "$REPLY_CMD"
 
+echo "gather_context"
+
+# A real repo: this checkout.
+CTX_CWD=""; CTX_BRANCH=""
+gather_context_from_dir "$DIR/.."
+assert_eq "cwd is the repo"    "$(cd "$DIR/.." && pwd)" "$CTX_CWD"
+assert_eq "branch is resolved" "$(git -C "$DIR/.." rev-parse --abbrev-ref HEAD)" "$CTX_BRANCH"
+
+# Outside a repo: branch must be empty, not an error string.
+tmpdir=$(mktemp -d)
+CTX_CWD=""; CTX_BRANCH=""
+gather_context_from_dir "$tmpdir"
+assert_eq "cwd outside a repo"     "$tmpdir" "$CTX_CWD"
+assert_eq "branch empty outside a repo" ""    "$CTX_BRANCH"
+rm -rf "$tmpdir"
+
+# A worktree: this repo uses them for agent builds, and a worktree's .git is a
+# FILE pointing at the real gitdir, not a directory.
+wtmain=$(mktemp -d); wtlink=$(mktemp -d); rm -rf "$wtlink"
+git -C "$wtmain" init -q
+git -C "$wtmain" commit -q --allow-empty -m one
+git -C "$wtmain" worktree add -q -b wt-branch "$wtlink" 2>/dev/null
+CTX_CWD=""; CTX_BRANCH=""
+gather_context_from_dir "$wtlink"
+assert_eq "worktree reports its own branch" "wt-branch" "$CTX_BRANCH"
+git -C "$wtmain" worktree remove --force "$wtlink" 2>/dev/null
+rm -rf "$wtmain" "$wtlink"
+
+# A detached HEAD reports a short sha rather than the literal "HEAD".
+detached=$(mktemp -d)
+git -C "$detached" init -q
+git -C "$detached" commit -q --allow-empty -m one
+git -C "$detached" checkout -q --detach HEAD
+CTX_CWD=""; CTX_BRANCH=""
+gather_context_from_dir "$detached"
+assert_eq "detached HEAD gives a sha" "$(git -C "$detached" rev-parse --short HEAD)" "$CTX_BRANCH"
+rm -rf "$detached"
+
 exit "$FAILED"

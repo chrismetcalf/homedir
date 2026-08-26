@@ -26,7 +26,28 @@ Reply with ONE JSON object and nothing else:
 Use "command" when the user wants something done in a shell. Use "answer" when they want an explanation.
 Never wrap the JSON in markdown fences. The command must be a single line, safe to paste at a prompt.'
 
-gather_context() { :; }
+# Split in two so the directory logic is testable without a live tmux pane.
+# gather_context resolves the pane; gather_context_from_dir does the rest.
+gather_context_from_dir() {
+    CTX_CWD="${1:-$PWD}"
+    # Normalize away ".."/"." components (e.g. a caller passing "$DIR/..") so
+    # CTX_CWD matches what `pwd` would report from inside that directory;
+    # leave it as-is if the path doesn't actually exist.
+    local resolved
+    resolved=$(cd "$CTX_CWD" 2>/dev/null && pwd) && CTX_CWD="$resolved"
+    CTX_BRANCH=$(git -C "$CTX_CWD" rev-parse --abbrev-ref HEAD 2>/dev/null) || CTX_BRANCH=""
+    # A detached HEAD reports the literal string "HEAD", which tells the model
+    # nothing; a short sha at least identifies the commit.
+    if [ "$CTX_BRANCH" = "HEAD" ]; then
+        CTX_BRANCH=$(git -C "$CTX_CWD" rev-parse --short HEAD 2>/dev/null) || CTX_BRANCH=""
+    fi
+}
+
+gather_context() {
+    local pane="${1:-}" cwd=""
+    [ -n "$pane" ] && cwd=$(tmux display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
+    gather_context_from_dir "${cwd:-$PWD}"
+}
 query() { :; }
 # Sets REPLY_KIND (command|answer), REPLY_CMD, REPLY_NOTE.
 #
