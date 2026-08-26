@@ -56,19 +56,24 @@ collect_rows() {
         "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}' 2>/dev/null)"
 }
 
-# The target is field 1 and its sigil says what it is: % pane, @ window,
-# anything else a session name. Selecting a pane also selects its window, and
-# switching sessions is what makes the row actually take you there.
+# Dispatch on the row's own tag, never on the target's first character: a
+# session name may legally begin with @ or %, so sniffing the sigil would send
+# a session called "@release" to select-window. The tag is the only thing that
+# actually knows what the row is. Selecting a pane also selects its window
+# (verified: select-window accepts a pane id), and switching sessions is what
+# makes a session row actually take you there.
 act_on() {
-    local row="${1:-}" target
+    local row="${1:-}" target tag
     [ -n "$row" ] || return 0
     target=${row%%$'\t'*}
     [ -n "$target" ] || return 0
+    tag=${row#*$'\t'}
+    tag=${tag%%[[:space:]]*}
 
-    case "$target" in
-        %*) tmux select-window -t "$target"; tmux select-pane -t "$target" ;;
-        @*) tmux select-window -t "$target" ;;
-        *)  tmux switch-client -t "$target" ;;
+    case "$tag" in
+        '[pane]') tmux select-window -t "$target"; tmux select-pane -t "$target" ;;
+        '[win]')  tmux select-window -t "$target" ;;
+        '[sess]') tmux switch-client -t "$target" ;;
     esac
 }
 # TMUX_GOTO_MAIN_RAN is the selftest's only observable proof that the guard

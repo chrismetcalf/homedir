@@ -81,6 +81,19 @@ act_on "$(printf '%%2\t[pane] main:2 otto-relay  node')"
 grep -q "select-pane -t %2" "$SHIM/calls" \
   && pass "pane row selects the pane" || fail "pane row selects the pane" "select-pane -t %2" "$(cat "$SHIM/calls")"
 
+# A session name may legally start with @ or %. Dispatching on the target's
+# first character would route "@release" to select-window; the row's own tag is
+# the only thing that actually knows what it is.
+: > "$SHIM/calls"
+act_on "$(printf '@release\t[sess] @release\t(1 windows)')"
+grep -q "switch-client -t @release" "$SHIM/calls" \
+  && pass "sigil-named session still switches client" || fail "sigil-named session still switches client" "switch-client -t @release" "$(cat "$SHIM/calls")"
+
+: > "$SHIM/calls"
+act_on "$(printf '%%odd\t[sess] %%odd\t(1 windows)')"
+grep -q "switch-client -t %odd" "$SHIM/calls" \
+  && pass "percent-named session still switches client" || fail "percent-named session still switches client" "switch-client -t %odd" "$(cat "$SHIM/calls")"
+
 : > "$SHIM/calls"
 act_on ""
 assert_eq "empty selection does nothing" "" "$(cat "$SHIM/calls")"
@@ -92,5 +105,65 @@ unset -f tmux
 [ "$(type -t tmux)" != "function" ] \
   && pass "tmux shim removed" || fail "tmux shim removed" "not function" "$(type -t tmux)"
 rm -rf "$SHIM"
+
+echo "against a real server"
+
+# The shim above proves only which command act_on *intends* to run. It cannot
+# tell whether tmux accepts it -- which is what let a real dispatch bug through
+# once already. This block drives the tool against a throwaway server.
+#
+# -L gives it its own socket and -f /dev/null stops it sourcing the real
+# config: without the second flag it pulls in tpm and leaks an autoreload
+# watcher that outlives the kill-server below. Never a bare kill-server here;
+# that would take down the user's live session.
+if ! [ -x /usr/bin/tmux ]; then
+    echo "  skip (no /usr/bin/tmux)"
+else
+    SOCK="tmux-goto-selftest-$$"
+    TT() { /usr/bin/tmux -L "$SOCK" "$@"; }
+
+    if ! TT -f /dev/null new-session -d -s gototest -n first -x 80 -y 24 2>/dev/null; then
+        echo "  skip (could not start a throwaway server)"
+    else
+        TT new-window -t gototest -n second
+        active_before=$(TT list-windows -t gototest -F '#{window_index} #{window_active}' | awk '$2==1{print $1}')
+        assert_eq "second window starts active" "1" "$active_before"
+
+        first_id=$(TT list-windows -t gototest -F '#{window_id} #{window_index}' | awk '$2==0{print $1}')
+        first_pane=$(TT list-panes -a -F '#{pane_id} #{window_index}' | awk '$2==0{print $1}')
+
+        tmux() { TT "$@"; }
+
+        rows=$(collect_rows)
+        printf '%s\n' "$rows" | grep -q "^${first_id}$(printf '\t')" \
+          && pass "real server: window row present" || fail "real server: window row present" "$first_id" "$rows"
+        printf '%s\n' "$rows" | grep -q "^${first_pane}$(printf '\t')" \
+          && pass "real server: pane row present" || fail "real server: pane row present" "$first_pane" "$rows"
+
+        # The case that matters: a target in a window that is NOT active. A
+        # same-window check would pass even if nothing moved.
+        act_on "$(printf '%s\n' "$rows" | grep -m1 "^${first_id}$(printf '\t')")"
+        assert_eq "real server: window row changes active window" "0" \
+            "$(TT list-windows -t gototest -F '#{window_index} #{window_active}' | awk '$2==1{print $1}')"
+
+        TT select-window -t gototest:1
+        act_on "$(printf '%s\n' "$rows" | grep -m1 "^${first_pane}$(printf '\t')")"
+        assert_eq "real server: pane row changes active window" "0" \
+            "$(TT list-windows -t gototest -F '#{window_index} #{window_active}' | awk '$2==1{print $1}')"
+
+        unset -f tmux
+        TT kill-server 2>/dev/null
+        TT list-sessions >/dev/null 2>&1 \
+          && fail "throwaway server cleaned up" "no server" "still running" || pass "throwaway server cleaned up"
+
+        # kill-server leaves the socket file behind. One dead file per run is
+        # not harmless here: /tmp bloat is a documented cause of box-wide lag
+        # in this repo, since it makes every temp-file op O(n).
+        rm -f "${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK"
+        [ -e "${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK" ] \
+          && fail "throwaway socket removed" "gone" "still on disk" || pass "throwaway socket removed"
+    fi
+    unset -f TT
+fi
 
 exit "$FAILED"
