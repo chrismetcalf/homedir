@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# tmux-goto — one picker over sessions, windows and panes.
+#
+# Bound to prefix + u. Deliberately navigation-only: adding tmux's ~300 commands
+# would bury the few dozen rows you actually want to reach. prefix + F keeps its
+# nine tmux-fzf modes for the "do something" intent.
+#
+# Rows are "TARGET<TAB>TAG DETAIL" and fzf shows only from field 2, so the
+# action always has an unambiguous %3 / @7 / session name to act on. Parsing a
+# target back out of display text would break on window names containing spaces.
+#
+# Sourced with TMUX_GOTO_LIB=1 it defines its functions and exits, so the
+# selftest can exercise the pure parts with no tmux server involved.
+set -uo pipefail
+
+rows_from_lists() { :; }
+collect_rows() { :; }
+act_on() { :; }
+# TMUX_GOTO_MAIN_RAN is the selftest's only observable proof that the guard
+# below actually skipped main. Keep it as main's first statement.
+main() { TMUX_GOTO_MAIN_RAN=1; :; }
+
+[ "${TMUX_GOTO_LIB:-}" = "1" ] || main "$@"

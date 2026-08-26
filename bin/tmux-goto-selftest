@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# tmux-goto-selftest — fixture-driven tests for bin/tmux-goto.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+export TMUX_GOTO_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-goto"
+
+echo "tmux-goto selftest"
+echo "library mode"
+assert_eq "sourcing does not run main" "" "${TMUX_GOTO_MAIN_RAN:-}"
+assert_eq "rows_from_lists is defined" "function" "$(type -t rows_from_lists)"
+assert_eq "act_on is defined"          "function" "$(type -t act_on)"
+
+exit "$FAILED"
