@@ -65,6 +65,17 @@ act_on() {
 }
 # TMUX_GOTO_MAIN_RAN is the selftest's only observable proof that the guard
 # below actually skipped main. Keep it as main's first statement.
-main() { TMUX_GOTO_MAIN_RAN=1; :; }
+main() {
+    TMUX_GOTO_MAIN_RAN=1
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf 'tmux-goto: fzf is not installed\n' >&2
+        exit 1
+    fi
+    local choice
+    choice=$(collect_rows | fzf \
+        --delimiter=$'\t' --with-nth=2.. \
+        --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
+    act_on "$choice"
+}
 
 [ "${TMUX_GOTO_LIB:-}" = "1" ] || main "$@"
