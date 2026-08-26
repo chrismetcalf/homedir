@@ -68,6 +68,34 @@ assert_eq "an offline node is offline" "offline" "$(printf '%s\n' "$got" | grep 
 # tailscale prints health warnings that are not nodes.
 assert_eq "non-node lines are ignored" "0" "$(printf '%s\n' "$got" | grep -c 'warning')"
 
+echo "hosts_from_known_hosts"
+# Hashing is per-host: Debian/Ubuntu set HashKnownHosts in /etc/ssh/ssh_config,
+# macOS does not. So this file is the only source on some machines and useless
+# on others, and both have to be handled without complaint.
+KH="git.example.com,10.0.0.9 ssh-rsa AAAA
+[build.local]:2222 ssh-ed25519 BBBB
+@cert-authority *.corp ssh-rsa CCCC
+@revoked oldbox.example.com ssh-rsa EEEE
+|1|hashedbase64=|more= ssh-rsa DDDD
+
+# a comment line"
+kh=$(hosts_from_known_hosts "$KH")
+
+assert_eq "comma-separated aliases are split" "1" "$(printf '%s\n' "$kh" | grep -cx 'git.example.com')"
+assert_eq "and the second alias survives too" "1" "$(printf '%s\n' "$kh" | grep -cx '10.0.0.9')"
+# A non-standard port is recorded as [host]:port.
+assert_eq "a bracketed host:port is unwrapped" "1" "$(printf '%s\n' "$kh" | grep -cx 'build.local')"
+assert_eq "no bracket survives" "0" "$(printf '%s\n' "$kh" | grep -c '\[')"
+# @revoked/@cert-authority shift the host into field 2.
+assert_eq "a marker line yields its host" "1" "$(printf '%s\n' "$kh" | grep -cx 'oldbox.example.com')"
+# A hashed entry cannot be turned back into a name, so it must be dropped.
+assert_eq "hashed entries are skipped" "0" "$(printf '%s\n' "$kh" | grep -c '|1|')"
+assert_eq "a wildcard is not a machine" "0" "$(printf '%s\n' "$kh" | grep -c '\*')"
+assert_eq "comments and blanks are skipped" "0" "$(printf '%s\n' "$kh" | grep -c '^#')"
+assert_eq "an all-hashed file yields nothing" "0" \
+    "$(hosts_from_known_hosts '|1|aaa=|bbb= ssh-rsa X' | grep -c .)"
+assert_eq "an empty file yields nothing" "0" "$(hosts_from_known_hosts "" | grep -c .)"
+
 echo "rows_from_sources"
 CFGH=$'alpha\nbazarr'
 TSH=$'docker-host\tlinux\tonline\nbazarr\tlinux\tonline\nsleepy\tlinux\toffline'
@@ -90,6 +118,30 @@ printf '%s\n' "$out" | cut -f3 | grep -q '\[net\]' \
   && pass "tailscale rows tagged" || fail "tailscale rows tagged" "[net]" "$out"
 assert_eq "rows lead with a glyph" "$GLYPH_HOST" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="net"{print $3; exit}' | cut -d' ' -f1)"
+
+# known_hosts is the third source, and the lowest precedence: it carries no
+# user/port/ProxyJump like ssh config, and no OS/online state like tailscale.
+KH3=$'bazarr\nkh-only.example.com\ndocker-host'
+out3=$(rows_from_sources "$CFGH" "$TSH" "$KH3")
+assert_eq "a known_hosts-only host is offered" "1" \
+    "$(printf '%s\n' "$out3" | awk -F'\t' '$1=="kh-only.example.com"' | grep -c .)"
+assert_eq "and it is tagged kh" "kh" \
+    "$(printf '%s\n' "$out3" | awk -F'\t' '$1=="kh-only.example.com"{print $2}')"
+# Already known from ssh config: must not appear twice.
+assert_eq "a host also in ssh config is not duplicated" "1" \
+    "$(printf '%s\n' "$out3" | cut -f1 | grep -cx 'bazarr')"
+assert_eq "and ssh config still wins it" "cfg" \
+    "$(printf '%s\n' "$out3" | awk -F'\t' '$1=="bazarr"{print $2}')"
+# Already known from tailscale: tailscale wins, since it knows the OS/state.
+assert_eq "a host also in tailscale is not duplicated" "1" \
+    "$(printf '%s\n' "$out3" | cut -f1 | grep -cx 'docker-host')"
+assert_eq "and tailscale still wins it" "net" \
+    "$(printf '%s\n' "$out3" | awk -F'\t' '$1=="docker-host"{print $2}')"
+
+# With no tailscale at all -- the case that started this -- known_hosts alone
+# must still produce a usable list.
+out4=$(rows_from_sources "" "" "$KH3")
+assert_eq "known_hosts alone still yields hosts" "3" "$(printf '%s\n' "$out4" | grep -c .)"
 
 # A crafted config or node name must never reach a row.
 EVIL=$'good-host\nevil;rm -rf /\nevil host'

@@ -19,8 +19,13 @@
 # Sourced with TMUX_SSH_LIB=1 it defines its functions and exits.
 set -uo pipefail
 
+TMUX_SSH_SELF="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+    TMUX_SSH_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+fi
+TMUX_SSH_LIBDIR="$(dirname "$TMUX_SSH_SELF")/lib"
 # shellcheck source=lib/tmux-frecency.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
+[ -r "$TMUX_SSH_LIBDIR/tmux-frecency.sh" ] && . "$TMUX_SSH_LIBDIR/tmux-frecency.sh"
 
 GLYPH_HOST='󰢹'
 
@@ -103,8 +108,34 @@ hosts_from_tailscale() {
         }'
 }
 
+# known_hosts, for the entries that are readable. Hashing is per-host config:
+# Debian/Ubuntu set HashKnownHosts yes in /etc/ssh/ssh_config, which turns every
+# name into |1|... and makes the file useless here -- but macOS leaves it off,
+# so on those machines this is a real source, and sometimes the only one.
+#
+# Entry shapes handled: comma-separated aliases on one line, [host]:port for a
+# non-standard port, and a leading @cert-authority / @revoked marker.
+hosts_from_known_hosts() {
+    printf '%s\n' "${1:-}" | awk '
+        /^[[:space:]]*(#|$)/ { next }
+        {
+            field = $1
+            # @cert-authority and @revoked shift the host into field 2.
+            if (field ~ /^@/) field = $2
+            if (field ~ /^\|1\|/) next          # hashed: unreadable by design
+            n = split(field, names, ",")
+            for (i = 1; i <= n; i++) {
+                h = names[i]
+                sub(/^\[/, "", h)                # [host]:port -> host
+                sub(/\]:[0-9]+$/, "", h)
+                if (h == "" || h ~ /[*?!]/) continue
+                print h
+            }
+        }' | sort -u
+}
+
 rows_from_sources() {
-    local cfg_hosts="${1:-}" ts="${2:-}" host os state seen=""
+    local cfg_hosts="${1:-}" ts="${2:-}" kh="${3:-}" host os state seen=""
     while IFS= read -r host; do
         [ -n "$host" ] || continue
         valid_host "$host" || continue
@@ -119,6 +150,7 @@ rows_from_sources() {
         # An ssh-config entry wins: it may carry a user, port or ProxyJump that
         # the bare tailscale name would lose.
         printf '%s\n' "$seen" | grep -qxF -- "$host" && continue
+        seen="${seen}${host}"$'\n'
         if [ "$state" = offline ]; then
             printf '%s\tnet\t%s%s [net] %s  (%s, offline)%s\n' \
                 "$host" "$C_DIM" "$GLYPH_HOST" "$host" "$os" "${C_DIM:+$C_RESET}"
@@ -127,6 +159,16 @@ rows_from_sources() {
                 "$host" "$GLYPH_HOST" "$host" "$os"
         fi
     done <<< "$ts"
+
+    # Last: anything ssh already knows about that the other two missed.
+    while IFS= read -r host; do
+        [ -n "$host" ] || continue
+        valid_host "$host" || continue
+        printf '%s\n' "$seen" | grep -qxF -- "$host" && continue
+        seen="${seen}${host}"$'\n'
+        printf '%s\tkh\t%s%s [kh]  %s%s\n' \
+            "$host" "$C_DIM" "$GLYPH_HOST" "$host" "${C_DIM:+$C_RESET}"
+    done <<< "$kh"
 }
 
 # The host is the key: stable, and already field 1. Nothing hidden needs to
@@ -140,7 +182,8 @@ collect_rows() {
     frecency_sort \
         "$(rows_from_sources \
             "$(hosts_from_ssh_config "$(read_ssh_config)")" \
-            "$(hosts_from_tailscale "$(tailscale status 2>/dev/null)")")" \
+            "$(hosts_from_tailscale "$(tailscale status 2>/dev/null)")" \
+            "$(hosts_from_known_hosts "$(cat "$HOME/.ssh/known_hosts" 2>/dev/null)")")" \
         "$(frecency_path ssh)" \
         frecency_key_ssh
 }
@@ -171,10 +214,27 @@ main() {
     local out key choice rows
     rows=$(collect_rows)
     if [ -z "$rows" ]; then
-        printf '\ntmux-ssh: no hosts found.\n\n'
-        printf 'Hosts come from ~/.ssh/config (and its Includes) and from\n'
-        printf 'tailscale status. known_hosts is hashed, so it yields none.\n'
-        printf 'Check:  tailscale status    grep -c Host ~/.ssh/config\n'
+        printf '\ntmux-ssh: no hosts to offer.\n\n'
+        if ! type frecency_sort >/dev/null 2>&1; then
+            printf '  the shared ranking library did not load:\n'
+            printf '    %s/tmux-frecency.sh\n' "$TMUX_SSH_LIBDIR"
+            printf '  bin/lib/ is a recent addition -- run:  bin/gitfix\n\n'
+        fi
+        printf '  ssh config   %s host(s) in %s\n' \
+            "$(hosts_from_ssh_config "$(read_ssh_config)" | grep -c .)" "$HOME/.ssh/config"
+        printf '  known_hosts  %s readable, %s hashed (unreadable by design)\n' \
+            "$(hosts_from_known_hosts "$(cat "$HOME/.ssh/known_hosts" 2>/dev/null)" | grep -c .)" \
+            "$(awk '$1 ~ /^\|1\|/' "$HOME/.ssh/known_hosts" 2>/dev/null | grep -c .)"
+        if ! command -v tailscale >/dev/null 2>&1; then
+            printf '  tailscale    not installed on this host\n'
+        else
+            printf '  tailscale    %s node(s)\n' \
+                "$(hosts_from_tailscale "$(tailscale status 2>/dev/null)" | grep -c .)"
+        fi
+        printf '\n  ~/.ssh/config.local is per-host and deliberately NOT in the\n'
+        printf '  repo, so a fresh checkout has only the Host * catch-all, which\n'
+        printf '  is a rule rather than a machine. known_hosts is hashed and\n'
+        printf '  yields no readable names either.\n'
         printf '\n  [any key] close  '
         IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
         exit 0
@@ -189,5 +249,33 @@ main() {
     frecency_record "$(frecency_path ssh)" "$(frecency_key_ssh "$choice")"
     act_on "$choice" "$key"
 }
+
+doctor() {
+    printf 'tmux-ssh doctor\n\n'
+    printf '  host           %s %s\n' "$(uname -s)" "$(uname -m)"
+    printf '  lib dir        %s\n' "$TMUX_SSH_LIBDIR"
+    printf '  frecency_sort  %s\n' "$(type -t frecency_sort 2>/dev/null || echo MISSING)"
+    printf '\n  ssh config     %s\n' "$HOME/.ssh/config"
+    printf '    readable     %s\n' "$([ -r "$HOME/.ssh/config" ] && echo yes || echo NO)"
+    printf '    Include ->   %s\n' \
+        "$(sed -n 's/^[[:space:]]*[Ii]nclude[[:space:]]\+//p' "$HOME/.ssh/config" 2>/dev/null | tr '\n' ' ')"
+    printf '    config.local %s\n' "$([ -r "$HOME/.ssh/config.local" ] && echo present || echo ABSENT)"
+    printf '    usable hosts %s\n' "$(hosts_from_ssh_config "$(read_ssh_config)" | grep -c .)"
+    printf '\n  known_hosts    %s\n' "$HOME/.ssh/known_hosts"
+    printf '    readable     %s\n' \
+        "$(hosts_from_known_hosts "$(cat "$HOME/.ssh/known_hosts" 2>/dev/null)" | grep -c .)"
+    printf '    hashed       %s (HashKnownHosts; unreadable by design)\n' \
+        "$(awk '$1 ~ /^\|1\|/' "$HOME/.ssh/known_hosts" 2>/dev/null | grep -c .)"
+    printf '\n  tailscale      %s\n' "$(command -v tailscale || echo MISSING)"
+    if command -v tailscale >/dev/null 2>&1; then
+        printf '    status exit  %s\n' "$(tailscale status >/dev/null 2>&1; echo $?)"
+        printf '    nodes        %s\n' "$(hosts_from_tailscale "$(tailscale status 2>/dev/null)" | grep -c .)"
+    fi
+    printf '\n  collect_rows   %s rows\n' "$(collect_rows 2>/dev/null | grep -c .)"
+}
+
+case "${1:-}" in
+    --doctor) [ "${TMUX_SSH_LIB:-}" = "1" ] || { doctor; exit 0; } ;;
+esac
 
 [ "${TMUX_SSH_LIB:-}" = "1" ] || main "$@"
