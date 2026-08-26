@@ -35,9 +35,9 @@ assert_eq "window target is the id"    "@2"   "$(printf '%s\n' "$out" | grep -m1
 assert_eq "pane target is the id"      "%2"   "$(printf '%s\n' "$out" | grep -m1 'node' | cut -f1)"
 
 # Tags let a query be narrowed by typing "win" / "pane" / "sess".
-printf '%s\n' "$out" | cut -f2 | grep -q '^\[sess\]' && pass "session rows tagged" || fail "session rows tagged" "[sess]" "$(printf '%s\n' "$out" | cut -f2 | head -1)"
-printf '%s\n' "$out" | cut -f2 | grep -q '^\[win\]'  && pass "window rows tagged"  || fail "window rows tagged" "[win]" "$(printf '%s\n' "$out" | cut -f2 | head -3)"
-printf '%s\n' "$out" | cut -f2 | grep -q '^\[pane\]' && pass "pane rows tagged"    || fail "pane rows tagged" "[pane]" "$(printf '%s\n' "$out" | cut -f2 | tail -2)"
+printf '%s\n' "$out" | cut -f3 | grep -q '\[sess\]' && pass "session rows tagged" || fail "session rows tagged" "[sess]" "$(printf '%s\n' "$out" | cut -f3 | head -1)"
+printf '%s\n' "$out" | cut -f3 | grep -q '\[win\]'  && pass "window rows tagged"  || fail "window rows tagged" "[win]" "$(printf '%s\n' "$out" | cut -f3 | head -3)"
+printf '%s\n' "$out" | cut -f3 | grep -q '\[pane\]' && pass "pane rows tagged"    || fail "pane rows tagged" "[pane]" "$(printf '%s\n' "$out" | cut -f3 | tail -2)"
 
 # The running command is what you actually recognise among worktree-named windows.
 printf '%s\n' "$out" | grep -q 'node' && pass "pane rows show the command" || fail "pane rows show the command" "node" "$out"
@@ -48,13 +48,13 @@ printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fa
 # version of this assertion looked for empty square brackets while the row
 # renders angle brackets, so it passed no matter how broken the guard was.
 assert_eq "unset scout state renders nothing" \
-    "$(printf '@1\t[win]  main:1 homedir')" \
+    "$(printf '@1\twin\t󰖯 [win]  main:1 homedir')" \
     "$(printf '%s\n' "$out" | grep -m1 '\[win\]  main:1 homedir')"
 
 # "idle" is the common case — marking every idle window defeats the point of a
 # marker, which is to make the windows wanting your attention stand out.
 assert_eq "idle state renders no marker" \
-    "$(printf '@7\t[win]  main:4 idle-win')" \
+    "$(printf '@7\twin\t󰖯 [win]  main:4 idle-win')" \
     "$(printf '%s\n' "$out" | grep -m1 'idle-win')"
 
 # A window name with a space must survive intact.
@@ -67,17 +67,17 @@ SHIM=$(mktemp -d)
 tmux() { printf '%s\n' "$*" >> "$SHIM/calls"; }
 
 : > "$SHIM/calls"
-act_on "$(printf 'main\t[sess] main\t(3 windows)')"
+act_on "$(printf 'main\tsess\t󰆍 [sess] main  (3 windows)')"
 grep -q "switch-client -t main" "$SHIM/calls" \
   && pass "session row switches client" || fail "session row switches client" "switch-client -t main" "$(cat "$SHIM/calls")"
 
 : > "$SHIM/calls"
-act_on "$(printf '@2\t[win]  main:2 otto-relay')"
+act_on "$(printf '@2\twin\t󰖯 [win]  main:2 otto-relay')"
 grep -q "select-window -t @2" "$SHIM/calls" \
   && pass "window row selects the window" || fail "window row selects the window" "select-window -t @2" "$(cat "$SHIM/calls")"
 
 : > "$SHIM/calls"
-act_on "$(printf '%%2\t[pane] main:2 otto-relay  node')"
+act_on "$(printf '%%2\tpane\t󱂬 [pane] main:2 otto-relay  node')"
 grep -q "select-pane -t %2" "$SHIM/calls" \
   && pass "pane row selects the pane" || fail "pane row selects the pane" "select-pane -t %2" "$(cat "$SHIM/calls")"
 
@@ -85,12 +85,12 @@ grep -q "select-pane -t %2" "$SHIM/calls" \
 # first character would route "@release" to select-window; the row's own tag is
 # the only thing that actually knows what it is.
 : > "$SHIM/calls"
-act_on "$(printf '@release\t[sess] @release\t(1 windows)')"
+act_on "$(printf '@release\tsess\t󰆍 [sess] @release  (1 windows)')"
 grep -q "switch-client -t @release" "$SHIM/calls" \
   && pass "sigil-named session still switches client" || fail "sigil-named session still switches client" "switch-client -t @release" "$(cat "$SHIM/calls")"
 
 : > "$SHIM/calls"
-act_on "$(printf '%%odd\t[sess] %%odd\t(1 windows)')"
+act_on "$(printf '%%odd\tsess\t󰆍 [sess] %%odd  (1 windows)')"
 grep -q "switch-client -t %odd" "$SHIM/calls" \
   && pass "percent-named session still switches client" || fail "percent-named session still switches client" "switch-client -t %odd" "$(cat "$SHIM/calls")"
 
@@ -165,5 +165,37 @@ else
     fi
     unset -f TT
 fi
+
+echo "glyphs"
+
+# A plan in this repo once shipped icon glyphs that were literally empty
+# strings, and nothing caught it. Assert they carry real bytes and that every
+# row type actually renders one.
+[ -n "$GLYPH_SESS" ] && [ -n "$GLYPH_WIN" ] && [ -n "$GLYPH_PANE" ] \
+  && pass "glyphs are non-empty" || fail "glyphs are non-empty" "3 non-empty" "sess=$GLYPH_SESS win=$GLYPH_WIN pane=$GLYPH_PANE"
+
+assert_eq "glyphs are distinct" "3" \
+    "$(printf '%s\n%s\n%s\n' "$GLYPH_SESS" "$GLYPH_WIN" "$GLYPH_PANE" | LC_ALL=C sort -u | wc -l)"
+
+# Compare against literal glyphs, NOT against $GLYPH_*: reading the expected
+# value out of the same variable under test made this vacuous -- with an empty
+# GLYPH_WIN the old grep "^$GLYPH_WIN " degraded to "^ ", which the row's own
+# leading space matched, so a blank glyph passed. Pick the row by its kind
+# field rather than by line number: the fixtures carry two sessions, so line 2
+# is not the first window row.
+assert_eq "session rows lead with a glyph" "󰆍" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $3; exit}' | cut -d' ' -f1)"
+assert_eq "window rows lead with a glyph" "󰖯" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win"{print $3; exit}' | cut -d' ' -f1)"
+assert_eq "pane rows lead with a glyph" "󱂬" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane"{print $3; exit}' | cut -d' ' -f1)"
+
+# The typed tag is what makes a query narrowable; a glyph cannot be typed.
+printf '%s\n' "$out" | cut -f3 | grep -q '\[win\]' \
+  && pass "tag survives alongside the glyph" || fail "tag survives alongside the glyph" "[win]" "$(printf '%s\n' "$out" | cut -f3 | head -3)"
+
+# Field 2 is the kind and fzf never shows it; act_on depends on it exactly.
+assert_eq "kind field is exact" "sess sess win win win win pane pane" \
+    "$(printf '%s\n' "$out" | cut -f2 | tr '\n' ' ' | sed 's/ $//')"
 
 exit "$FAILED"
