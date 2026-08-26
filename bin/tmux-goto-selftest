@@ -22,12 +22,12 @@ assert_eq "act_on is defined"          "function" "$(type -t act_on)"
 echo "rows_from_lists"
 
 SESS=$'main\t3\nother\t1'
-WINS=$'@1\tmain\t1\thomedir\t\n@2\tmain\t2\totto-relay\twait\n@9\tother\t1\tmy project\t'
+WINS=$'@1\tmain\t1\thomedir\t\n@2\tmain\t2\totto-relay\twait\n@9\tother\t1\tmy project\t\n@7\tmain\t4\tidle-win\tidle'
 PANES=$'%1\tmain\t1\thomedir\tzsh\n%2\tmain\t2\totto-relay\tnode'
 
 out=$(rows_from_lists "$SESS" "$WINS" "$PANES")
 
-assert_eq "one row per input line" "7" "$(printf '%s\n' "$out" | wc -l)"
+assert_eq "one row per input line" "8" "$(printf '%s\n' "$out" | wc -l)"
 
 # Target must be field 1 so the action never has to parse display text.
 assert_eq "session target is the name" "main" "$(printf '%s\n' "$out" | grep -m1 'sess' | cut -f1)"
@@ -50,6 +50,12 @@ printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fa
 assert_eq "unset scout state renders nothing" \
     "$(printf '@1\t[win]  main:1 homedir')" \
     "$(printf '%s\n' "$out" | grep -m1 '\[win\]  main:1 homedir')"
+
+# "idle" is the common case — marking every idle window defeats the point of a
+# marker, which is to make the windows wanting your attention stand out.
+assert_eq "idle state renders no marker" \
+    "$(printf '@7\t[win]  main:4 idle-win')" \
+    "$(printf '%s\n' "$out" | grep -m1 'idle-win')"
 
 # A window name with a space must survive intact.
 printf '%s\n' "$out" | grep -q 'my project' && pass "spaces in names survive" || fail "spaces in names survive" "my project" "$out"

@@ -31,9 +31,17 @@ rows_from_lists() {
 
     while IFS=$'\t' read -r id sess idx wname state; do
         [ -n "$id" ] || continue
-        # An unset @scout-state must render as nothing at all, not an empty
-        # marker: a bracket with nothing in it reads as a state of its own.
-        printf '%s\t[win]  %s:%s %s%s\n' "$id" "$sess" "$idx" "$wname" "${state:+  <$state>}"
+        # Only states worth reacting to get a marker. Unset must render as
+        # nothing at all rather than an empty bracket (which reads as a state
+        # of its own), and "idle" is the common case — marking every idle
+        # window defeats the point of a marker, which is to make the windows
+        # that want your attention stand out.
+        local marker=""
+        case "$state" in
+            ""|idle) ;;
+            *) marker="  <$state>" ;;
+        esac
+        printf '%s\t[win]  %s:%s %s%s\n' "$id" "$sess" "$idx" "$wname" "$marker"
     done <<< "$windows"
 
     while IFS=$'\t' read -r id sess idx wname cmd; do
