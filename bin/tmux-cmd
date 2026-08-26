@@ -23,8 +23,59 @@ CONFIG="${TMUX_CMD_CONFIG:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml
 # on shell quoting this deliberately avoids.
 CMD_SEP=$'\037'
 
-GLYPH_CMD='󰘳'
+# Glyphs say what a command DOES, not which menu it came from: config vs
+# action is the split worth seeing at a glance, and "destructive" is worth
+# seeing before you press Enter. Codepoints are Nerd Font Material Design; the
+# session/window/pane three are the same ones tmux-goto uses. Swap any that
+# render as a box -- this table is the only place they appear.
+GLYPH_CONFIG='󰒓'      # cog: changes a setting that persists
+GLYPH_DESTRUCTIVE='󰩺' # trash: kills a window, pane or session
+GLYPH_CREATE='󰐕'      # plus: makes a new window, pane or session
+GLYPH_NAVIGATE='󰁔'    # arrow: moves you somewhere
+GLYPH_CLIPBOARD='󰅍'   # clipboard: copy mode and buffers
+GLYPH_PROMPT='󰏫'      # pencil: asks you for text first
+GLYPH_INFO='󰋽'        # info: shows you something, changes nothing
+GLYPH_TOOL='󰘳'        # command: opens one of this repo's tools
+GLYPH_CMD='󰘳'         # default, for anything unclassified
 GLYPH_PATH='›'
+
+# Classify by the tmux verb. Order matters: a kill is destructive even though it
+# arrives wrapped in a confirm, and a theme switch is config even though it
+# arrives as a run-shell.
+class_for() {
+    case " ${1:-} " in
+        *kill*|*respawn*)                       printf 'destructive' ;;
+        *tmarchy-theme*|*_plugins*)             printf 'config' ;;
+        *" set "*|*" setw "*|*set-option*|*source-file*|*customize-mode*|*selectl*|*nextl*)
+                                                printf 'config' ;;
+        *command-prompt*|*rename*)              printf 'prompt' ;;
+        *neww*|*new-window*|*splitw*|*split-window*|*" new "*|*new-session*)
+                                                printf 'create' ;;
+        *copy-mode*|*lsb*|*list-buffers*|*pasteb*|*choose-buffer*|*copy_*|*capture-pane*)
+                                                printf 'clipboard' ;;
+        *list-keys*|*show-messages*|*clock-mode*|*display-message*|*" refresh"*)
+                                                printf 'info' ;;
+        *display-popup*|*extrakto*|*picker*|*sidebar*|*next-wait*|*logging*|*tmux-*)
+                                                printf 'tool' ;;
+        *selectp*|*selectw*|*last-*|*lastp*|*next-*|*previous-*|*switchc*|*choose-*|*displayp*|*swapp*|*rotatew*|*resizep*|*break*|*detach*)
+                                                printf 'navigate' ;;
+        *)                                      printf 'command' ;;
+    esac
+}
+
+glyph_for() {
+    case "$(class_for "${1:-}")" in
+        destructive) printf '%s' "$GLYPH_DESTRUCTIVE" ;;
+        config)      printf '%s' "$GLYPH_CONFIG" ;;
+        create)      printf '%s' "$GLYPH_CREATE" ;;
+        navigate)    printf '%s' "$GLYPH_NAVIGATE" ;;
+        clipboard)   printf '%s' "$GLYPH_CLIPBOARD" ;;
+        prompt)      printf '%s' "$GLYPH_PROMPT" ;;
+        info)        printf '%s' "$GLYPH_INFO" ;;
+        tool)        printf '%s' "$GLYPH_TOOL" ;;
+        *)           printf '%s' "$GLYPH_CMD" ;;
+    esac
+}
 
 C_ACCENT=""
 C_DIM=""
@@ -176,7 +227,7 @@ rows_from_flat() {
         fi
         printf '%s\tmenu\t%s%s%s %s  %s%s%s\n' \
             "$cmds" \
-            "$C_ACCENT" "$GLYPH_CMD" "${C_ACCENT:+$C_RESET}" \
+            "$C_ACCENT" "$(glyph_for "$cmds")" "${C_ACCENT:+$C_RESET}" \
             "$label" \
             "$C_DIM" "${key:+[$key]}" "${C_DIM:+$C_RESET}"
     done <<< "$flat"

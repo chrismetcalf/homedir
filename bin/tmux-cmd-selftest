@@ -169,6 +169,51 @@ printf '%s\n' "$out" | cut -f3 | grep -q '\[/\]' \
 assert_eq "rows lead with a glyph" "$GLYPH_CMD" \
     "$(printf '%s\n' "$out" | head -1 | cut -f3 | cut -d' ' -f1)"
 
+echo "command classes"
+# The glyph should say what a command DOES. Order in class_for matters, so the
+# overlapping cases are pinned explicitly.
+assert_eq "a kill is destructive"        "destructive" "$(class_for 'confirm -p "Kill window #W? (y/n)" killw')"
+assert_eq "a respawn counts as destructive" "destructive" "$(class_for 'respawnp -k -c "#{pane_current_path}"')"
+# A theme switch arrives as a run-shell but is config, not a tool launch.
+assert_eq "a theme switch is config"     "config"      "$(class_for 'run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set nord"')"
+assert_eq "a layout change is config"    "config"      "$(class_for 'selectl tiled')"
+assert_eq "next-layout is config too"    "config"      "$(class_for 'nextl')"
+assert_eq "a plugin update is config"    "config"      "$(class_for 'run-shell .../tpm/bindings/update_plugins')"
+assert_eq "a new window creates"         "create"      "$(class_for 'neww -c "#{pane_current_path}"')"
+assert_eq "a split creates"              "create"      "$(class_for 'splitw -h -c "#{pane_current_path}"')"
+# A rename asks for text before doing anything, which is worth distinguishing.
+assert_eq "a rename prompts"             "prompt"      "$(class_for 'command-prompt -p "Rename window:" -I "#W" "renamew"')"
+assert_eq "selecting a pane navigates"   "navigate"    "$(class_for 'selectp -L')"
+assert_eq "last-pane navigates"          "navigate"    "$(class_for 'lastp')"
+assert_eq "copy mode is clipboard"       "clipboard"   "$(class_for 'copy-mode')"
+assert_eq "capture-pane is clipboard"    "clipboard"   "$(class_for 'capture-pane')"
+assert_eq "list-keys only informs"       "info"        "$(class_for 'list-keys -N')"
+assert_eq "a popup is a tool"            "tool"        "$(class_for 'display-popup -E -w 70% -h 60% "~/bin/tmux-goto"')"
+
+echo "glyphs"
+# Literal codepoints, NOT $GLYPH_*: reading the expected value out of the same
+# variable under test is how an assertion in this repo once passed against an
+# empty glyph.
+assert_eq "config gets the cog"       "$(printf '\U000f0493')" "$(glyph_for 'selectl tiled')"
+assert_eq "a kill gets the bin"       "$(printf '\U000f0a7a')" "$(glyph_for 'killw')"
+assert_eq "a new window gets a plus"  "$(printf '\U000f0415')" "$(glyph_for 'neww')"
+assert_eq "navigation gets an arrow"  "$(printf '\U000f0054')" "$(glyph_for 'selectp -L')"
+
+# Typos are the real risk in a table of lookalike codepoints.
+all_glyphs=$(printf '%s\n' "$GLYPH_CONFIG" "$GLYPH_DESTRUCTIVE" "$GLYPH_CREATE" \
+    "$GLYPH_NAVIGATE" "$GLYPH_CLIPBOARD" "$GLYPH_PROMPT" "$GLYPH_INFO")
+assert_eq "every glyph is one character" "1" \
+    "$(printf '%s\n' "$all_glyphs" | awk '{ if (length($0) != 1) bad = 1 } END { print bad ? 0 : 1 }')"
+assert_eq "the glyphs are all distinct" "7" \
+    "$(printf '%s\n' "$all_glyphs" | LC_ALL=C sort -u | grep -c .)"
+
+# The point of the exercise: the live palette must not be one glyph repeated.
+if [ -r "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml" ]; then
+    variety=$(collect_rows | cut -f3 | sed 's/\x1b\[[0-9;]*m//g' | cut -d' ' -f1 | LC_ALL=C sort -u | grep -c .)
+    [ "$variety" -ge 5 ] && pass "the live palette shows $variety distinct glyphs" \
+      || fail "the live palette shows several glyphs" ">=5" "$variety"
+fi
+
 echo "run_command"
 SHIM=$(mktemp -d)
 tmux() { printf '%s\n' "$*" >> "$SHIM/calls"; printf '%s\n' "$*" >> "$SHIM/calls.all"; }
