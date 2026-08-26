@@ -49,6 +49,20 @@ if [ -r "$stamp" ]; then
   case $last in
     '' | *[!0-9]*) last=0 ;;
   esac
+  # A stamp AHEAD of the clock means time moved backwards under us: an NTP step
+  # back, or a Raspberry Pi with no RTC restoring a saved time via fake-hwclock
+  # at boot -- this repo deploys to a Pi. Treated as a normal stamp it is fatal
+  # rather than merely stale: `now - last` is negative, so the throttle
+  # condition below stays true on every call, the tick never runs, and the tick
+  # is also what would rewrite the stamp -- so nothing ever clears it. The bar
+  # freezes on whatever it last drew, for the full size of the step, with
+  # nothing on screen to explain it.
+  #
+  # So treat it as "no stamp" and proceed. The tick runs and rewrites the stamp
+  # to the current clock, which self-heals on the very first call after a step.
+  # Same handling as a corrupt stamp above, and for the same reason: an
+  # unusable stamp must cost one extra tick, never the ticker.
+  (( last > now )) && last=0
 fi
 
 (( now - last < ${TMARCHY_TICK_MIN_INTERVAL:-$DEFAULT_INTERVAL} )) && exit 0
