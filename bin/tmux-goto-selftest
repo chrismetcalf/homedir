@@ -19,4 +19,34 @@ assert_eq "sourcing does not run main" "" "${TMUX_GOTO_MAIN_RAN:-}"
 assert_eq "rows_from_lists is defined" "function" "$(type -t rows_from_lists)"
 assert_eq "act_on is defined"          "function" "$(type -t act_on)"
 
+echo "rows_from_lists"
+
+SESS=$'main\t3\nother\t1'
+WINS=$'@1\tmain\t1\thomedir\t\n@2\tmain\t2\totto-relay\twait\n@9\tother\t1\tmy project\t'
+PANES=$'%1\tmain\t1\thomedir\tzsh\n%2\tmain\t2\totto-relay\tnode'
+
+out=$(rows_from_lists "$SESS" "$WINS" "$PANES")
+
+assert_eq "one row per input line" "7" "$(printf '%s\n' "$out" | wc -l)"
+
+# Target must be field 1 so the action never has to parse display text.
+assert_eq "session target is the name" "main" "$(printf '%s\n' "$out" | grep -m1 'sess' | cut -f1)"
+assert_eq "window target is the id"    "@2"   "$(printf '%s\n' "$out" | grep -m1 'otto-relay' | cut -f1)"
+assert_eq "pane target is the id"      "%2"   "$(printf '%s\n' "$out" | grep -m1 'node' | cut -f1)"
+
+# Tags let a query be narrowed by typing "win" / "pane" / "sess".
+printf '%s\n' "$out" | cut -f2 | grep -q '^\[sess\]' && pass "session rows tagged" || fail "session rows tagged" "[sess]" "$(printf '%s\n' "$out" | cut -f2 | head -1)"
+printf '%s\n' "$out" | cut -f2 | grep -q '^\[win\]'  && pass "window rows tagged"  || fail "window rows tagged" "[win]" "$(printf '%s\n' "$out" | cut -f2 | head -3)"
+printf '%s\n' "$out" | cut -f2 | grep -q '^\[pane\]' && pass "pane rows tagged"    || fail "pane rows tagged" "[pane]" "$(printf '%s\n' "$out" | cut -f2 | tail -2)"
+
+# The running command is what you actually recognise among worktree-named windows.
+printf '%s\n' "$out" | grep -q 'node' && pass "pane rows show the command" || fail "pane rows show the command" "node" "$out"
+
+# Scout state marks agents waiting on you; an unset state renders nothing, not "[]".
+printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fail "scout state shown when set" "wait" "$out"
+printf '%s\n' "$out" | grep -q '\[\]' && fail "unset scout state renders nothing" "no empty brackets" "$out" || pass "unset scout state renders nothing"
+
+# A window name with a space must survive intact.
+printf '%s\n' "$out" | grep -q 'my project' && pass "spaces in names survive" || fail "spaces in names survive" "my project" "$out"
+
 exit "$FAILED"
