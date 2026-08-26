@@ -147,7 +147,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/krezel/.claude/shellfish-notify.sh claude"
+            "command": "[ -f /home/krezel/.claude/shellfish-notify.sh ] && /home/krezel/.claude/shellfish-notify.sh claude || true"
           }
         ]
       }
@@ -194,7 +194,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/krezel/.claude/shellfish-notify.sh claude"
+            "command": "[ -f /home/krezel/.claude/shellfish-notify.sh ] && /home/krezel/.claude/shellfish-notify.sh claude || true"
           }
         ]
       }
