@@ -30,6 +30,55 @@ GLYPH_SESS='󰆍'
 GLYPH_WIN='󰖯'
 GLYPH_PANE='󱂬'
 
+# Scout-state markers. The text label rides along with the glyph deliberately:
+# if a terminal boxes the glyph, "busy" is still readable.
+GLYPH_WAIT='󰀦'
+GLYPH_BUSY='󰔟'
+GLYPH_DONE='󰄬'
+
+# Set by load_theme from whatever theme is live. Empty means "no colour",
+# which is what lets rows_from_lists stay pure and testable with no server.
+C_WAIT=""
+C_BUSY=""
+C_DONE=""
+C_RESET=""
+
+# tmux colours are #rrggbb in eight of the nine themes but colourNNN in jewel,
+# the pre-tmarchy palette. Anything else degrades to no colour rather than
+# emitting a broken escape into the picker.
+ansi_for() {
+    local v="${1:-}"
+    case "$v" in
+        '#'??????)
+            printf '\033[38;2;%d;%d;%dm' \
+                "$((16#${v:1:2}))" "$((16#${v:3:2}))" "$((16#${v:5:2}))" ;;
+        colour[0-9]*|color[0-9]*)
+            printf '\033[38;5;%dm' "${v#colo*r}" ;;
+    esac
+}
+
+# Read once per invocation, not per row: the picker should follow the theme
+# that prefix + ? -> +Theme last persisted.
+load_theme() {
+    C_WAIT=$(ansi_for "$(tmux show -gv @theme-wait 2>/dev/null)")
+    C_BUSY=$(ansi_for "$(tmux show -gv @theme-busy 2>/dev/null)")
+    C_DONE=$(ansi_for "$(tmux show -gv @theme-done 2>/dev/null)")
+    if [ -n "$C_WAIT$C_BUSY$C_DONE" ]; then C_RESET=$'\033[0m'; else C_RESET=""; fi
+}
+
+# Marker text and row tint for a scout state. Unset and "idle" get neither:
+# marking every idle window defeats the point, which is to make the windows
+# wanting your attention stand out. Mirrors how tmarchy tints the whole tab.
+state_decor() {
+    STATE_MARKER=""
+    STATE_COLOUR=""
+    case "${1:-}" in
+        wait) STATE_MARKER="  $GLYPH_WAIT wait"; STATE_COLOUR="$C_WAIT" ;;
+        busy) STATE_MARKER="  $GLYPH_BUSY busy"; STATE_COLOUR="$C_BUSY" ;;
+        done) STATE_MARKER="  $GLYPH_DONE done"; STATE_COLOUR="$C_DONE" ;;
+    esac
+}
+
 rows_from_lists() {
     local sessions="${1:-}" windows="${2:-}" panes="${3:-}"
     local name count id sess idx wname state cmd
@@ -39,24 +88,26 @@ rows_from_lists() {
         printf '%s\tsess\t%s [sess] %s  (%s windows)\n' "$name" "$GLYPH_SESS" "$name" "$count"
     done <<< "$sessions"
 
+    # Index states by session:window so pane rows can inherit them. scout sets
+    # @scout-state per window, but an agent lives in a pane, and the pane row
+    # is as likely to be the one you pick.
+    local win_states=""
     while IFS=$'\t' read -r id sess idx wname state; do
         [ -n "$id" ] || continue
-        # Only states worth reacting to get a marker. Unset must render as
-        # nothing at all rather than an empty bracket (which reads as a state
-        # of its own), and "idle" is the common case — marking every idle
-        # window defeats the point of a marker, which is to make the windows
-        # that want your attention stand out.
-        local marker=""
-        case "$state" in
-            ""|idle) ;;
-            *) marker="  <$state>" ;;
-        esac
-        printf '%s\twin\t%s [win]  %s:%s %s%s\n' "$id" "$GLYPH_WIN" "$sess" "$idx" "$wname" "$marker"
+        win_states="${win_states}${sess}:${idx}"$'\t'"${state}"$'\n'
+        state_decor "$state"
+        printf '%s\twin\t%s%s [win]  %s:%s %s%s%s\n' \
+            "$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" \
+            "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}"
     done <<< "$windows"
 
     while IFS=$'\t' read -r id sess idx wname cmd; do
         [ -n "$id" ] || continue
-        printf '%s\tpane\t%s [pane] %s:%s %s  %s\n' "$id" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$cmd"
+        state=$(printf '%s' "$win_states" | awk -F'\t' -v k="$sess:$idx" '$1==k{print $2; exit}')
+        state_decor "$state"
+        printf '%s\tpane\t%s%s [pane] %s:%s %s  %s%s%s\n' \
+            "$id" "$STATE_COLOUR" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$cmd" \
+            "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}"
     done <<< "$panes"
 }
 collect_rows() {
@@ -96,8 +147,9 @@ main() {
         printf 'tmux-goto: fzf is not installed\n' >&2
         exit 1
     fi
+    load_theme
     local choice
-    choice=$(collect_rows | fzf \
+    choice=$(collect_rows | fzf --ansi \
         --delimiter=$'\t' --with-nth=3.. \
         --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
     act_on "$choice"

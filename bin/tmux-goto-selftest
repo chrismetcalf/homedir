@@ -198,4 +198,47 @@ printf '%s\n' "$out" | cut -f3 | grep -q '\[win\]' \
 assert_eq "kind field is exact" "sess sess win win win win pane pane" \
     "$(printf '%s\n' "$out" | cut -f2 | tr '\n' ' ' | sed 's/ $//')"
 
+echo "state decoration"
+
+# Eight themes give #rrggbb, jewel gives colourNNN. A theme this cannot parse
+# must yield no colour rather than leak a broken escape into the picker.
+assert_eq "hex becomes truecolor ansi" "$(printf '\033[38;2;247;118;142m')" "$(ansi_for '#f7768e')"
+assert_eq "colourNNN becomes 256-colour ansi" "$(printf '\033[38;5;203m')" "$(ansi_for 'colour203')"
+assert_eq "colorNNN spelling works too" "$(printf '\033[38;5;78m')" "$(ansi_for 'color78')"
+assert_eq "a named colour yields nothing" "" "$(ansi_for 'chartreuse')"
+assert_eq "an empty colour yields nothing" "" "$(ansi_for '')"
+assert_eq "a short hex yields nothing" "" "$(ansi_for '#abc')"
+
+# Glyph AND word: if a terminal boxes the glyph, "wait" still reads.
+printf '%s\n' "$out" | grep -q '󰀦 wait' \
+  && pass "wait renders glyph and word" || fail "wait renders glyph and word" "󰀦 wait" "$(printf '%s\n' "$out" | awk -F"\t" '$2=="win"')"
+
+DONEWINS=$'@5\tmain\t9\tbuild\tdone'
+out3=$(rows_from_lists "" "$DONEWINS" "")
+printf '%s\n' "$out3" | grep -q '󰄬 done' \
+  && pass "done renders glyph and word" || fail "done renders glyph and word" "󰄬 done" "$out3"
+
+# scout marks the window, but the agent is a pane -- the pane row is as likely
+# to be the one picked, so it inherits its window's state.
+assert_eq "pane inherits its window state" "1" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /otto-relay/' | grep -c '󰀦 wait')"
+assert_eq "pane in an unmarked window stays unmarked" \
+    "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh')" \
+    "$(printf '%s\n' "$out" | grep -m1 '^%1')"
+
+# Tint is theme-driven: set the colour globals and the whole row is wrapped.
+C_WAIT=$(printf '\033[38;2;1;2;3m'); C_RESET=$(printf '\033[0m')
+tinted=$(rows_from_lists "" "$WINS" "" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $3}')
+plain=$(rows_from_lists "" "$WINS" "" | awk -F'\t' '$2=="win" && $3 ~ /home-assistant|homedir/ {print $3; exit}')
+C_WAIT=""; C_RESET=""
+
+case "$tinted" in
+    "$(printf '\033[38;2;1;2;3m')"*"$(printf '\033[0m')") pass "stateful row is wrapped in the theme colour" ;;
+    *) fail "stateful row is wrapped in the theme colour" "escape ... reset" "$(printf '%s' "$tinted" | cat -v)" ;;
+esac
+case "$plain" in
+    *$(printf '\033')*) fail "unmarked row carries no escape" "no escape" "$(printf '%s' "$plain" | cat -v)" ;;
+    *) pass "unmarked row carries no escape" ;;
+esac
+
 exit "$FAILED"
