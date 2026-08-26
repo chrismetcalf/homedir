@@ -173,6 +173,13 @@ main() {
     # passes even when the guard is broken.
     TMUX_GEN_MAIN_RAN=1
     local pane="${1:-}" question
+    # Resolve the caller's pane when none was passed. display-popup does NOT
+    # format-expand #{}, so passing one used to mean wrapping the binding in a
+    # run-shell -- and the escaped quotes that needed silently truncated the
+    # which-key menu at the entry that used them. Asking tmux directly costs one
+    # call and lets both the key binding and the menu entry stay quote-free.
+    # A popup is not a pane, so this returns the pane it was launched over.
+    [ -n "$pane" ] || pane=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
     gather_context "$pane"
 
     printf 'ask (%s%s)\n' "${CTX_CWD##*/}" "${CTX_BRANCH:+ @$CTX_BRANCH}"

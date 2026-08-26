@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# tmux-menu-selftest — assert the which-key root menu is COMPLETE.
+#
+# Why this exists: a menu command containing an escaped quote (\") parses fine
+# as an option value, so `tmux show -gv @wk_menu_root` looked correct and the
+# config "validated". But prefix + m is bound to an inline display-menu, and
+# there the escaped quote ends the argument list early -- silently dropping
+# every entry after it. The root menu lost 12 of its 18 items and nothing
+# caught it: it was still a valid tmux config, still parsed, still opened.
+#
+# So parsing is not the property worth testing. Completeness is: every
+# top-level name in config.yaml must survive into the generated binding.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$DIR/.." && pwd)"
+CONFIG="$REPO/.config/tmux/plugins/tmux-which-key/config.yaml"
+BUILDER="$HOME/.tmux/plugins/tmux-which-key/plugin/build.py"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+
+echo "tmux-menu selftest"
+
+[ -r "$CONFIG" ] || { printf '  FAIL config not readable: %s\n' "$CONFIG"; exit 1; }
+if ! [ -r "$BUILDER" ]; then
+    echo "  skip (tmux-which-key not installed; run prefix + I)"
+    exit 0
+fi
+
+TMPDIR_RUN=$(mktemp -d)
+INIT="$TMPDIR_RUN/init.tmux"
+
+python3 "$BUILDER" "$CONFIG" "$INIT" >/dev/null 2>&1 \
+  && pass "config.yaml builds" || fail "config.yaml builds" "exit 0" "builder failed"
+
+# Top-level items only: two-space indented "- name:" entries, before any deeper
+# nesting. Submenu items live at four spaces or more.
+mapfile -t WANT < <(awk '
+    /^items:/ { in_items = 1; next }
+    in_items && /^  - name: / { sub(/^  - name: /, ""); gsub(/^"|"$/, ""); print }
+' "$CONFIG")
+
+[ "${#WANT[@]}" -gt 0 ] \
+  && pass "found ${#WANT[@]} top-level entries in config.yaml" \
+  || fail "found top-level entries" "at least one" "none parsed"
+
+SOCK="menu-selftest-$$"
+if ! /usr/bin/tmux -L "$SOCK" -f /dev/null new-session -d -x 80 -y 24 2>/dev/null; then
+    echo "  skip (could not start a throwaway server)"
+    rm -rf "$TMPDIR_RUN"
+    exit "$FAILED"
+fi
+/usr/bin/tmux -L "$SOCK" source-file "$INIT" >/dev/null 2>&1
+
+# The inline binding is the thing the user actually opens, so it is the thing
+# under test -- NOT @wk_menu_root, whose different parsing path is what hid the
+# truncation in the first place.
+BINDING=$(/usr/bin/tmux -L "$SOCK" list-keys -T prefix 2>/dev/null | grep -aE '^bind-key +-T prefix +\? ')
+
+missing=0
+for name in "${WANT[@]}"; do
+    case "$name" in ''|'+'*) ;; esac
+    if ! printf '%s' "$BINDING" | grep -qF -- "$name"; then
+        missing=$((missing + 1))
+        printf '       missing from the rendered menu: %s\n' "$name"
+    fi
+done
+[ "$missing" -eq 0 ] \
+  && pass "every top-level entry survives into the binding" \
+  || fail "every top-level entry survives into the binding" "0 missing" "$missing missing"
+
+# The specific failure mode, pinned. Only TOP-LEVEL commands matter: those are
+# rendered inline into the display-menu that prefix + m runs, where an escaped
+# quote ends the argument list. Submenu commands are stored as @wk_menu_*
+# option values and parse escapes correctly -- two of them have done so for
+# months -- so flagging those would be a false alarm.
+top_escaped=$(awk '
+    /^items:/ { in_items = 1; next }
+    in_items && /^  - / { top = 1 }
+    in_items && /^      / { top = 0 }
+    in_items && top && /^    command: .*\\"/ { print NR ": " $0 }
+' "$CONFIG")
+if [ -n "$top_escaped" ]; then
+    fail "no top-level menu command has an escaped quote" "none" "$top_escaped"
+else
+    pass "no top-level menu command has an escaped quote"
+fi
+
+# A truncated menu is still a short one, so guard the length too: the binding
+# was 484 bytes while broken and 946 whole.
+len=${#BINDING}
+[ "$len" -gt 700 ] \
+  && pass "rendered menu is a plausible length ($len bytes)" \
+  || fail "rendered menu is a plausible length" ">700 bytes" "$len bytes"
+
+/usr/bin/tmux -L "$SOCK" kill-server 2>/dev/null
+rm -f "${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK"
+rm -rf "$TMPDIR_RUN"
+
+exit "$FAILED"
