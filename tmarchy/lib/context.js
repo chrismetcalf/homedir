@@ -36,6 +36,12 @@ const WINDOW_FORMAT = [
   '#{pane_pid}',
   '#{automatic-rename}',
   '#{@tmarchy-ssh-name}',
+  // What the window was called before we took it over, so a name you chose can
+  // be handed back exactly. Only set in "always" mode.
+  '#{@tmarchy-ssh-prev}',
+  // A global, repeated on every row: reading it here keeps the ticker to one
+  // tmux call, which is the whole point of this design.
+  '#{@tmarchy-ssh-rename}',
   '#{window_name}',
 ].join(SEP)
 
@@ -70,7 +76,7 @@ function parseWindows(out) {
     .filter(Boolean)
     .map(line => {
       const parts = line.split(SEP)
-      const [id, command = null, pid = null, auto = '', marker = ''] = parts
+      const [id, command = null, pid = null, auto = '', marker = '', prev = '', mode = ''] = parts
       return {
         id,
         command: command || null,
@@ -81,7 +87,9 @@ function parseWindows(out) {
         // risk eating a name that was set deliberately.
         autoRename: auto === '1',
         marker: marker || '',
-        name: parts.slice(5).join(SEP),
+        prev: prev || '',
+        mode: mode || '',
+        name: parts.slice(7).join(SEP),
       }
     })
     .filter(win => win.id)

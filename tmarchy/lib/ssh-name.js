@@ -21,20 +21,38 @@
 //     Stop tracking it and never touch it again.
 
 const MARKER = '@tmarchy-ssh-name'
+// What the window was called before we took it over. Only written in "always"
+// mode, and it is what makes taking over a name you chose reversible: without
+// it, the restore path would rename your window to the pane's command and your
+// name would be gone for good.
+const MARKER_PREV = '@tmarchy-ssh-prev'
+
+// set -g @tmarchy-ssh-rename always
+//   "auto"   (default) only rename windows tmux is still naming itself
+//   "always" also take over windows you named -- and give the name back after
 
 // win: { name, autoRename, marker }, host: resolved ssh host or null.
 // Returns { action: 'rename' | 'restore' | 'clear' | 'none', name? }.
-function renamePlan(win, host) {
+function renamePlan(win, host, mode) {
   const name = win.name || ''
   const marker = win.marker || ''
   const ours = marker !== '' && marker === name
+  const always = (mode || win.mode || 'auto') === 'always'
 
   if (host) {
     // Already ours: follow the host if the session changed under us.
     if (ours) return name === host ? { action: 'none' } : { action: 'rename', name: host }
     // Untouched by you, so tmux is naming it "ssh" and we can do better.
     if (win.autoRename) return { action: 'rename', name: host }
-    // You named this window. It stays exactly as you left it.
+    // You named this window, and you asked us to take those over too. Record
+    // what it was called so it can be handed back intact.
+    //
+    // A name containing a tab is refused rather than taken over: the window
+    // query is tab-separated, so such a name could not survive the round trip
+    // through @tmarchy-ssh-prev, and a name we cannot restore is one we must
+    // not touch.
+    if (always && !name.includes('\t')) return { action: 'rename', name: host, prev: name }
+    // Default: it stays exactly as you left it.
     return { action: 'none' }
   }
 
@@ -51,12 +69,27 @@ function renamePlan(win, host) {
 function planToOps(plan, win) {
   const id = win.id
   switch (plan.action) {
-    case 'rename':
-      return [
+    case 'rename': {
+      const ops = [
         { scope: 'command', argv: ['rename-window', '-t', id, plan.name] },
         { scope: 'window', target: id, name: MARKER, value: plan.name },
       ]
-    case 'restore':
+      // Only when taking over a name you chose. An auto-named window has
+      // nothing worth remembering: tmux will name it again by itself.
+      if (plan.prev) ops.push({ scope: 'window', target: id, name: MARKER_PREV, value: plan.prev })
+      return ops
+    }
+    case 'restore': {
+      // A name we replaced goes back verbatim, and automatic-rename stays off
+      // because it was off before we arrived. Renaming to the pane's command
+      // here -- the auto-named path below -- would silently destroy it.
+      if (win.prev) {
+        return [
+          { scope: 'command', argv: ['rename-window', '-t', id, win.prev] },
+          { scope: 'window', target: id, name: MARKER, value: null },
+          { scope: 'window', target: id, name: MARKER_PREV, value: null },
+        ]
+      }
       return [
         // Rename first, then hand automatic-rename back: rename-window turns
         // it off again, so doing these in the other order would leave the
@@ -65,11 +98,15 @@ function planToOps(plan, win) {
         { scope: 'command', argv: ['set-option', '-uwt', id, 'automatic-rename'] },
         { scope: 'window', target: id, name: MARKER, value: null },
       ]
+    }
     case 'clear':
-      return [{ scope: 'window', target: id, name: MARKER, value: null }]
+      return [
+        { scope: 'window', target: id, name: MARKER, value: null },
+        { scope: 'window', target: id, name: MARKER_PREV, value: null },
+      ]
     default:
       return []
   }
 }
 
-module.exports = { MARKER, renamePlan, planToOps }
+module.exports = { MARKER, MARKER_PREV, renamePlan, planToOps }
