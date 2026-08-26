@@ -132,4 +132,24 @@ assert_eq "hex becomes truecolor ansi" "$(printf '\033[38;2;125;207;255m')" "$(a
 assert_eq "colourNNN becomes 256-colour ansi" "$(printf '\033[38;5;110m')" "$(ansi_for 'colour110')"
 assert_eq "an unparseable colour yields nothing" "" "$(ansi_for 'seafoam')"
 
+echo "frecency"
+assert_eq "the host is the key" "altair" \
+    "$(frecency_key_ssh "$(printf 'altair\tnet\tsomething')")"
+
+WORK=$(mktemp -d)
+export TMUX_FRECENCY_DIR="$WORK"
+ROWS=$(rows_from_sources "$CFGH" "$TSH")
+assert_eq "with no history the order is untouched" "alpha bazarr docker-host sleepy" \
+    "$(frecency_sort "$ROWS" "$(frecency_path ssh)" frecency_key_ssh | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+
+frecency_record "$(frecency_path ssh)" "sleepy"
+frecency_record "$(frecency_path ssh)" "sleepy"
+assert_eq "a picked host rises to the top" "sleepy" \
+    "$(frecency_sort "$ROWS" "$(frecency_path ssh)" frecency_key_ssh | head -1 | cut -f1)"
+# Ranking must not disturb the row itself.
+assert_eq "the promoted row is intact" "3" \
+    "$(frecency_sort "$ROWS" "$(frecency_path ssh)" frecency_key_ssh | head -1 | awk -F'\t' '{print NF}')"
+rm -rf "$WORK"
+unset TMUX_FRECENCY_DIR
+
 exit "$FAILED"

@@ -17,6 +17,9 @@ set -uo pipefail
 
 CONFIG="${TMUX_CMD_CONFIG:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
 
+# shellcheck source=lib/tmux-frecency.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
+
 # Menu entries can carry several commands (a macro). They travel through one
 # row as US-separated fields and become one line each in the file tmux sources,
 # because a tmux config is line-oriented and joining them with ';' would depend
@@ -225,17 +228,33 @@ rows_from_flat() {
         else
             label="$leaf"
         fi
-        printf '%s\tmenu\t%s%s%s %s  %s%s%s\n' \
+        # The command text rides along at the end, dimmed. fzf matches only what
+        # it displays -- --nth applies to the string AFTER --with-nth has
+        # transformed it, so a hidden field is unsearchable no matter what --
+        # and seeing what a row will actually run is worth the width anyway.
+        local shown="$cmds"
+        shown=${shown//$CMD_SEP/ ; }
+        [ "${#shown}" -gt 64 ] && shown="${shown:0:63}…"
+        printf '%s\tmenu\t%s%s%s %s  %s%s  %s%s\n' \
             "$cmds" \
             "$C_ACCENT" "$(glyph_for "$cmds")" "${C_ACCENT:+$C_RESET}" \
             "$label" \
-            "$C_DIM" "${key:+[$key]}" "${C_DIM:+$C_RESET}"
+            "$C_DIM" "${key:+[$key]}" "$shown" "${C_DIM:+$C_RESET}"
     done <<< "$flat"
+}
+
+# The command itself is the frecency key: stable across restarts, unlike a
+# label that could be reworded or a menu path that could be reorganised.
+frecency_key_cmd() {
+    printf '%s' "${1%%$'\t'*}"
 }
 
 collect_rows() {
     [ -r "$CONFIG" ] || return 0
-    rows_from_flat "$(flatten_menu "$(cat "$CONFIG")")"
+    frecency_sort \
+        "$(rows_from_flat "$(flatten_menu "$(cat "$CONFIG")")")" \
+        "$(frecency_path cmd)" \
+        frecency_key_cmd
 }
 
 # Run through a file that tmux sources, never through the shell. Several of
@@ -264,10 +283,14 @@ main() {
     fi
     load_theme
     local choice
-    choice=$(collect_rows | fzf --ansi \
+    # --tiebreak=index so equal-scoring matches fall back to the frecency order
+    # above. The default is `length`, which would quietly rank by row width and
+    # undo the sort entirely.
+    choice=$(collect_rows | fzf --ansi --tiebreak=index \
         --delimiter=$'\t' --with-nth=3.. \
         --prompt='cmd > ' --height=100% --reverse --no-multi) || exit 0
     [ -n "$choice" ] || exit 0
+    frecency_record "$(frecency_path cmd)" "$(frecency_key_cmd "$choice")"
     run_command "${choice%%$'\t'*}"
 }
 

@@ -19,6 +19,9 @@
 # Sourced with TMUX_SSH_LIB=1 it defines its functions and exits.
 set -uo pipefail
 
+# shellcheck source=lib/tmux-frecency.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
+
 GLYPH_HOST='󰢹'
 
 C_ACCENT=""
@@ -126,10 +129,20 @@ rows_from_sources() {
     done <<< "$ts"
 }
 
+# The host is the key: stable, and already field 1. Nothing hidden needs to
+# become searchable here -- unlike the other two pickers, the thing you act on
+# is the thing you read.
+frecency_key_ssh() {
+    printf '%s' "${1%%$'\t'*}"
+}
+
 collect_rows() {
-    rows_from_sources \
-        "$(hosts_from_ssh_config "$(read_ssh_config)")" \
-        "$(hosts_from_tailscale "$(tailscale status 2>/dev/null)")"
+    frecency_sort \
+        "$(rows_from_sources \
+            "$(hosts_from_ssh_config "$(read_ssh_config)")" \
+            "$(hosts_from_tailscale "$(tailscale status 2>/dev/null)")")" \
+        "$(frecency_path ssh)" \
+        frecency_key_ssh
 }
 
 # Enter opens a window, Ctrl-V splits. Both name the target so tmarchy's tab
@@ -156,11 +169,14 @@ main() {
     fi
     load_theme
     local out key choice
-    out=$(collect_rows | fzf --ansi --expect=ctrl-v \
+    # --tiebreak=index so equal-scoring matches keep the frecency order above;
+    # the default `length` would rank by hostname width instead.
+    out=$(collect_rows | fzf --ansi --expect=ctrl-v --tiebreak=index \
         --delimiter=$'\t' --with-nth=3.. \
         --prompt='ssh to > ' --height=100% --reverse --no-multi) || exit 0
     key=$(printf '%s\n' "$out" | head -1)
     choice=$(printf '%s\n' "$out" | sed -n '2p')
+    frecency_record "$(frecency_path ssh)" "$(frecency_key_ssh "$choice")"
     act_on "$choice" "$key"
 }
 

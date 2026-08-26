@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# tmux-frecency-selftest — tests for bin/lib/tmux-frecency.sh.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+WORK=$(mktemp -d)
+export TMUX_FRECENCY_DIR="$WORK/state"
+# shellcheck source=/dev/null
+. "$DIR/lib/tmux-frecency.sh"
+
+NOW=$(date +%s)
+STATE="$WORK/state/test-frecency"
+mkdir -p "$WORK/state"
+
+echo "tmux-frecency selftest"
+
+echo "frecency_path"
+# The override must be read when the path is asked for, not when this file was
+# sourced. tmux-gen shipped the source-time version of this bug and every test
+# run silently hit the real, billed claude binary.
+TMUX_FRECENCY_DIR="$WORK/late" \
+  assert_eq "the directory is resolved at call time" "$WORK/late/goto-frecency" \
+    "$(TMUX_FRECENCY_DIR="$WORK/late" frecency_path goto)"
+assert_eq "and it falls back when unset" "$HOME/.local/state/tmarchy/goto-frecency" \
+    "$(unset TMUX_FRECENCY_DIR; frecency_path goto)"
+
+echo "frecency_weight"
+# Recency has to dominate, or a burst from months ago stays pinned forever.
+assert_eq "minutes old is heaviest" "100" "$(frecency_weight 60)"
+assert_eq "hours old is lighter"     "60" "$(frecency_weight 7200)"
+assert_eq "days old is lighter yet"  "30" "$(frecency_weight 200000)"
+assert_eq "weeks old keeps some"     "10" "$(frecency_weight 1000000)"
+assert_eq "ancient still counts"      "3" "$(frecency_weight 99999999)"
+# Never zero: used-once-a-year must still beat never-used.
+assert_eq "the floor is above zero"   "3" "$(frecency_weight 999999999)"
+
+# The scale is what makes recency win, so pin the property rather than only the
+# numbers: three uses today must beat fifty from two months ago.
+assert_eq "recency can outweigh sheer volume" "yes" \
+    "$([ $((3 * $(frecency_weight 60))) -gt $((50 * $(frecency_weight 5000000))) ] && echo yes || echo no)"
+
+echo "frecency_sort"
+key_of() { printf '%s' "${1%%$'\t'*}"; }
+
+ROWS=$'alpha\tx\tAlpha row\nbravo\tx\tBravo row\ncharlie\tx\tCharlie row\ndelta\tx\tDelta row'
+
+# No state at all: the order must come through completely untouched.
+assert_eq "with no state the order is unchanged" "alpha bravo charlie delta" \
+    "$(frecency_sort "$ROWS" "$WORK/state/missing-frecency" key_of | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+
+{
+    printf 'charlie\t9\t%s\n' "$NOW"
+    printf 'bravo\t1\t%s\n' "$NOW"
+} > "$STATE"
+assert_eq "used rows come first, most-used leading" "charlie bravo alpha delta" \
+    "$(frecency_sort "$ROWS" "$STATE" key_of | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+
+# Unused rows must keep their relative order rather than being shuffled.
+assert_eq "unused rows keep source order" "alpha delta" \
+    "$(frecency_sort "$ROWS" "$STATE" key_of | cut -f1 | tail -2 | tr '\n' ' ' | sed 's/ $//')"
+
+# The whole point of frecency over frequency: recent beats merely numerous.
+{
+    printf 'charlie\t50\t%s\n' "$((NOW - 5000000))"
+    printf 'bravo\t3\t%s\n' "$NOW"
+} > "$STATE"
+assert_eq "recent use outranks a stale pile" "bravo" \
+    "$(frecency_sort "$ROWS" "$STATE" key_of | head -1 | cut -f1)"
+
+# A clock that jumped backwards must not produce a negative age.
+{ printf 'delta\t2\t%s\n' "$((NOW + 99999))"; } > "$STATE"
+assert_eq "a future timestamp does not break ranking" "delta" \
+    "$(frecency_sort "$ROWS" "$STATE" key_of | head -1 | cut -f1)"
+
+# Rows are themselves tab-separated, so the sort annotation must not use tabs.
+assert_eq "row contents survive sorting" "Charlie row" \
+    "$(printf 'charlie\t1\t%s\n' "$NOW" > "$STATE"; frecency_sort "$ROWS" "$STATE" key_of | head -1 | cut -f3)"
+assert_eq "row field count is preserved" "3" \
+    "$(frecency_sort "$ROWS" "$STATE" key_of | head -1 | awk -F'\t' '{print NF}')"
+
+assert_eq "an unusable key function leaves rows alone" "alpha bravo charlie delta" \
+    "$(frecency_sort "$ROWS" "$STATE" no_such_function | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+assert_eq "empty input yields nothing" "0" "$(frecency_sort "" "$STATE" key_of | grep -c .)"
+
+echo "frecency_record"
+REC="$WORK/state/rec-frecency"
+frecency_record "$REC" "altair"
+assert_eq "a first pick is recorded with count 1" "1" "$(awk -F'\t' '$1=="altair"{print $2}' "$REC")"
+frecency_record "$REC" "altair"
+frecency_record "$REC" "altair"
+assert_eq "repeat picks increment" "3" "$(awk -F'\t' '$1=="altair"{print $2}' "$REC")"
+assert_eq "one line per key" "1" "$(grep -c '^altair' "$REC")"
+
+frecency_record "$REC" "hydra"
+assert_eq "a second key is added" "2" "$(grep -c . "$REC")"
+assert_eq "the first key survives" "3" "$(awk -F'\t' '$1=="altair"{print $2}' "$REC")"
+
+# Entries nobody has touched in months must not accumulate forever.
+printf 'ancient\t4\t%s\n' "$((NOW - FRECENCY_MAX_AGE - 100))" >> "$REC"
+frecency_record "$REC" "hydra"
+assert_eq "stale entries are pruned on write" "0" "$(grep -c '^ancient' "$REC")"
+assert_eq "live entries are not pruned" "1" "$(grep -c '^altair' "$REC")"
+
+# A key with a tab would corrupt the file's own format.
+frecency_record "$REC" "$(printf 'bad\tkey')"
+assert_eq "a key containing a tab is refused" "0" "$(grep -c '^bad' "$REC")"
+frecency_record "$REC" ""
+assert_eq "an empty key is refused" "2" "$(grep -c . "$REC")"
+
+# Recording must never be able to break the selection it follows.
+frecency_record "/nonexistent-dir-xyz/deep/file" "k"; rc=$?
+assert_eq "an unwritable path fails silently" "0" "$rc"
+
+echo "round trip"
+RT="$WORK/state/rt-frecency"
+frecency_record "$RT" "delta"
+frecency_record "$RT" "delta"
+assert_eq "what was recorded is what sorts first" "delta" \
+    "$(frecency_sort "$ROWS" "$RT" key_of | head -1 | cut -f1)"
+
+rm -rf "$WORK"
+exit "$FAILED"

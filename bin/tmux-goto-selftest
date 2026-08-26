@@ -48,13 +48,13 @@ printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fa
 # version of this assertion looked for empty square brackets while the row
 # renders angle brackets, so it passed no matter how broken the guard was.
 assert_eq "unset scout state renders nothing" \
-    "$(printf '@1\twin\t󰖯 [win]  main:1 homedir')" \
+    "$(printf '@1\twin\t󰖯 [win]  main:1 homedir  @1\twin:main:homedir')" \
     "$(printf '%s\n' "$out" | grep -m1 '\[win\]  main:1 homedir')"
 
 # "idle" is the common case — marking every idle window defeats the point of a
 # marker, which is to make the windows wanting your attention stand out.
 assert_eq "idle state renders no marker" \
-    "$(printf '@7\twin\t󰖯 [win]  main:4 idle-win')" \
+    "$(printf '@7\twin\t󰖯 [win]  main:4 idle-win  @7\twin:main:idle-win')" \
     "$(printf '%s\n' "$out" | grep -m1 'idle-win')"
 
 # A window name with a space must survive intact.
@@ -223,7 +223,7 @@ printf '%s\n' "$out3" | grep -q '󰄬 done' \
 assert_eq "pane inherits its window state" "1" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /otto-relay/' | grep -c '󰀦 wait')"
 assert_eq "pane in an unmarked window stays unmarked" \
-    "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh')" \
+    "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh  %%1\tpane:main:homedir:zsh')" \
     "$(printf '%s\n' "$out" | grep -m1 '^%1')"
 
 # Tint is theme-driven: set the colour globals and the whole row is wrapped.
@@ -233,12 +233,37 @@ plain=$(rows_from_lists "" "$WINS" "" | awk -F'\t' '$2=="win" && $3 ~ /home-assi
 C_WAIT=""; C_RESET=""
 
 case "$tinted" in
-    "$(printf '\033[38;2;1;2;3m')"*"$(printf '\033[0m')") pass "stateful row is wrapped in the theme colour" ;;
+    "$(printf '\033[38;2;1;2;3m')"*"$(printf '\033[0m')"*) pass "stateful row is wrapped in the theme colour" ;;
     *) fail "stateful row is wrapped in the theme colour" "escape ... reset" "$(printf '%s' "$tinted" | cat -v)" ;;
 esac
 case "$plain" in
     *$(printf '\033')*) fail "unmarked row carries no escape" "no escape" "$(printf '%s' "$plain" | cat -v)" ;;
     *) pass "unmarked row carries no escape" ;;
 esac
+
+echo "frecency"
+
+# The key must survive a tmux restart. Window ids do not: @2 is a different
+# window after every restart, so keying on the target would rank nothing.
+assert_eq "a window key is session and name, not the id" "win:main:otto-relay" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $4}')"
+assert_eq "a session key is its name" "sess:main" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $4; exit}')"
+assert_eq "a pane key includes its command" "pane:main:otto-relay:node" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /node/ {print $4}')"
+assert_eq "frecency_key_goto reads the last field" "win:main:otto-relay" \
+    "$(frecency_key_goto "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/')")"
+
+# fzf can only match what it displays, so the id has to be IN the display.
+printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $3}' | grep -q '@2' \
+  && pass "the target id is visible so it can be typed" \
+  || fail "the target id is visible" "@2" "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win"{print $3}')"
+# A session's target is its name, already the label; repeating it is noise.
+assert_eq "a session row does not repeat its name" "1" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $3; exit}' | grep -o 'main' | grep -c .)"
+
+# Every row must have exactly the four fields act_on and fzf depend on.
+assert_eq "every row has four fields" "0" \
+    "$(printf '%s\n' "$out" | awk -F'\t' 'NF != 4' | grep -c .)"
 
 exit "$FAILED"
