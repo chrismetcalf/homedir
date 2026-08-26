@@ -266,4 +266,44 @@ assert_eq "a session row does not repeat its name" "1" \
 assert_eq "every row has four fields" "0" \
     "$(printf '%s\n' "$out" | awk -F'\t' 'NF != 4' | grep -c .)"
 
+echo "promote_and_filter"
+PF=$'main\tsess\tS main\tsess:main
+other\tsess\tS other\tsess:other
+@1\twin\tW one\twin:main:one
+@2\twin\tW two\twin:main:two
+@3\twin\tW three\twin:main:three
+%1\tpane\tP one\tpane:main:one:zsh
+%2\tpane\tP two\tpane:main:two:zsh'
+
+got=$(promote_and_filter "$PF" "@1" "%1" "main" "@3")
+
+# The point of the exercise: prefix + u then Enter goes back where you were.
+assert_eq "the last window leads the list" "@3" "$(printf '%s\n' "$got" | head -1 | cut -f1)"
+# Jumping to where you already are is not a destination.
+assert_eq "the current window is gone" "0" "$(printf '%s\n' "$got" | cut -f1 | grep -cx '@1')"
+assert_eq "the current pane is gone" "0" "$(printf '%s\n' "$got" | cut -f1 | grep -cx '%1')"
+assert_eq "the current session is gone" "0" "$(printf '%s\n' "$got" | cut -f1 | grep -cx 'main')"
+# Promoting must move the row, not copy it.
+assert_eq "the promoted row appears once" "1" "$(printf '%s\n' "$got" | cut -f1 | grep -cx '@3')"
+assert_eq "everything else survives" "other @2 %2" \
+    "$(printf '%s\n' "$got" | tail -n +2 | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+# Other sessions are still somewhere to go.
+assert_eq "another session is kept" "1" "$(printf '%s\n' "$got" | cut -f1 | grep -cx 'other')"
+assert_eq "the promoted row keeps all four fields" "4" \
+    "$(printf '%s\n' "$got" | head -1 | awk -F'\t' '{print NF}')"
+
+# A fresh session has no last window at all.
+got2=$(promote_and_filter "$PF" "@1" "%1" "main" "")
+assert_eq "with no last window nothing is pinned" "other" "$(printf '%s\n' "$got2" | head -1 | cut -f1)"
+assert_eq "and filtering still happens" "0" "$(printf '%s\n' "$got2" | cut -f1 | grep -cx '@1')"
+
+# The last window can name a window that is no longer listed.
+got3=$(promote_and_filter "$PF" "@1" "%1" "main" "@99")
+assert_eq "an unknown last window drops nothing" "4" "$(printf '%s\n' "$got3" | grep -c .)"
+
+# A session named like a glob must not match other rows through a case pattern.
+PF2=$'*\tsess\tS star\tsess:*\n@5\twin\tW five\twin:main:five'
+assert_eq "a glob-like session name filters only itself" "@5" \
+    "$(promote_and_filter "$PF2" "" "" "*" "" | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+
 exit "$FAILED"

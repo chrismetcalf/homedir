@@ -129,8 +129,53 @@ frecency_key_goto() {
     printf '%s' "${row##*$'\t'}"
 }
 
+# Put the previously-active window first and drop the places you already are,
+# so prefix + u then Enter is a toggle back to where you just were -- the same
+# gesture as alt-tab. Everything else keeps its frecency order behind it.
+#
+# Pure: it takes the ids rather than asking tmux, so the whole shape is
+# testable from fixtures.
+promote_and_filter() {
+    local rows="${1:-}" cur_win="${2:-}" cur_pane="${3:-}" cur_sess="${4:-}" last_win="${5:-}"
+    local row target
+
+    if [ -n "$last_win" ]; then
+        while IFS= read -r row; do
+            [ -n "$row" ] || continue
+            target=${row%%$'\t'*}
+            if [ "$target" = "$last_win" ]; then
+                printf '%s\n' "$row"
+                break
+            fi
+        done <<< "$rows"
+    fi
+
+    while IFS= read -r row; do
+        [ -n "$row" ] || continue
+        target=${row%%$'\t'*}
+        # Compared with = rather than a case pattern: a session name is
+        # user-supplied and could contain glob characters.
+        [ -n "$cur_win" ] && [ "$target" = "$cur_win" ] && continue
+        [ -n "$cur_pane" ] && [ "$target" = "$cur_pane" ] && continue
+        [ -n "$cur_sess" ] && [ "$target" = "$cur_sess" ] && continue
+        [ -n "$last_win" ] && [ "$target" = "$last_win" ] && continue
+        printf '%s\n' "$row"
+    done <<< "$rows"
+}
+
 collect_rows() {
-    frecency_sort "$(_collect_rows_raw)" "$(frecency_path goto)" frecency_key_goto
+    local sorted ctx cur_win cur_pane cur_sess last_win
+    sorted=$(frecency_sort "$(_collect_rows_raw)" "$(frecency_path goto)" frecency_key_goto)
+
+    ctx=$(tmux display-message -p '#{window_id}'$'\t''#{pane_id}'$'\t''#{session_name}' 2>/dev/null)
+    IFS=$'\t' read -r cur_win cur_pane cur_sess <<< "$ctx"
+
+    # Without -a: "last window" is per session, and the one worth toggling to
+    # is the last window of the session you are actually in.
+    last_win=$(tmux list-windows -F '#{window_id}'$'\t''#{window_last_flag}' 2>/dev/null \
+        | awk -F'\t' '$2 == 1 { print $1; exit }')
+
+    promote_and_filter "$sorted" "$cur_win" "$cur_pane" "$cur_sess" "$last_win"
 }
 
 _collect_rows_raw() {
