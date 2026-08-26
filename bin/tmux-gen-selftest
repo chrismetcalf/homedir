@@ -121,4 +121,50 @@ gather_context_from_dir "$detached"
 assert_eq "detached HEAD gives a sha" "$(git -C "$detached" rev-parse --short HEAD)" "$CTX_BRANCH"
 rm -rf "$detached"
 
+echo "query"
+
+# A stub standing in for claude: records its stdin and flags, echoes a fixture.
+STUB_DIR=$(mktemp -d)
+cat > "$STUB_DIR/claude" <<'STUB'
+#!/usr/bin/env bash
+cat > "$STUB_RECORD_STDIN"
+printf '%s\n' "$*" > "$STUB_RECORD_ARGS"
+printf '%s' "$STUB_REPLY"
+STUB
+chmod +x "$STUB_DIR/claude"
+export STUB_RECORD_STDIN="$STUB_DIR/stdin.txt"
+export STUB_RECORD_ARGS="$STUB_DIR/args.txt"
+export STUB_REPLY='{"kind":"command","command":"git status","note":"n"}'
+export TMUX_GEN_CLAUDE="$STUB_DIR/claude"
+
+CTX_CWD="/home/krezel/.homedir"; CTX_BRANCH="tmux-gen"
+out=$(query "what changed")
+
+assert_eq "query returns the model reply" "$STUB_REPLY" "$out"
+grep -q "^cwd: /home/krezel/.homedir$" "$STUB_RECORD_STDIN" \
+  && pass "cwd reaches the prompt" || fail "cwd reaches the prompt" "cwd line" "$(cat "$STUB_RECORD_STDIN")"
+grep -q "^branch: tmux-gen$" "$STUB_RECORD_STDIN" \
+  && pass "branch reaches the prompt" || fail "branch reaches the prompt" "branch line" "$(cat "$STUB_RECORD_STDIN")"
+grep -q "what changed" "$STUB_RECORD_STDIN" \
+  && pass "the question reaches the prompt" || fail "the question reaches the prompt" "question" "$(cat "$STUB_RECORD_STDIN")"
+
+# The two flags that make this safe and fast. If either is ever dropped the
+# tool either gains filesystem access or slows to 20-41s.
+grep -q -- "--disallowed-tools" "$STUB_RECORD_ARGS" \
+  && pass "tools are disabled" || fail "tools are disabled" "--disallowed-tools" "$(cat "$STUB_RECORD_ARGS")"
+grep -q -- "--append-system-prompt" "$STUB_RECORD_ARGS" \
+  && pass "system prompt is sent" || fail "system prompt is sent" "--append-system-prompt" "$(cat "$STUB_RECORD_ARGS")"
+grep -q -- "--model sonnet" "$STUB_RECORD_ARGS" \
+  && pass "model is sonnet" || fail "model is sonnet" "--model sonnet" "$(cat "$STUB_RECORD_ARGS")"
+
+# Outside a repo there is no branch line at all, rather than an empty one.
+CTX_BRANCH=""
+query "anything" >/dev/null
+grep -q "^branch:" "$STUB_RECORD_STDIN" \
+  && fail "no branch line when not in a repo" "no branch: line" "$(cat "$STUB_RECORD_STDIN")" \
+  || pass "no branch line when not in a repo"
+
+rm -rf "$STUB_DIR"
+unset TMUX_GEN_CLAUDE STUB_REPLY STUB_RECORD_STDIN STUB_RECORD_ARGS
+
 exit "$FAILED"

@@ -48,7 +48,24 @@ gather_context() {
     [ -n "$pane" ] && cwd=$(tmux display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
     gather_context_from_dir "${cwd:-$PWD}"
 }
-query() { :; }
+# One call, stdin-fed. The prompt must arrive on stdin: combined with these
+# flags, passing it positionally makes claude report "Input must be provided".
+query() {
+    local question="${1:-}" ctx
+    # Re-read the env here rather than trusting the top-of-file CLAUDE_BIN/
+    # TIMEOUT: those are captured once at source time, so a test (or a caller)
+    # exporting TMUX_GEN_CLAUDE/TMUX_GEN_TIMEOUT afterward would silently miss
+    # the stub and hit the real, billed claude binary instead.
+    local claude_bin="${TMUX_GEN_CLAUDE:-$CLAUDE_BIN}" timeout_s="${TMUX_GEN_TIMEOUT:-$TIMEOUT}"
+    ctx="cwd: $CTX_CWD"
+    [ -n "$CTX_BRANCH" ] && ctx="$ctx
+branch: $CTX_BRANCH"
+
+    printf '%s\n---\n%s\n' "$ctx" "$question" | timeout "$timeout_s" "$claude_bin" \
+        -p --model "$MODEL" \
+        --disallowed-tools Read Bash Glob Grep WebFetch WebSearch Edit Write Task NotebookEdit TodoWrite \
+        --append-system-prompt "$SYSTEM_PROMPT" 2>&1
+}
 # Sets REPLY_KIND (command|answer), REPLY_CMD, REPLY_NOTE.
 #
 # Every path that cannot positively identify a command falls through to
