@@ -166,7 +166,9 @@ printf '%s\n' "$out" | cut -f3 | grep -q "Windows $GLYPH_PATH Split horizontal" 
   && pass "nested rows show their path" || fail "nested rows show their path" "Windows > Split horizontal" "$(printf '%s\n' "$out" | cut -f3)"
 printf '%s\n' "$out" | cut -f3 | grep -q '\[/\]' \
   && pass "the key is shown so it can be learned" || fail "the key is shown" "[/]" "$(printf '%s\n' "$out" | cut -f3)"
-assert_eq "rows lead with a glyph" "$GLYPH_CMD" \
+# A literal, and the prompt glyph specifically: the first row is Run, which is
+# a command-prompt, so it is classified prompt rather than the generic default.
+assert_eq "rows lead with the glyph for their class" "$(printf '\U000f03eb')" \
     "$(printf '%s\n' "$out" | head -1 | cut -f3 | cut -d' ' -f1)"
 
 echo "command classes"
