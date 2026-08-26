@@ -24,4 +24,38 @@ assert_eq "parse_reply is defined"     "function" "$(type -t parse_reply)"
 assert_eq "gather_context is defined"  "function" "$(type -t gather_context)"
 assert_eq "query is defined"           "function" "$(type -t query)"
 
+echo "parse_reply"
+
+parse_reply '{"kind":"command","command":"git status","note":"shows the tree"}'
+assert_eq "clean JSON -> command"      "command"    "$REPLY_KIND"
+assert_eq "clean JSON -> the command"  "git status" "$REPLY_CMD"
+assert_eq "clean JSON -> the note"     "shows the tree" "$REPLY_NOTE"
+
+parse_reply '```json
+{"kind":"command","command":"ls -la","note":"long listing"}
+```'
+assert_eq "fenced JSON is unwrapped" "ls -la" "$REPLY_CMD"
+
+parse_reply 'Here you go:
+{"kind":"command","command":"df -h","note":"disk usage"}'
+assert_eq "prose preamble is skipped" "df -h" "$REPLY_CMD"
+
+parse_reply '{"kind":"answer","note":"-F sets the field separator."}'
+assert_eq "answer kind"          "answer" "$REPLY_KIND"
+assert_eq "answer has no command" ""      "$REPLY_CMD"
+
+# The governing rule: anything we cannot positively identify as a command is an
+# answer, so Enter is never offered for it.
+parse_reply 'total garbage, not json at all'
+assert_eq "garbage degrades to answer" "answer" "$REPLY_KIND"
+assert_eq "garbage offers no command"  ""       "$REPLY_CMD"
+assert_eq "garbage keeps raw text"     "total garbage, not json at all" "$REPLY_NOTE"
+
+parse_reply '{"kind":"command","command":"","note":"oops"}'
+assert_eq "empty command degrades to answer" "answer" "$REPLY_KIND"
+assert_eq "empty command offers nothing"     ""       "$REPLY_CMD"
+
+parse_reply ''
+assert_eq "empty reply degrades to answer" "answer" "$REPLY_KIND"
+
 exit "$FAILED"

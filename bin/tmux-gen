@@ -28,7 +28,32 @@ Never wrap the JSON in markdown fences. The command must be a single line, safe 
 
 gather_context() { :; }
 query() { :; }
-parse_reply() { :; }
+# Sets REPLY_KIND (command|answer), REPLY_CMD, REPLY_NOTE.
+#
+# Every path that cannot positively identify a command falls through to
+# "answer", because render_and_act only offers Enter for a command. Garbage in
+# must never produce something insertable.
+parse_reply() {
+    local raw="${1:-}" json
+    REPLY_KIND=""; REPLY_CMD=""; REPLY_NOTE=""
+
+    # Strip markdown fences the model was told not to use but sometimes does.
+    json=$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*```[a-z]*[[:space:]]*//' -e 's/```[[:space:]]*$//')
+    # Take the first {...} block, so a prose preamble does not break the parse.
+    json=$(printf '%s' "$json" | sed -n '/{/,/}/p')
+
+    if [ -n "$json" ] && printf '%s' "$json" | jq -e . >/dev/null 2>&1; then
+        REPLY_KIND=$(printf '%s' "$json" | jq -r '.kind // ""')
+        REPLY_CMD=$(printf '%s' "$json" | jq -r '.command // ""')
+        REPLY_NOTE=$(printf '%s' "$json" | jq -r '.note // ""')
+    fi
+
+    if [ "$REPLY_KIND" != "command" ] || [ -z "$REPLY_CMD" ]; then
+        REPLY_KIND="answer"
+        REPLY_CMD=""
+        [ -n "$REPLY_NOTE" ] || REPLY_NOTE="$raw"
+    fi
+}
 render_and_act() { :; }
 # TMUX_GEN_MAIN_RAN is a sentinel for the selftest: it is the only observable
 # proof that the library-mode guard below actually skipped main. Keep it as
