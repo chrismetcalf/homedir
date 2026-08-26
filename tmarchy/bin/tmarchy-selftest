@@ -5,6 +5,38 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Every tmux this script runs is confined to a throwaway TMUX_TMPDIR, set
+# BEFORE the *_SOCK_PATH values below derive from it. Two things make this
+# load-bearing rather than tidiness:
+#
+#   1. `tmarchy-theme set` applies live when $TMUX is set OR `tmux has-session`
+#      succeeds. Run from a shell inside the user's tmux, the unisolated call
+#      this script used to make re-themed their live bar, set @tmarchy-theme on
+#      it, flashed a display-message, and left the live theme diverged from the
+#      persisted state file — the exact divergence 1111571 exists to prevent.
+#   2. Neither half of the isolation is sufficient alone. $TMUX carries an
+#      absolute socket path, so it defeats TMUX_TMPDIR; and unsetting $TMUX
+#      still leaves a bare `tmux` resolving the DEFAULT socket, which without
+#      TMUX_TMPDIR is the user's live server. Hence `env -u TMUX` *and*
+#      TMUX_TMPDIR, together, via tmarchy_theme() below.
+#
+# The "theme switcher isolation" section asserts both halves, so the header
+# claim above is tested rather than merely asserted.
+# Fail hard rather than proceeding unisolated: every safety property below
+# rests on this variable, and an empty TMUX_TMPDIR would silently resolve back
+# to /tmp — i.e. to the user's live server.
+# Explicitly under /tmp rather than $TMPDIR: this directory holds unix sockets,
+# whose paths are capped at ~108 bytes (sun_path). A bare `mktemp -d` inherits
+# $TMPDIR, and a long one — an agent scratch dir, say — silently produces
+# "error connecting to ... (File name too long)" on every tmux call here.
+TMUX_TMPDIR="$(mktemp -d /tmp/tmarchy-selftest.XXXXXXXX)" || exit 1
+case "$TMUX_TMPDIR" in
+  /*) ;;
+  *) echo "tmarchy-selftest: refusing to run without a throwaway TMUX_TMPDIR" >&2; exit 1 ;;
+esac
+export TMUX_TMPDIR
+
 SOCK="tmarchy-test-$$"
 SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK"
 STATE_HOME="$(mktemp -d)"
@@ -26,18 +58,36 @@ SENTINEL_BG="#c0ffee"
 # documented history of (see CLAUDE.md troubleshooting notes).
 OUTER_SOCK="tmarchy-outer-$$"
 OUTER_SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$OUTER_SOCK"
+# Stand-ins for "a live server", used by the theme-switcher isolation checks.
+# DECOY_SOCK is on a named socket reachable only via $TMUX; DEFAULT_DECOY is on
+# the socket a bare `tmux` resolves to inside TMUX_TMPDIR. Both are throwaway
+# (-L + -f /dev/null) and inside the throwaway TMUX_TMPDIR; neither can be the
+# user's server under any failure of this script.
+DECOY_SOCK="tmarchy-decoy-$$"
+DECOY_SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$DECOY_SOCK"
+DEFAULT_DECOY_PATH="$TMUX_TMPDIR/tmux-$(id -u)/default"
 FAILED=0
 
 cleanup() {
   tmux -L "$SOCK" kill-server 2>/dev/null
   tmux -L "$OUTER_SOCK" kill-server 2>/dev/null
+  tmux -L "$DECOY_SOCK" kill-server 2>/dev/null
+  # `-L default` is the socket a bare `tmux` resolves to, so this line is one
+  # unset variable away from killing the user's server. Gate it on the decoy
+  # socket actually existing at the throwaway path we computed, rather than on
+  # TMUX_TMPDIR still being what we think it is.
+  [ -S "$DEFAULT_DECOY_PATH" ] && tmux -L default kill-server 2>/dev/null
+  rm -f "$DEFAULT_DECOY_PATH"
   # kill-server doesn't reliably unlink its socket, and this repo has a
   # documented history of /tmp accumulation causing box-wide lag (see
   # CLAUDE.md troubleshooting notes) — so remove it ourselves rather than
   # trusting the side effect.
-  rm -f "$SOCK_PATH" "$OUTER_SOCK_PATH"
+  rm -f "$SOCK_PATH" "$OUTER_SOCK_PATH" "$DECOY_SOCK_PATH"
   rm -rf "$STATE_HOME"
   rm -f "$SENTINEL_PATH"
+  # Last, and only after every kill-server above: this is the throwaway
+  # TMUX_TMPDIR that all of the sockets live under.
+  rm -rf "$TMUX_TMPDIR"
 }
 trap cleanup EXIT
 
@@ -189,20 +239,74 @@ assert_eq "rewrites a corrupt stamp" "yes" \
 
 rm -rf "$GUARD_TMP"
 
+# The ONLY way this script may invoke tmarchy-theme. `set` applies the theme to
+# a live server when $TMUX is set or `tmux has-session` succeeds, so an
+# unisolated call from a shell inside the user's tmux re-themes their bar for
+# real. Both halves are required and neither is redundant — see the header.
+# THEME_ENV is the isolation, kept as one array so the assertions below can
+# probe the exact environment the helper uses. Editing one edits both.
+THEME_ENV=(env -u TMUX TMUX_TMPDIR="$TMUX_TMPDIR")
+tmarchy_theme() { "${THEME_ENV[@]}" "$DIR/bin/tmarchy-theme" "$@"; }
+
 echo "theme switcher"
 assert_eq "lists tokyo-night" "yes" \
-  "$("$DIR/bin/tmarchy-theme" list | grep -qx 'tokyo-night' && echo yes || echo no)"
+  "$(tmarchy_theme list | grep -qx 'tokyo-night' && echo yes || echo no)"
 
 STATE_DIR="$(mktemp -d)"
-XDG_STATE_HOME="$STATE_DIR" "$DIR/bin/tmarchy-theme" set tokyo-night >/dev/null 2>&1
+XDG_STATE_HOME="$STATE_DIR" tmarchy_theme set tokyo-night >/dev/null 2>&1
 assert_eq "persists the chosen theme" "tokyo-night" \
   "$(cat "$STATE_DIR/tmarchy/theme" 2>/dev/null)"
 
-XDG_STATE_HOME="$STATE_DIR" "$DIR/bin/tmarchy-theme" set no-such-theme >/dev/null 2>&1
+XDG_STATE_HOME="$STATE_DIR" tmarchy_theme set no-such-theme >/dev/null 2>&1
 assert_eq "refuses an unknown theme" "1" "$?"
 assert_eq "leaves the old choice intact after a bad set" "tokyo-night" \
   "$(cat "$STATE_DIR/tmarchy/theme" 2>/dev/null)"
 rm -rf "$STATE_DIR"
+
+# These two assertions are what makes this script's header claim ("never
+# touches a live session") testable rather than aspirational. `tmarchy-theme
+# set` applies live when $TMUX is set OR `tmux has-session` succeeds, so there
+# are two independent routes out to a real server and each needs its own check;
+# passing only one of them is how this script shipped re-theming the user's bar.
+#
+# Both checks are non-destructive by construction: the only servers they can
+# reach are throwaway ones this script started (-L + -f /dev/null) inside the
+# throwaway TMUX_TMPDIR. Neither can reach the user's server even when failing.
+echo "theme switcher isolation"
+DECOY_STATE="$(mktemp -d)"
+
+# Route 1 — $TMUX. It carries an absolute socket path, so it overrides
+# TMUX_TMPDIR entirely; only `env -u TMUX` closes it. Point $TMUX at a decoy
+# server and assert tmarchy-theme did not write to it.
+tmux -L "$DECOY_SOCK" -f /dev/null new-session -d -x 80 -y 24
+tmux -L "$DECOY_SOCK" set -g @tmarchy-theme decoy-untouched
+TMUX="$DECOY_SOCK_PATH,0,0" XDG_STATE_HOME="$DECOY_STATE" \
+  tmarchy_theme set gruvbox >/dev/null 2>&1
+assert_eq "does not theme the server \$TMUX points at" "decoy-untouched" \
+  "$(tmux -L "$DECOY_SOCK" show -gv @tmarchy-theme 2>/dev/null)"
+
+# Route 2 — the default socket. With $TMUX gone, a bare `tmux` still resolves
+# $TMUX_TMPDIR/tmux-$UID/default, which unisolated IS the user's server. Start a
+# decoy on exactly that socket inside the throwaway dir and ask, through the
+# helper's own environment, which socket a bare tmux lands on. A read-only
+# query, so a regression here is reported without being inflicted.
+tmux -L default -f /dev/null new-session -d -x 80 -y 24
+assert_eq "a bare tmux resolves to the throwaway default socket" \
+  "$DEFAULT_DECOY_PATH" \
+  "$("${THEME_ENV[@]}" tmux display-message -p '#{socket_path}' 2>/dev/null)"
+
+# And end-to-end: with that decoy up, has-session now succeeds, so a set DOES
+# apply live — to the decoy. Proves the assertion above isn't passing merely
+# because tmarchy-theme's live-apply branch is unreachable in this harness.
+XDG_STATE_HOME="$DECOY_STATE" tmarchy_theme set kanagawa >/dev/null 2>&1
+assert_eq "a live apply lands on the throwaway server" "kanagawa" \
+  "$(tmux -L default show -gv @tmarchy-theme 2>/dev/null)"
+
+tmux -L default kill-server 2>/dev/null
+rm -f "$DEFAULT_DECOY_PATH"
+tmux -L "$DECOY_SOCK" kill-server 2>/dev/null
+rm -f "$DECOY_SOCK_PATH"
+rm -rf "$DECOY_STATE"
 
 # An unwritable state dir must fail loudly rather than silently applying the
 # theme live while leaving the persisted choice stale — that divergence is
@@ -213,7 +317,7 @@ rm -rf "$STATE_DIR"
 RO_STATE_DIR="$(mktemp -d)"
 mkdir -p "$RO_STATE_DIR/tmarchy"
 chmod 000 "$RO_STATE_DIR/tmarchy"
-RO_OUT="$(XDG_STATE_HOME="$RO_STATE_DIR" "$DIR/bin/tmarchy-theme" set tokyo-night 2>&1)"
+RO_OUT="$(XDG_STATE_HOME="$RO_STATE_DIR" tmarchy_theme set tokyo-night 2>&1)"
 RO_RC=$?
 chmod 700 "$RO_STATE_DIR/tmarchy"
 assert_eq "exits non-zero when it can't persist" "1" "$RO_RC"
