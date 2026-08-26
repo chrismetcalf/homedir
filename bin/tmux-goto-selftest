@@ -54,4 +54,37 @@ assert_eq "unset scout state renders nothing" \
 # A window name with a space must survive intact.
 printf '%s\n' "$out" | grep -q 'my project' && pass "spaces in names survive" || fail "spaces in names survive" "my project" "$out"
 
+echo "act_on"
+
+# A tmux shim records the commands act_on would issue, so this needs no server.
+SHIM=$(mktemp -d)
+tmux() { printf '%s\n' "$*" >> "$SHIM/calls"; }
+
+: > "$SHIM/calls"
+act_on "$(printf 'main\t[sess] main\t(3 windows)')"
+grep -q "switch-client -t main" "$SHIM/calls" \
+  && pass "session row switches client" || fail "session row switches client" "switch-client -t main" "$(cat "$SHIM/calls")"
+
+: > "$SHIM/calls"
+act_on "$(printf '@2\t[win]  main:2 otto-relay')"
+grep -q "select-window -t @2" "$SHIM/calls" \
+  && pass "window row selects the window" || fail "window row selects the window" "select-window -t @2" "$(cat "$SHIM/calls")"
+
+: > "$SHIM/calls"
+act_on "$(printf '%%2\t[pane] main:2 otto-relay  node')"
+grep -q "select-pane -t %2" "$SHIM/calls" \
+  && pass "pane row selects the pane" || fail "pane row selects the pane" "select-pane -t %2" "$(cat "$SHIM/calls")"
+
+: > "$SHIM/calls"
+act_on ""
+assert_eq "empty selection does nothing" "" "$(cat "$SHIM/calls")"
+
+unset -f tmux
+# Not "" — this box (like any box this tool runs on) has a real /usr/bin/tmux
+# on PATH, so type -t reports "file" once the shim function is gone. What
+# proves the shim is actually gone is that it's no longer "function".
+[ "$(type -t tmux)" != "function" ] \
+  && pass "tmux shim removed" || fail "tmux shim removed" "not function" "$(type -t tmux)"
+rm -rf "$SHIM"
+
 exit "$FAILED"

@@ -41,8 +41,28 @@ rows_from_lists() {
         printf '%s\t[pane] %s:%s %s  %s\n' "$id" "$sess" "$idx" "$wname" "$cmd"
     done <<< "$panes"
 }
-collect_rows() { :; }
-act_on() { :; }
+collect_rows() {
+    rows_from_lists \
+        "$(tmux list-sessions -F '#{session_name}'$'\t''#{session_windows}' 2>/dev/null)" \
+        "$(tmux list-windows -a -F '#{window_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{@scout-state}' 2>/dev/null)" \
+        "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}' 2>/dev/null)"
+}
+
+# The target is field 1 and its sigil says what it is: % pane, @ window,
+# anything else a session name. Selecting a pane also selects its window, and
+# switching sessions is what makes the row actually take you there.
+act_on() {
+    local row="${1:-}" target
+    [ -n "$row" ] || return 0
+    target=${row%%$'\t'*}
+    [ -n "$target" ] || return 0
+
+    case "$target" in
+        %*) tmux select-window -t "$target"; tmux select-pane -t "$target" ;;
+        @*) tmux select-window -t "$target" ;;
+        *)  tmux switch-client -t "$target" ;;
+    esac
+}
 # TMUX_GOTO_MAIN_RAN is the selftest's only observable proof that the guard
 # below actually skipped main. Keep it as main's first statement.
 main() { TMUX_GOTO_MAIN_RAN=1; :; }
