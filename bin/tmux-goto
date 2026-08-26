@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# tmux-goto — one picker over sessions, windows and panes.
+#
+# Bound to prefix + u. Deliberately navigation-only: adding tmux's ~300 commands
+# would bury the few dozen rows you actually want to reach. prefix + F keeps its
+# nine tmux-fzf modes for the "do something" intent.
+#
+# Rows are "TARGET<TAB>TAG DETAIL" and fzf shows only from field 2, so the
+# action always has an unambiguous %3 / @7 / session name to act on. Parsing a
+# target back out of display text would break on window names containing spaces.
+#
+# Sourced with TMUX_GOTO_LIB=1 it defines its functions and exits, so the
+# selftest can exercise the pure parts with no tmux server involved.
+set -uo pipefail
+
+# Three tmux list outputs -> "TARGET<TAB>TAG DETAIL" rows.
+#
+# Pure: it takes the text rather than calling tmux, so the whole shape is
+# testable from fixtures without a server. Field 1 is the target because fzf
+# is configured --with-nth=2.., so the id never has to be recovered from
+# display text — which would break on the window names containing spaces that
+# this repo's agent worktrees routinely produce.
+rows_from_lists() {
+    local sessions="${1:-}" windows="${2:-}" panes="${3:-}"
+    local name count id sess idx wname state cmd
+
+    while IFS=$'\t' read -r name count; do
+        [ -n "$name" ] || continue
+        printf '%s\t[sess] %s\t(%s windows)\n' "$name" "$name" "$count"
+    done <<< "$sessions"
+
+    while IFS=$'\t' read -r id sess idx wname state; do
+        [ -n "$id" ] || continue
+        # Only states worth reacting to get a marker. Unset must render as
+        # nothing at all rather than an empty bracket (which reads as a state
+        # of its own), and "idle" is the common case — marking every idle
+        # window defeats the point of a marker, which is to make the windows
+        # that want your attention stand out.
+        local marker=""
+        case "$state" in
+            ""|idle) ;;
+            *) marker="  <$state>" ;;
+        esac
+        printf '%s\t[win]  %s:%s %s%s\n' "$id" "$sess" "$idx" "$wname" "$marker"
+    done <<< "$windows"
+
+    while IFS=$'\t' read -r id sess idx wname cmd; do
+        [ -n "$id" ] || continue
+        printf '%s\t[pane] %s:%s %s  %s\n' "$id" "$sess" "$idx" "$wname" "$cmd"
+    done <<< "$panes"
+}
+collect_rows() {
+    rows_from_lists \
+        "$(tmux list-sessions -F '#{session_name}'$'\t''#{session_windows}' 2>/dev/null)" \
+        "$(tmux list-windows -a -F '#{window_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{@scout-state}' 2>/dev/null)" \
+        "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}' 2>/dev/null)"
+}
+
+# Dispatch on the row's own tag, never on the target's first character: a
+# session name may legally begin with @ or %, so sniffing the sigil would send
+# a session called "@release" to select-window. The tag is the only thing that
+# actually knows what the row is. Selecting a pane also selects its window
+# (verified: select-window accepts a pane id), and switching sessions is what
+# makes a session row actually take you there.
+act_on() {
+    local row="${1:-}" target tag
+    [ -n "$row" ] || return 0
+    target=${row%%$'\t'*}
+    [ -n "$target" ] || return 0
+    tag=${row#*$'\t'}
+    tag=${tag%%[[:space:]]*}
+
+    case "$tag" in
+        '[pane]') tmux select-window -t "$target"; tmux select-pane -t "$target" ;;
+        '[win]')  tmux select-window -t "$target" ;;
+        '[sess]') tmux switch-client -t "$target" ;;
+    esac
+}
+# TMUX_GOTO_MAIN_RAN is the selftest's only observable proof that the guard
+# below actually skipped main. Keep it as main's first statement.
+main() {
+    TMUX_GOTO_MAIN_RAN=1
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf 'tmux-goto: fzf is not installed\n' >&2
+        exit 1
+    fi
+    local choice
+    choice=$(collect_rows | fzf \
+        --delimiter=$'\t' --with-nth=2.. \
+        --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
+    act_on "$choice"
+}
+
+[ "${TMUX_GOTO_LIB:-}" = "1" ] || main "$@"
