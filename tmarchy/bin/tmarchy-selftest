@@ -239,6 +239,50 @@ assert_eq "rewrites a corrupt stamp" "yes" \
 
 rm -rf "$GUARD_TMP"
 
+# The assertions above prove the guard is SILENT. They do not prove it
+# THROTTLES: the real ticker prints nothing whether it runs once or ten times,
+# so deleting the throttle line outright left every one of them green. Since
+# not spawning node is the entire reason this project exists, count the spawns.
+#
+# The guard resolves its ticker as a sibling of itself, so a copy of the guard
+# in a temp dir beside a stub named tmarchy-tick yields an exact, cheap run
+# count with no node and no tmux involved.
+echo "tick guard throttle"
+GUARD_DIR="$(mktemp -d)"
+cp "$DIR/bin/tmarchy-tick-guard" "$GUARD_DIR/tmarchy-tick-guard"
+RUNS="$GUARD_DIR/runs"
+cat > "$GUARD_DIR/tmarchy-tick" <<STUB
+#!/usr/bin/env bash
+printf 'x' >> "$RUNS"
+STUB
+chmod +x "$GUARD_DIR/tmarchy-tick"
+
+# Each burst gets its own TMPDIR so it starts with no stamp: the stamp is keyed
+# per user rather than per run, so a leftover one would decide the result.
+count_runs() { # interval n -> how many times the stub actually ran
+  local interval="$1" n="$2" i tmp
+  tmp="$(mktemp -d)"
+  : > "$RUNS"
+  for ((i = 0; i < n; i++)); do
+    TMPDIR="$tmp" TMARCHY_TICK_MIN_INTERVAL="$interval" \
+      "$GUARD_DIR/tmarchy-tick-guard" >/dev/null 2>&1
+  done
+  rm -rf "$tmp"
+  wc -c < "$RUNS" | tr -d ' '
+}
+
+# The assertion that bites: five back-to-back calls inside one interval must
+# produce exactly one spawn. Delete the throttle line from tmarchy-tick-guard
+# and this reads 5.
+assert_eq "throttles five calls in one interval to one spawn" "1" \
+  "$(count_runs 5 5)"
+
+# Control. Without it, a stub that silently never ran would also satisfy the
+# assertion above; only the pair distinguishes a working throttle from a
+# broken harness.
+assert_eq "runs every call when the throttle is disabled" "5" \
+  "$(count_runs 0 5)"
+
 # The ONLY way this script may invoke tmarchy-theme. `set` applies the theme to
 # a live server when $TMUX is set or `tmux has-session` succeeds, so an
 # unisolated call from a shell inside the user's tmux re-themes their bar for
