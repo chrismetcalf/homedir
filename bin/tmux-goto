@@ -14,6 +14,16 @@
 # selftest can exercise the pure parts with no tmux server involved.
 set -uo pipefail
 
+# Resolve through symlinks: ~/bin may be one symlink to the repo, or a
+# directory of per-file symlinks, depending on how gitfix ran.
+TMUX_GOTO_SELF="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+    TMUX_GOTO_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+fi
+TMUX_GOTO_LIBDIR="$(dirname "$TMUX_GOTO_SELF")/lib"
+# shellcheck source=lib/tmux-theme.sh
+[ -r "$TMUX_GOTO_LIBDIR/tmux-theme.sh" ] && . "$TMUX_GOTO_LIBDIR/tmux-theme.sh"
+
 # shellcheck source=lib/tmux-frecency.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
 
@@ -46,20 +56,6 @@ C_BUSY=""
 C_DONE=""
 C_DIM=""
 C_RESET=""
-
-# tmux colours are #rrggbb in eight of the nine themes but colourNNN in jewel,
-# the pre-tmarchy palette. Anything else degrades to no colour rather than
-# emitting a broken escape into the picker.
-ansi_for() {
-    local v="${1:-}"
-    case "$v" in
-        '#'??????)
-            printf '\033[38;2;%d;%d;%dm' \
-                "$((16#${v:1:2}))" "$((16#${v:3:2}))" "$((16#${v:5:2}))" ;;
-        colour[0-9]*|color[0-9]*)
-            printf '\033[38;5;%dm' "${v#colo*r}" ;;
-    esac
-}
 
 # Read once per invocation, not per row: the picker should follow the theme
 # that prefix + ? -> +Theme last persisted.
@@ -230,7 +226,8 @@ main() {
     # --with-nth=3 exactly, NOT 3..: field 4 carries the frecency key and must
     # stay hidden. --tiebreak=index so equal-scoring matches keep the frecency
     # order; the default `length` ranks by row width and would undo the sort.
-    choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index \
+    # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index $(fzf_theme_opts) \
         --delimiter=$'\t' --with-nth=3 \
         --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
     frecency_record "$(frecency_path goto)" "$(frecency_key_goto "$choice")"

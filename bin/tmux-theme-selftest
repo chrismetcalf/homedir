@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# tmux-theme-selftest — tests for bin/lib/tmux-theme.sh.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+# shellcheck source=lib/tmux-theme.sh
+. "$DIR/lib/tmux-theme.sh"
+
+echo "tmux-theme selftest"
+
+echo "ansi_for"
+assert_eq "hex becomes truecolor ansi" "$(printf '\033[38;2;122;162;247m')" "$(ansi_for '#7aa2f7')"
+assert_eq "colourNNN becomes 256-colour ansi" "$(printf '\033[38;5;214m')" "$(ansi_for 'colour214')"
+assert_eq "colorNNN spelling works too" "$(printf '\033[38;5;78m')" "$(ansi_for 'color78')"
+assert_eq "a named colour yields nothing" "" "$(ansi_for 'periwinkle')"
+assert_eq "a short hex yields nothing" "" "$(ansi_for '#abc')"
+assert_eq "empty yields nothing" "" "$(ansi_for '')"
+
+echo "fzf_colour"
+# fzf takes hex or a bare number. It does NOT understand tmux's colourNNN, and
+# one unparseable value makes fzf reject the entire --color argument.
+assert_eq "hex passes through" "#7aa2f7" "$(fzf_colour '#7aa2f7')"
+assert_eq "colourNNN loses its prefix" "214" "$(fzf_colour 'colour214')"
+assert_eq "colorNNN too" "78" "$(fzf_colour 'color78')"
+assert_eq "a named colour yields nothing" "" "$(fzf_colour 'rebeccapurple')"
+assert_eq "empty yields nothing" "" "$(fzf_colour '')"
+
+echo "fzf_theme_opts"
+# A stub theme, so this needs no tmux server and no live theme.
+theme_get() {
+    case "${1:-}" in
+        bg)         printf '#1a1b26' ;;
+        fg)         printf '#c0caf5' ;;
+        dim)        printf '#565f89' ;;
+        accent)     printf '#7aa2f7' ;;
+        accent-alt) printf '#bb9af7' ;;
+        border)     printf '#3b4261' ;;
+        done)       printf '#9ece6a' ;;
+        busy)       printf '#e0af68' ;;
+    esac
+}
+opts=$(fzf_theme_opts)
+
+printf '%s' "$opts" | grep -q '^--color=' \
+  && pass "it emits a single --color token" || fail "it emits a --color token" "--color=..." "$opts"
+assert_eq "the token has no spaces to split on" "1" "$(printf '%s' "$opts" | wc -w | tr -d ' ')"
+for pair in 'fg:#c0caf5' 'bg:#1a1b26' 'hl:#7aa2f7' 'prompt:#7aa2f7' 'pointer:#bb9af7' 'border:#3b4261' 'info:#565f89' 'marker:#9ece6a' 'spinner:#e0af68'; do
+    printf '%s' "$opts" | grep -q -- "$pair" \
+      && pass "maps $pair" || fail "maps $pair" "$pair" "$opts"
+done
+# The selected row keeps the theme foreground on a lifted background.
+printf '%s' "$opts" | grep -q -- 'bg+:#3b4261' \
+  && pass "the selected row lifts its background" || fail "selected row background" "bg+:#3b4261" "$opts"
+
+# jewel is the one theme using tmux's colourNNN spelling. One unconverted value
+# would make fzf reject the whole argument, losing every colour in it.
+theme_get() {
+    case "${1:-}" in
+        bg) printf 'colour235' ;; fg) printf 'colour253' ;;
+        accent) printf 'colour214' ;; border) printf 'colour238' ;;
+    esac
+}
+opts=$(fzf_theme_opts)
+assert_eq "colourNNN themes are converted" "0" "$(printf '%s' "$opts" | grep -c 'colour')"
+printf '%s' "$opts" | grep -q 'accent\|214' \
+  && pass "and the numeric form survives" || fail "numeric form survives" "214" "$opts"
+
+# A bare tmux, or tmarchy not loaded: emit nothing rather than a half spec.
+theme_get() { printf ''; }
+assert_eq "no theme yields no flag at all" "" "$(fzf_theme_opts)"
+
+# An unparseable colour must drop only itself, not poison the rest.
+theme_get() {
+    case "${1:-}" in
+        bg) printf '#1a1b26' ;; fg) printf 'chartreuse' ;; accent) printf '#7aa2f7' ;;
+    esac
+}
+opts=$(fzf_theme_opts)
+printf '%s' "$opts" | grep -q 'bg:#1a1b26' \
+  && pass "a bad colour does not poison the others" || fail "a bad colour is isolated" "bg:#1a1b26" "$opts"
+assert_eq "and the bad one is simply absent" "0" "$(printf '%s' "$opts" | grep -c 'chartreuse')"
+assert_eq "no empty key is emitted" "0" "$(printf '%s' "$opts" | grep -c ':,\|:$')"
+
+# The helper must not leak into the sourcing shell.
+assert_eq "the internal helper is cleaned up" "" "$(type -t _fzf_add)"
+
+exit "$FAILED"

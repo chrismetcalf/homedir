@@ -24,6 +24,8 @@ if command -v readlink >/dev/null 2>&1; then
     TMUX_SSH_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
 fi
 TMUX_SSH_LIBDIR="$(dirname "$TMUX_SSH_SELF")/lib"
+# shellcheck source=lib/tmux-theme.sh
+[ -r "$TMUX_SSH_LIBDIR/tmux-theme.sh" ] && . "$TMUX_SSH_LIBDIR/tmux-theme.sh"
 # shellcheck source=lib/tmux-frecency.sh
 [ -r "$TMUX_SSH_LIBDIR/tmux-frecency.sh" ] && . "$TMUX_SSH_LIBDIR/tmux-frecency.sh"
 
@@ -32,19 +34,6 @@ GLYPH_HOST='󰢹'
 C_ACCENT=""
 C_DIM=""
 C_RESET=""
-
-# Same conversion as tmux-goto and tmux-keys: eight themes give #rrggbb, jewel
-# gives colourNNN, anything else yields no colour rather than a broken escape.
-ansi_for() {
-    local v="${1:-}"
-    case "$v" in
-        '#'??????)
-            printf '\033[38;2;%d;%d;%dm' \
-                "$((16#${v:1:2}))" "$((16#${v:3:2}))" "$((16#${v:5:2}))" ;;
-        colour[0-9]*|color[0-9]*)
-            printf '\033[38;5;%dm' "${v#colo*r}" ;;
-    esac
-}
 
 load_theme() {
     C_ACCENT=$(ansi_for "$(tmux show -gv @theme-remote 2>/dev/null)")
@@ -257,7 +246,8 @@ main() {
     fi
     # --tiebreak=index so equal-scoring matches keep the frecency order above;
     # the default `length` would rank by hostname width instead.
-    out=$(printf '%s\n' "$rows" | fzf --ansi --expect=ctrl-v --tiebreak=index \
+    # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    out=$(printf '%s\n' "$rows" | fzf --ansi --expect=ctrl-v --tiebreak=index $(fzf_theme_opts) \
         --delimiter=$'\t' --with-nth=3.. \
         --prompt='ssh to > ' --height=100% --reverse --no-multi) || exit 0
     key=$(printf '%s\n' "$out" | head -1)
