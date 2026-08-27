@@ -1,0 +1,167 @@
+#!/usr/bin/env node
+// tmarchy-usage — fetch the account's plan-quota usage and cache it.
+//
+// Runs OUT of band, never from tmarchy-tick's own process: the tick renders the
+// bar once per status-interval and an HTTP call in that path stalls every
+// redraw when the network is slow. The tick spawns this detached when the cache
+// has gone stale, and reads only the file it leaves behind.
+//
+// Source is the endpoint /usage itself uses: GET /api/oauth/usage on
+// api.anthropic.com, with the OAuth access token Claude Code keeps in
+// ~/.claude/.credentials.json. That endpoint is NOT in the public API docs --
+// it was found by strings-ing the CLI binary -- so every failure here is
+// non-fatal and simply leaves the previous value standing.
+//
+// The token is read into memory and passed as a header. It never appears in
+// argv, so it cannot be read out of `ps` by anything else on the box.
+'use strict'
+
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const https = require('node:https')
+
+const CREDS = path.join(os.homedir(), '.claude', '.credentials.json')
+const STATE_DIR = process.env.TMARCHY_STATE_DIR ||
+  path.join(os.homedir(), '.local', 'state', 'tmarchy')
+const CACHE = path.join(STATE_DIR, 'claude-usage.json')
+
+const HOST = 'api.anthropic.com'
+const PATHNAME = '/api/oauth/usage'
+const TIMEOUT_MS = 10000
+
+// Buckets worth reporting, most urgent concept first. The per-model ones are
+// read too, but a single indicator should lead with whichever limit is actually
+// closest to biting.
+const BUCKETS = ['five_hour', 'seven_day', 'seven_day_opus', 'seven_day_sonnet']
+
+function readToken() {
+  const raw = fs.readFileSync(CREDS, 'utf8')
+  const oauth = (JSON.parse(raw) || {}).claudeAiOauth || {}
+  if (!oauth.accessToken) throw new Error('no accessToken in credentials')
+  // expiresAt is epoch MILLISECONDS. An expired token is reported as such
+  // rather than spent on a request that can only 401: Claude Code refreshes it
+  // in the normal course of being used, and this tool deliberately does not
+  // implement the refresh flow -- a background job racing the CLI for a
+  // refresh token is a good way to invalidate the user's session.
+  if (oauth.expiresAt && Date.now() > oauth.expiresAt) {
+    const err = new Error('access token expired')
+    err.expired = true
+    throw err
+  }
+  return oauth.accessToken
+}
+
+function fetchUsage(token) {
+  return new Promise((resolve) => {
+    const req = https.request({
+      host: HOST,
+      path: PATHNAME,
+      method: 'GET',
+      headers: {
+        // Header, not argv: the token must not be visible to `ps`.
+        authorization: `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+        accept: 'application/json',
+        'user-agent': 'tmarchy-usage',
+      },
+      timeout: TIMEOUT_MS,
+    }, (res) => {
+      let body = ''
+      res.on('data', (c) => { body += c })
+      res.on('end', () => resolve({ status: res.statusCode, body }))
+    })
+    req.on('timeout', () => { req.destroy(); resolve({ status: 0, body: '', error: 'timeout' }) })
+    req.on('error', (e) => resolve({ status: 0, body: '', error: e.message }))
+    req.end()
+  })
+}
+
+// Pull just the fields the segment needs, so a change in the rest of the
+// payload cannot break rendering.
+function extract(payload) {
+  const out = {}
+  for (const name of BUCKETS) {
+    const b = payload && payload[name]
+    if (!b || typeof b !== 'object') continue
+    const util = typeof b.utilization === 'number' ? b.utilization
+      : typeof b.remaining_percentage === 'number' ? 100 - b.remaining_percentage
+      : null
+    if (util === null) continue
+    out[name] = { utilization: util, resets_at: b.resets_at || null }
+  }
+  return out
+}
+
+// Atomic: the segment may read this file at any moment, and a half-written
+// JSON file would be a parse error rather than a stale-but-valid value.
+function writeCache(obj) {
+  fs.mkdirSync(STATE_DIR, { recursive: true })
+  const tmp = `${CACHE}.${process.pid}`
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), { mode: 0o600 })
+  fs.renameSync(tmp, CACHE)
+}
+
+async function refresh() {
+  // Always writes, even on failure. fetched_at is what the tick's staleness
+  // check uses to decide whether to spawn again, so a failure that wrote
+  // nothing would mean respawning every single tick against a dead endpoint.
+  const record = { fetched_at: Date.now(), ok: false, status: null, error: null, buckets: {} }
+  let token
+  try {
+    token = readToken()
+  } catch (e) {
+    record.error = e.expired ? 'token expired' : e.message
+    writeCache(record)
+    return record
+  }
+
+  const res = await fetchUsage(token)
+  record.status = res.status
+  if (res.error) record.error = res.error
+  if (res.status === 200) {
+    try {
+      record.buckets = extract(JSON.parse(res.body))
+      record.ok = Object.keys(record.buckets).length > 0
+      if (!record.ok) record.error = 'no recognised buckets in response'
+    } catch (e) {
+      record.error = `unparseable response: ${e.message}`
+    }
+  } else if (res.status === 401) {
+    record.error = 'unauthorized (token likely expired)'
+  } else if (res.status) {
+    record.error = `http ${res.status}`
+  }
+  writeCache(record)
+  return record
+}
+
+function doctor(record) {
+  const age = record.fetched_at ? Math.round((Date.now() - record.fetched_at) / 1000) : null
+  process.stdout.write('tmarchy-usage doctor\n\n')
+  process.stdout.write(`  credentials    ${fs.existsSync(CREDS) ? CREDS : 'MISSING ' + CREDS}\n`)
+  process.stdout.write(`  cache          ${CACHE}\n`)
+  process.stdout.write(`  fetched        ${age === null ? 'never' : age + 's ago'}\n`)
+  process.stdout.write(`  http status    ${record.status === null ? '-' : record.status}\n`)
+  process.stdout.write(`  ok             ${record.ok}\n`)
+  process.stdout.write(`  error          ${record.error || 'none'}\n`)
+  const names = Object.keys(record.buckets || {})
+  process.stdout.write(`  buckets        ${names.length ? '' : 'none'}\n`)
+  for (const n of names) {
+    const b = record.buckets[n]
+    process.stdout.write(`    ${n.padEnd(20)} ${b.utilization}%  resets ${b.resets_at || '-'}\n`)
+  }
+}
+
+async function main() {
+  const wantDoctor = process.argv.includes('--doctor')
+  const record = await refresh()
+  if (wantDoctor) doctor(record)
+}
+
+main().catch((e) => {
+  // Never throw out of a background job: a crash here must not be able to
+  // affect the bar, and there is nowhere for the message to go.
+  if (process.argv.includes('--doctor')) process.stdout.write(`tmarchy-usage: ${e.message}\n`)
+  process.exit(0)
+})

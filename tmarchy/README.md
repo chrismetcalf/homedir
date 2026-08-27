@@ -125,6 +125,32 @@ set my-theme"` entry if you want it reachable from `prefix + ?`. Run
 defines every required colour and that the theme count matches what's on
 disk.
 
+## The quota segment is not like the others
+
+`segments.d/quota.js` is the one segment whose data does not come from the
+machine it runs on. It reports how close the account is to its Claude plan
+limits, from `GET /api/oauth/usage` — the endpoint `/usage` itself uses,
+authenticated with the OAuth token in `~/.claude/.credentials.json`.
+
+Three things about it differ from every other segment, and all three are
+deliberate:
+
+- **The network call never happens in the tick.** `bin/tmarchy-usage` is spawned
+  *detached* when the cache goes stale and writes
+  `~/.local/state/tmarchy/claude-usage.json`; the segment only ever reads that
+  file. An HTTP call inside `tmarchy-tick` would stall every redraw whenever the
+  network is slow. There is no cron or systemd timer to install — the tick
+  spawns it — so a fresh checkout needs no extra setup step.
+- **It renders nothing below 80%.** Like `agents.js`, `summarise()` returns a
+  string or null, and `bar.conf` hides the whole slot for an unset option. The
+  normal state is invisible.
+- **The endpoint is undocumented.** It was found by strings-ing the CLI binary,
+  so it may change or vanish. Every failure path writes a cache record with
+  `ok: false` and renders nothing rather than breaking the bar. Ask it directly
+  with `bin/tmarchy-usage --doctor`, which prints the last fetch time, HTTP
+  status and parsed buckets — below the threshold a healthy quota and a broken
+  refresher look identical, so that flag is the only way to tell them apart.
+
 ## How to add a segment
 
 Add one file to `segments.d/` exporting:

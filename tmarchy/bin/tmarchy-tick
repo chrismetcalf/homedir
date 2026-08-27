@@ -88,7 +88,7 @@ function main() {
     // 'remote' is gone: the host now names the window instead of sitting in
     // status-left, where one pane's ssh session read as a property of the
     // whole session. The per-tab glyph still comes from @remote-host above.
-    for (const name of ['load', 'agents', 'branch', 'battery']) {
+    for (const name of ['quota', 'load', 'agents', 'branch', 'battery']) {
       // Same reasoning as the tints above, and it has to match them: if scout
       // was unreadable this tick, blanking the summary while the tabs keep
       // their colours would make the bar contradict itself.
