@@ -205,7 +205,7 @@ if exists('+termguicolors')
   set termguicolors
 endif
 
-colorscheme spaceduck
+colorscheme tokyonight-night
 
 """"""""""""""""""""""""""""""""""""""""""
 " Key Mappings

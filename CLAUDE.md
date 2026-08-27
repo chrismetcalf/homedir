@@ -102,8 +102,8 @@ Plugin specs live in `.vim/lua/plugins/init.lua` (main) and `.vim/lua/plugins/ui
 - **incsearch / hlsearch**: native (no plugin)
 
 #### Visual
-- **lualine.nvim**: statusline (`jellybeans` theme, globalstatus)
-- **spaceduck**: colorscheme
+- **lualine.nvim**: statusline (`tokyonight` theme, globalstatus)
+- **tokyonight.nvim** (folke): colorscheme, `night` style — byte-for-byte the same `#1a1b26`/`#c0caf5` as tmarchy's tokyo-night bar, which was the spec's one knowingly-accepted clash ("nvim will clash with a Tokyo Night bar"). Four styles ship: night, storm, moon, day. Switching tmarchy to another of its nine themes does **not** move nvim — that sync is a separate piece of work.
 - **nvim-web-devicons**: file icons
 - **indent-blankline.nvim**: indent guides (treesitter-aware, replaces indentLine)
 - **vim-devicons**: lualine icons

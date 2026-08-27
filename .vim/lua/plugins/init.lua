@@ -10,10 +10,16 @@ return {
   { "vim-scripts/Colour-Sampler-Pack", lazy = true },
   { "NLKNguyen/papercolor-theme",      lazy = true },
   {
-    "pineapplegiant/spaceduck",
-    branch = "main",
+    -- Matches tmarchy's tokyo-night bar. The bar was the odd one out before:
+    -- a Tokyo Night status line above a spaceduck buffer.
+    "folke/tokyonight.nvim",
     lazy = false,
     priority = 1000, -- ensure colorscheme is available before plugins
+    opts = {
+      -- Four styles ship: night (darkest, closest to the bar's #1a1b26),
+      -- storm (lighter), moon (warmer), day (light).
+      style = "night",
+    },
   },
 
   ---------------------------------------------------------------------------
@@ -25,7 +31,7 @@ return {
     lazy = false,
     opts = {
       options = {
-        theme = 'jellybeans',
+        theme = 'tokyonight', -- follows the colorscheme rather than fighting it
         icons_enabled = true,
         section_separators = { left = '', right = '' },
         component_separators = { left = '', right = '' },
