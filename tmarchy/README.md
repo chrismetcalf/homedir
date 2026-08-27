@@ -9,6 +9,9 @@ battery segments, per-window tint for tmux-scout state — but as tmux format
 strings plus one rate-limited callout, instead of a shell script forked per
 segment per window per redraw.
 
+Ideas not yet built live in [BACKLOG.md](BACKLOG.md); the items scoped out at
+the start are in the design doc's "Deferred" table.
+
 ## The governing invariant
 
 **Node runs at most once per status-interval.** Under tmux-powerline, with a
