@@ -72,9 +72,32 @@ course of being used.
 - A `@bar-quota` global rendered by `bar.conf`, tinted through `@theme-busy` and
   `@theme-wait` past thresholds, the way `@scout-state` already colours tabs.
 
-### Open question
+### Decided: silent until 80%
 
-Whether this belongs in the bar at all, or in a notification. Quota is not
-something you act on continuously — it matters at two moments: when it is nearly
-gone, and when it resets. A permanent number may be noise where a warning past
-80% would not be.
+Render nothing at all below the threshold; appear as a warning past it. That
+matches what the bar already does everywhere else — `@scout-state` renders
+nothing for `idle` or unset, and the pickers mark only `wait`/`busy`/`done` — and
+it is the reason those markers are worth looking at. A number that is always
+present is furniture; one that only appears when it matters is a signal.
+
+Suggested thresholds, tinted the way the tabs already are:
+
+| utilization | rendered as |
+| --- | --- |
+| < 80% | nothing |
+| 80–95% | `@theme-busy`, with the bucket and `resets_at` |
+| > 95% | `@theme-wait` |
+
+Trigger on whichever bucket is furthest along, and name it — "5h 92%" and
+"week 92%" call for very different reactions.
+
+### The cost of hiding it
+
+Below the threshold, a healthy quota and a broken refresher look identical: both
+render nothing. That is the same trap as the empty `prefix + p` picker earlier —
+four separate failures all presenting as "no output", with nothing to say which.
+So the refresher needs a way to be asked directly. Either a `--doctor` flag that
+prints the last fetch time, HTTP status and parsed buckets (as `tmux-cmd` and
+`tmux-ssh` now have), or a row in the command palette. Without it, the first
+sign of breakage would be quota running out with no warning shown — the exact
+failure the widget exists to prevent.
