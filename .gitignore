@@ -51,6 +51,9 @@ bin/nvim
 # fire against missing files on a fresh checkout.
 !.claude/hooks/
 !.claude/shellfish-notify.sh
+# Custom Claude Code themes are plain JSON and belong with the rest of the
+# look-and-feel (tmarchy, nvim, p10k, rio) rather than being per-host.
+!.claude/themes/
 # Host-specific symlink into the Otto install; dangles on any other machine.
 .claude/skills/relay
 

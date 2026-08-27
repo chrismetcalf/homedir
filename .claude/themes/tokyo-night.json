@@ -1,0 +1,16 @@
+{
+  "name": "Tokyo Night",
+  "base": "dark",
+  "overrides": {
+    "claude": "#bb9af7",
+    "error": "#f7768e",
+    "success": "#9ece6a",
+    "warning": "#e0af68",
+    "permission": "#7aa2f7",
+    "autoAccept": "#73daca",
+    "planMode": "#7dcfff",
+    "thinking": "#565f89",
+    "bashBorder": "#7dcfff",
+    "secondaryBorder": "#414868"
+  }
+}
