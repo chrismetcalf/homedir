@@ -7,10 +7,18 @@
     "success": "#9ece6a",
     "warning": "#e0af68",
     "permission": "#7aa2f7",
+    "permissionShimmer": "#7dcfff",
     "autoAccept": "#73daca",
+    "autoAcceptShimmer": "#9ece6a",
     "planMode": "#7dcfff",
     "thinking": "#565f89",
     "bashBorder": "#7dcfff",
-    "secondaryBorder": "#414868"
+    "secondaryBorder": "#414868",
+    "diffAdded": "#20303b",
+    "diffRemoved": "#37222c",
+    "diffAddedWord": "#2f6b45",
+    "diffRemovedWord": "#7a2b3a",
+    "diffAddedDimmed": "#1b2733",
+    "diffRemovedDimmed": "#2b1d24"
   }
 }
