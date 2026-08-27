@@ -248,6 +248,27 @@ Submodules under `bin/` (named `*.git/`): `ansiweather.git`, `multi-git-status.g
 - `~/.ssh/sockets/` — ControlMaster sockets (chmod 700)
 - `~/.ssh/id_rsa`, `~/.ssh/id_ed25519` — keys (never committed; `.gitignore` defensively blocks `.ssh/id_*`)
 
+## Vendored skill dependencies
+
+`.claude/skills/baoyu-*/scripts/` are third-party skills with their own
+`package.json`. They are the repo's only dependency surface, and the only thing
+Dependabot can flag.
+
+`baoyu-url-to-markdown` pinned `defuddle` at `^0.17.0`, which a high-severity XSS
+advisory covers (`<= 0.19.0`, fixed in 0.19.1). Bumped to `^0.19.1`. Note that a
+caret on a `0.x` version means `>=0.19.1 <0.20.0`, so the old `^0.17.0` could
+*never* have reached the fix on its own no matter how often it was reinstalled.
+
+**`bun.lock` still pins 0.17.0 and was deliberately not hand-edited.** `bun` is
+not installed on this host, and 0.19.1 moved its optional-dependency ranges
+(`temml ^0.13.1` → `^0.13.3`, `mathml-to-latex ^1.5.0` → `^1.8.0`), so a correct
+lock needs that subtree re-resolved rather than one line rewritten. The lock is a
+cache, not an override: bun re-resolves when it conflicts with the manifest
+range, which `^0.19.1` now does. Run `bun install` in that directory on a machine
+that has bun to regenerate it.
+
+Being vendored, an upstream skill update may revert this.
+
 ## Troubleshooting
 
 ### Neovim Plugin Issues
