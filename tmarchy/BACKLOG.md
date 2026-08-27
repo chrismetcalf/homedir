@@ -72,32 +72,40 @@ course of being used.
 - A `@bar-quota` global rendered by `bar.conf`, tinted through `@theme-busy` and
   `@theme-wait` past thresholds, the way `@scout-state` already colours tabs.
 
-### Decided: silent until 80%
+### Decided: an indicator like "1 waiting"
 
-Render nothing at all below the threshold; appear as a warning past it. That
-matches what the bar already does everywhere else — `@scout-state` renders
-nothing for `idle` or unset, and the pickers mark only `wait`/`busy`/`done` — and
-it is the reason those markers are worth looking at. A number that is always
-present is furniture; one that only appears when it matters is a signal.
+Mirror `segments.d/agents.js` exactly. That segment is the pattern: its
+`summarise()` returns `"1 waiting"`, else `"2 busy"`, else **null** — and
+`bar.conf` wraps the slot in `#{?#{@bar-agents},...,}`, so an unset option
+renders nothing at all. No label, no gap, no placeholder. Silence is already how
+this bar says "nothing to react to".
 
-Suggested thresholds, tinted the way the tabs already are:
+So: return null below 80%, and a short string past it.
 
-| utilization | rendered as |
-| --- | --- |
-| < 80% | nothing |
-| 80–95% | `@theme-busy`, with the bucket and `resets_at` |
-| > 95% | `@theme-wait` |
+**Urgency goes in the words, not the colour.** The agents slot is one fixed
+colour (`@theme-accent-alt`) and lets "1 waiting" versus "2 busy" carry the
+weight. Copying that settles a question this item had open: an earlier draft
+proposed tinting through `@theme-busy` at 80% and `@theme-wait` past 95%, which
+would have borrowed agent-state colours for a severity they do not name —
+`@theme-busy` means "an agent is working", and there is no warning token in the
+ten-option vocabulary. Following the existing pattern means none is needed.
 
-Trigger on whichever bucket is furthest along, and name it — "5h 92%" and
-"week 92%" call for very different reactions.
+**Escalate the way `summarise()` does.** It reports waiting first and falls back
+to busy — most urgent wins, one line only. Same here: report whichever bucket is
+furthest along, and name it, because "5h 92%" and "week 92%" call for different
+reactions.
+
+**Say what the unit is.** `agents.js` carries a comment that its count is
+WINDOWS, not sessions, because two agents in one window report "1 waiting". The
+quota equivalent is which bucket and whose account — worth stating in the segment
+rather than leaving the reader to infer it from a bare percentage.
 
 ### The cost of hiding it
 
 Below the threshold, a healthy quota and a broken refresher look identical: both
 render nothing. That is the same trap as the empty `prefix + p` picker earlier —
 four separate failures all presenting as "no output", with nothing to say which.
-So the refresher needs a way to be asked directly. Either a `--doctor` flag that
-prints the last fetch time, HTTP status and parsed buckets (as `tmux-cmd` and
-`tmux-ssh` now have), or a row in the command palette. Without it, the first
-sign of breakage would be quota running out with no warning shown — the exact
-failure the widget exists to prevent.
+So the refresher needs a way to be asked directly: a `--doctor` printing the last
+fetch time, HTTP status and parsed buckets, as `tmux-cmd` and `tmux-ssh` now
+have. Without it, the first sign of breakage would be quota running out with no
+warning shown — the exact failure the widget exists to prevent.
