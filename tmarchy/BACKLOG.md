@@ -95,10 +95,21 @@ to busy — most urgent wins, one line only. Same here: report whichever bucket 
 furthest along, and name it, because "5h 92%" and "week 92%" call for different
 reactions.
 
-**Say what the unit is.** `agents.js` carries a comment that its count is
-WINDOWS, not sessions, because two agents in one window report "1 waiting". The
-quota equivalent is which bucket and whose account — worth stating in the segment
-rather than leaving the reader to infer it from a bare percentage.
+**One indicator, not one per window.** This is where it is simpler than
+`agents.js`, and the difference is worth stating so nobody rebuilds the harder
+version by analogy. That segment counts WINDOWS because an agent belongs to a
+window — two agents in one window report "1 waiting". Quota belongs to the
+*account*: the same number regardless of which window is focused, or how many
+sessions are running. So one refresher, one cache file, one global `@bar-quota`,
+and no per-pane keying.
+
+That also means the indicator stays correct when every window is a Claude
+session, which is the normal case here — there is nothing to attribute it to and
+nothing to disambiguate.
+
+**Still say which bucket.** The account scope removes the "whose" question but
+not the "which limit" one: a bare percentage is ambiguous between the 5-hour and
+the weekly window, and those call for different reactions.
 
 ### The cost of hiding it
 
