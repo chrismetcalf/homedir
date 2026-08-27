@@ -34,7 +34,11 @@ blinking-cursor = true
 # (windows: C:\Users\USER\AppData\Local\rio\themes\dracula.toml)
 #
 # Example:
-theme = "Adventure"
+# tokyonight: the same palette as tmarchy's tokyo-night bar, nvim's
+# tokyonight-night and the p10k prompt. It also sets the terminal's 16 ANSI
+# colours, which is what makes ANSI-following apps (Claude Code's dark-ansi,
+# any TUI using bare ANSI) land on the same palette instead of Rio's defaults.
+theme = "tokyonight"
 
 # Padding-x
 #
