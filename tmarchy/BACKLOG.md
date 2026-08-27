@@ -7,80 +7,74 @@ keybinding overhaul. This file is for what came up afterwards.
 
 ---
 
-## Claude Code session usage in the bar
+## Claude Code plan quota in the bar
 
-Show how much of the Claude Code session has been consumed, in the status bar,
-so it is visible without switching to the pane running it.
+Show how close the account is to its plan limit — the numbers `/usage` reports —
+so "am I about to get cut off" is visible without leaving what you are doing.
 
-**The data already arrives.** Claude Code's `statusLine` command is handed a
-JSON blob on stdin every render, and `.claude/statusline-command.sh` is already
-wired up (`settings.json` → `statusLine`) and already parses one field of it:
+**This is not the context window.** An earlier draft of this item aimed at
+`context_window.used_percentage` from the statusLine payload, because that data
+arrives for free. It answers a different question: how full *this session's*
+context is, not how much of the *plan allowance* is left. The statusLine payload
+has no quota field at all — no allowance, no reset time. Wanting the `/usage`
+numbers means going to the same place `/usage` goes.
 
-```json
-"context_window": {
-  "total_input_tokens": 15500,
-  "total_output_tokens": 1200,
-  "context_window_size": 200000,
-  "used_percentage": 8,
-  "remaining_percentage": 92
-},
-"cost": {
-  "total_cost_usd": 0.01234,
-  "total_duration_ms": 45000,
-  "total_api_duration_ms": 2300
-}
+### Where the numbers come from
+
+`GET /api/oauth/usage`, authenticated with the OAuth token Claude Code stores in
+`~/.claude/.credentials.json` (mode 600, holds `accessToken` / `refreshToken`).
+The response is bucketed:
+
+```
+five_hour              utilization, resets_at, remaining, remaining_percentage
+seven_day              (same shape)
+seven_day_opus         (same shape)
+seven_day_sonnet       (same shape)
+seven_day_oauth_apps
+seven_day_overage_included
 ```
 
-So the number is free; the work is entirely in getting it from there to the bar.
+`five_hour` is the one that bites mid-session; `seven_day` is the one that ends a
+week early. A single number should probably be whichever is further along, with
+the other available on hover or in the picker.
 
-**What "budget" can and cannot mean here.** The statusLine payload exposes the
-**context window** (percentage and absolute tokens) and the **session cost in
-USD**. It does *not* expose the plan/subscription quota — there is no weekly-
-limit or remaining-allowance field. If the goal is "how close am I to my plan
-limit", this source cannot answer it and something else is needed. If the goal
-is "how full is this session's context" or "what has this session cost", both
-are one field away.
+### Constraints, in the order they will bite
 
-### Design constraints
+**Never do network I/O inside the tick.** `tmarchy-tick` runs once per
+`status-interval` and the bar renders from what it wrote. An HTTP call in that
+path stalls every redraw when the network is slow — the same failure the battery
+segment is already commented about avoiding with `execFileSync`. A separate
+refresher (cron, systemd timer, or a detached spawn) must write a cache file, and
+the segment must only ever read that file.
 
-**Do not let the statusline shell out to tmux.** The statusline command runs on
-every render — far more often than once per `status-interval`. A `tmux set -g`
-from inside it would be a fork per render, which is precisely the cost tmarchy
-exists to remove (see the governing invariant in `README.md`). The statusline
-should write a small state file instead — no fork — and `tmarchy-tick` should
-read it once per interval like every other segment.
+**Poll on the order of minutes, not seconds.** Quota moves slowly and this is
+someone else's API. A five-second poll would be both abusive and pointless;
+5–10 minutes is plenty, and the cache file's mtime is the staleness check.
 
-**Key the state by pane.** Several Claude sessions run at once here, one per
-agent window. A single global value would show whichever session happened to
-write last, which is worse than showing nothing. The statusline knows its own
-pane through `$TMUX_PANE`, so it can write
-`~/.local/state/tmarchy/claude/<pane-id>` and the segment can resolve the
-current pane — or, for the global bar slot, aggregate (the max, or the pane you
-are looking at).
+**The endpoint is internal.** It is not in the public API docs — it was found by
+strings-ing the CLI binary. It can change or vanish without notice, so a failed
+or unparseable response must render nothing and leave the previous value alone,
+exactly as the tick already treats a failed scout read. Never let it break the
+bar.
 
-**Expire stale files.** A session that ends stops writing but leaves its last
-value behind. Without an age check the bar would report a long-dead session's
-usage as current — the same trap `lib/scout.js` handles by filtering on
-`endedAt`. Treat a file older than a few minutes as absent.
-
-**Decide what a full bar means.** `used_percentage` is the obvious choice, and
-tinting it through `@theme-busy` / `@theme-wait` past thresholds would match how
-`@scout-state` already colours the tabs. Absolute tokens are the honest number
-but read as noise at a glance; cost in USD is a third option and arguably the
-one that actually matters.
+**The token must not reach a command line.** `~/.claude/.credentials.json` is
+mode 600 for a reason. Anything that puts the bearer token in argv exposes it to
+every `ps` on the box; pass it through a header file or stdin. And it expires —
+the refresher should treat a 401 as "no data this round" rather than trying to
+implement the refresh flow itself, and let Claude Code refresh it in the normal
+course of being used.
 
 ### Shape
 
-- `tmarchy/segments.d/claude.js`, following the existing segment contract
-  (`name` / `enabled()` / `render(ctx)`) — see `README.md`, "How to add a
-  segment".
-- A `@bar-claude` global written by `tmarchy-tick`, rendered by `bar.conf`.
-- A few lines added to `.claude/statusline-command.sh` to write the state file.
-  That script is versioned here, so the change travels with the rest.
+- A refresher script writing `~/.local/state/tmarchy/claude-usage.json`.
+- `tmarchy/segments.d/quota.js` reading that file, honouring its mtime, following
+  the segment contract (`name` / `enabled()` / `render(ctx)`).
+- A `@bar-quota` global rendered by `bar.conf`, tinted through `@theme-busy` and
+  `@theme-wait` past thresholds, the way `@scout-state` already colours tabs.
 
 ### Open question
 
-Per-window or global? The tab already carries `@scout-state`, so a per-window
-usage marker would sit naturally beside it and answer "which of my agents is
-about to run out of context" — which is more useful than one number in the
-footer, and is the version worth building if only one gets built.
+Whether this belongs in the bar at all, or in a notification. Quota is not
+something you act on continuously — it matters at two moments: when it is nearly
+gone, and when it resets. A permanent number may be noise where a warning past
+80% would not be.
