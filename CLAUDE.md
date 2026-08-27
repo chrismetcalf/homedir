@@ -158,7 +158,7 @@ Leader key: `,`
 ## Zsh Configuration
 
 - **Oh-My-Zsh** framework, custom plugins in `.oh-my-zsh-custom/`
-- **Prompt**: powerlevel10k (configured via `~/.p10k.zsh`)
+- **Prompt**: powerlevel10k (configured via `~/.p10k.zsh`, which is versioned here). Colours are Tokyo Night hex, matching tmarchy's tokyo-night bar and nvim's tokyonight-night — p10k accepts `#rrggbb` directly. They were 256-colour indices from the 2020 wizard run, mapped by **hue** rather than nearest RGB: an RGB match collapsed saturated darks into grey and turned the error red (colour 160) into `#545c7e`, which would have made a failed command look like ordinary dim text. Like nvim, this matches the *default* theme only — switching tmarchy to another of its nine does not move the prompt, and a running shell keeps its colours until `exec zsh` regardless.
 - **Per-host HISTFILE** under `~/.zsh-history/$(hostname -s)`
 - **Per-fragment rc files** under `.zsh/rc/` (numbered prefixes order the load: `00-oh-my-zsh`, then alphabetical, then `99-isomorphic-copy`)
 - **NVM lazy-loaded** via wrapper functions in `.zsh/rc/nvm` (first call to `nvm`/`node`/`npm`/`npx` sources nvm.sh, then replaces itself with the real binary)
