@@ -129,6 +129,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/krezel/.claude/hooks/deletion-circuit-breaker.sh --post",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
