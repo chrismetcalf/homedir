@@ -6,7 +6,7 @@
       "Grep",
       "WebSearch",
       "WebFetch",
-      "Edit(/opt/docker-config/obsidian/Metcalf/**)",
+      "Edit(//opt/docker-config/obsidian/Metcalf/**)",
       "Bash(ls:*)",
       "Bash(head:*)",
       "Bash(wc:*)",
@@ -71,11 +71,14 @@
       "Bash(node /opt/otto/scripts/spawn-build-window.js:*)"
     ],
     "deny": [
-      "Read(/opt/otto/.env)",
-      "Read(/opt/otto/.env.*)",
-      "Read(/home/krezel/.claude/settings.json)",
-      "Edit(/opt/otto/scripts/**)",
-      "Edit(/opt/otto/CLAUDE.md)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Read(//**/.envrc)",
+      "Read(//opt/otto/.env)",
+      "Read(//opt/otto/.env.*)",
+      "Read(//home/krezel/.claude/settings.json)",
+      "Edit(//opt/otto/scripts/**)",
+      "Edit(//opt/otto/CLAUDE.md)",
       "Bash(cat /opt/otto/.env:*)",
       "Bash(cat /home/krezel/:*)",
       "Bash(curl file://:*)",
@@ -89,10 +92,10 @@
       "Bash(*GOOGLE_CLIENT_SECRET*:*)"
     ],
     "ask": [
-      "Edit(/opt/docker-config/obsidian/Metcalf/CLAUDE.md)",
-      "Edit(/opt/docker-config/obsidian/Metcalf/.claude/**)",
-      "Edit(/opt/docker-config/obsidian/Metcalf/.obsidian/**)",
-      "Edit(/opt/docker-config/obsidian/Metcalf/Otto/Prompts/**)"
+      "Edit(//opt/docker-config/obsidian/Metcalf/CLAUDE.md)",
+      "Edit(//opt/docker-config/obsidian/Metcalf/.claude/**)",
+      "Edit(//opt/docker-config/obsidian/Metcalf/.obsidian/**)",
+      "Edit(//opt/docker-config/obsidian/Metcalf/Otto/Prompts/**)"
     ]
   },
   "model": "opus",

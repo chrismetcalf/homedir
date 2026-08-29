@@ -248,6 +248,32 @@ Submodules under `bin/` (named `*.git/`): `ansiweather.git`, `multi-git-status.g
 - `~/.ssh/sockets/` — ControlMaster sockets (chmod 700)
 - `~/.ssh/id_rsa`, `~/.ssh/id_ed25519` — keys (never committed; `.gitignore` defensively blocks `.ssh/id_*`)
 
+## Claude Code permission rules: `//` is the absolute one
+
+`~/.claude/settings.json` is **user** settings, and there a `/path` pattern
+anchors at `~/.claude/`, not the filesystem root — so `Read(/opt/otto/.env)`
+resolved to `~/.claude/opt/otto/.env`, a path that does not exist, and matched
+nothing. Ten rules were inert this way, including `Edit(/opt/otto/scripts/**)`,
+which had been treated as the reason Otto's scripts were off limits. Verified by
+reading the very file `Read(/home/krezel/.claude/settings.json)` claimed to deny.
+
+The four shapes ([docs](https://code.claude.com/docs/en/permissions)):
+
+| Pattern | Anchored at |
+| --- | --- |
+| `//path` | filesystem root — the only true absolute |
+| `~/path` | home directory |
+| `/path` | the **settings source** (`~/.claude/` for user settings) |
+| `path`, `./path` | current directory |
+
+Bare filenames follow gitignore semantics, so `Read(.env)` and `Read(**/.env)`
+are equivalent — and both stop at the current directory. Neither would cover
+`/opt/otto/.env` from a session started elsewhere. `Read(//**/.env)` is the
+blanket rule, and it is what this repo now uses.
+
+Bash rules are unaffected: `Bash(cat /opt/otto/.env:*)` is a command-prefix
+pattern, not a path.
+
 ## Vendored skill dependencies
 
 `.claude/skills/baoyu-*/scripts/` are third-party skills with their own
