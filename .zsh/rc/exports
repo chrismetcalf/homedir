@@ -17,3 +17,10 @@ DIRSTACKSIZE=20
 
 # Homebrew opts
 export HOMEBREW_CASK_OPTS="--appdir=/Applications"
+
+# sudo asks for a password through a tmux popup when there is no terminal to
+# prompt on -- which is the case for `! sudo ...` from Claude Code, for a
+# keybinding, and for anything else non-interactive. sudo consults this
+# automatically in that situation (see SUDO_ASKPASS in man sudo); pass -A to use
+# it even when a terminal already exists.
+export SUDO_ASKPASS="$HOME/bin/tmux-askpass"

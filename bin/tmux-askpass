@@ -1,13 +1,55 @@
-	#!/bin/bash
-# ~/bin/tmux-askpass.sh
+#!/bin/bash
+# tmux-askpass — SUDO_ASKPASS helper: ask for the sudo password in a tmux popup.
+#
+# sudo uses this automatically when no terminal is available (see SUDO_ASKPASS in
+# man sudo), which is exactly the case for a command run from Claude Code's `!`
+# prefix, from a keybinding, or from any other non-tty context. With -A it is
+# used even when a terminal exists.
+#
+# The password travels through a FIFO because tmux display-popup gives the
+# popup's stdout to the popup, not to us. Three things about that matter:
+#
+#   - The FIFO must not be readable by anyone else. mkfifo honours umask, and
+#     the umask here is 002, so a bare `mkfifo` produces a 0664 world-readable
+#     pipe -- for a sudo password. It lives in a 0700 directory AND is created
+#     under umask 077, so neither alone has to be right.
+#   - The popup is backgrounded before we read. Writing to a FIFO blocks until a
+#     reader attaches, so prompting synchronously and reading afterwards would
+#     deadlock.
+#   - The prompt runs from a script file rather than an inline string. A popup
+#     command is a shell string inside a tmux string inside this script, and a
+#     password prompt is the last place to get nested quoting wrong.
+set -euo pipefail
 
-PIPE=$(mktemp)
-rm $PIPE
-mkfifo $PIPE
+PROMPT="${1:-[sudo] password:}"
 
-# Pop up a prompt in the current tmux pane
-tmux display-popup -E "read -s -p 'sudo password: ' pw && echo \$pw > $PIPE"
+dir=$(mktemp -d) || exit 1
+chmod 700 "$dir"
+# Covers every exit path, including the user dismissing the popup.
+trap 'rm -rf "$dir"' EXIT INT TERM HUP
 
-# Read back the password
-cat $PIPE
-rm -f $PIPE
+pipe="$dir/pw"
+(umask 077; mkfifo "$pipe")
+
+# The prompt itself, as a file: no nested quoting, and nothing secret in it.
+cat > "$dir/ask.sh" <<EOF
+#!/bin/bash
+read -rs -p '$PROMPT ' pw
+printf '%s' "\$pw" > '$pipe'
+EOF
+chmod 700 "$dir/ask.sh"
+
+if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    tmux display-popup -E -w 50 -h 3 "$dir/ask.sh" &
+else
+    # Not inside tmux: fall back to the controlling terminal, so this still
+    # works over a plain ssh session rather than hanging with no prompt.
+    "$dir/ask.sh" </dev/tty &
+fi
+
+# Blocks until the popup writes -- but never indefinitely. If the popup fails to
+# launch (no tmux, no /dev/tty, a killed client) nothing ever opens the write end
+# and a bare `cat` would hang sudo forever with no prompt on screen and no way to
+# cancel it. Timing out returns empty, sudo reports a failed password, and you get
+# your shell back.
+timeout "${ASKPASS_TIMEOUT:-120}" cat "$pipe"
