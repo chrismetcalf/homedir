@@ -38,7 +38,24 @@ const STALE_MS = 45 * 60 * 1000
 // Two spawns can only overlap inside this window, since the refresher stamps
 // fetched_at even when it fails.
 const LOCK_MS = 60 * 1000
-const THRESHOLD = 80
+const DEFAULT_THRESHOLD = 80
+// Per bucket, because they mean different things. The five-hour window is the
+// one that interrupts work already in progress -- by the time it reads 80%
+// there is often not enough left to finish what you are doing -- so it warns
+// earlier. The weekly window is a planning number rather than an interruption,
+// so it keeps the later threshold.
+const THRESHOLDS = { five_hour: 60 }
+
+// `thresholds` accepts a number (uniform, used by the tests), an object keyed by
+// bucket with an optional `default`, or nothing at all for the table above.
+function thresholdFor(name, thresholds) {
+  if (typeof thresholds === 'number') return thresholds
+  if (thresholds && typeof thresholds === 'object') {
+    if (typeof thresholds[name] === 'number') return thresholds[name]
+    if (typeof thresholds.default === 'number') return thresholds.default
+  }
+  return name in THRESHOLDS ? THRESHOLDS[name] : DEFAULT_THRESHOLD
+}
 
 // Short, and named. Account scope removes the "whose" question but not the
 // "which limit" one: a bare percentage is ambiguous between the five-hour and
@@ -51,19 +68,24 @@ const LABELS = {
 }
 
 // record: the parsed cache file. Returns a string to display, or null.
-function summarise(record, threshold = THRESHOLD, now = Date.now()) {
+function summarise(record, thresholds, now = Date.now()) {
   if (!record || !record.ok || !record.buckets) return null
   // A stale reading must not be presented as current.
   if (record.fetched_at && now - record.fetched_at > STALE_MS) return null
 
+  // Only buckets that have crossed THEIR OWN threshold are candidates; among
+  // those, the highest utilization wins. Comparing raw utilization before
+  // applying thresholds would let a weekly reading at 70% mask a five-hour one
+  // at 65% that is actually the urgent one.
   let worst = null
   for (const [name, bucket] of Object.entries(record.buckets)) {
     if (!bucket || typeof bucket.utilization !== 'number') continue
+    if (bucket.utilization < thresholdFor(name, thresholds)) continue
     if (!worst || bucket.utilization > worst.utilization) {
       worst = { name, utilization: bucket.utilization }
     }
   }
-  if (!worst || worst.utilization < threshold) return null
+  if (!worst) return null
   const label = LABELS[worst.name] || worst.name
   return `${label} ${Math.round(worst.utilization)}%`
 }
@@ -107,6 +129,8 @@ function maybeRefresh(record, now = Date.now()) {
 module.exports = {
   name: 'quota',
   summarise,
+  thresholdFor,
+  THRESHOLDS,
   maybeRefresh,
   enabled: () => fs.existsSync(REFRESHER),
   render: () => {
