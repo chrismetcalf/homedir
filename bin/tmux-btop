@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# tmux-btop — the dropdown half of prefix + B.
+#
+# btop lives in its own detached session rather than in a popup command, so the
+# process keeps running between glances: a popup that ran `btop` directly would
+# start a fresh one every time, losing its history graphs and paying the startup
+# cost on every toggle. The popup only attaches a second client to that session,
+# so opening and closing the overlay never touches the process.
+#
+# Keeping it in a session rather than a window also gets it out of the tab bar —
+# it is infrastructure you summon, not a place you navigate to.
+set -uo pipefail
+
+SESSION="${TMUX_BTOP_SESSION:-_btop}"
+COMMAND="${TMUX_BTOP_CMD:-btop}"
+
+if ! command -v "${COMMAND%% *}" >/dev/null 2>&1; then
+    printf 'tmux-btop: %s is not installed\n\n  [any key] close  ' "${COMMAND%% *}"
+    IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+    exit 1
+fi
+
+# =NAME is an exact match. Without the =, tmux matches on prefix, so a session
+# called _btop-old would satisfy the check and we would attach to the wrong one.
+if ! tmux has-session -t "=$SESSION" 2>/dev/null; then
+    tmux new-session -d -s "$SESSION" -n btop "$COMMAND"
+    # Plain name here, NOT "=$SESSION": this tmux accepts the = exact-match
+    # prefix for has-session but rejects it for set-option ("no such session").
+    tmux set-option -t "$SESSION" status off
+fi
+
+# TMUX= is required: tmux refuses to attach a client from inside another client
+# ("sessions should be nested with care") unless the variable is cleared. This
+# is a deliberate nested attach -- the popup IS a second client onto the same
+# server -- which is exactly the case that warning is about.
+TMUX= tmux attach-session -t "=$SESSION"

@@ -324,4 +324,17 @@ printf '%s' "$SRC" | grep -q -- "--tiebreak=index" \
   && pass "ties fall back to the frecency order" \
   || fail "ties fall back to the frecency order" "--tiebreak=index" "absent"
 
+echo "infrastructure sessions"
+# A leading underscore means "summoned from a key", not a destination.
+HIDDEN=$'main\t3\n_btop\t1\nother\t1'
+hid=$(rows_from_lists "$HIDDEN" "" "")
+assert_eq "an _ session is not offered" "0" "$(printf '%s\n' "$hid" | cut -f1 | grep -cx '_btop')"
+assert_eq "ordinary sessions still are" "2" "$(printf '%s\n' "$hid" | grep -c .)"
+assert_eq "and they keep their order" "main other" \
+    "$(printf '%s\n' "$hid" | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+# Only the leading position counts: a name merely containing _ is a real session.
+UND=$'my_session\t1'
+assert_eq "an underscore elsewhere is not hidden" "1" \
+    "$(rows_from_lists "$UND" "" "" | grep -c .)"
+
 exit "$FAILED"

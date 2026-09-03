@@ -86,6 +86,11 @@ rows_from_lists() {
 
     while IFS=$'\t' read -r name count; do
         [ -n "$name" ] || continue
+        # A leading underscore marks an infrastructure session -- one you summon
+        # from a key, not a place you navigate to. _btop (prefix + B) is the
+        # first; listing it here would offer a destination that immediately
+        # detaches you.
+        case "$name" in _*) continue ;; esac
         # No dim target appended here, unlike the window and pane rows: a
         # session's target IS its name, which is already the visible label.
         printf '%s\tsess\t%s [sess] %s  (%s windows)\tsess:%s\n' \
