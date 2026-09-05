@@ -1,0 +1,19 @@
+# yazi — file manager. `prefix + e` opens it in a tmux popup; this wrapper is
+# the other half, for use inside a shell.
+#
+# The point of `y` over plain `yazi` is the cwd handoff: quit with Q and the
+# SHELL follows you to wherever you browsed. A popup cannot do that (it has no
+# way to move its parent pane without injecting a command into it, which is the
+# hazard tmux-gen exists to guard against), so browsing-to-navigate belongs
+# here and glance-at-a-tree belongs on the key.
+y() {
+	local tmp cwd
+	tmp="$(mktemp -t yazi-cwd.XXXXXX)" || return 1
+	yazi "$@" --cwd-file="$tmp"
+	# -d '' reads the whole file including a trailing newline-free value; yazi
+	# writes no trailing newline, so a plain read would return failure having
+	# still set cwd. Test the value, not the exit status.
+	IFS= read -r -d '' cwd < "$tmp"
+	[ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
+	rm -f -- "$tmp"
+}

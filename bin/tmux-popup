@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# tmux-popup — run a one-shot TUI in a popup, with a readable message when the
+# binary is missing. The mechanism behind prefix + G (lazygit) and prefix + e
+# (yazi).
+#
+#   tmux-popup <command> [args...]
+#
+# This is the SIBLING of tmux-dropdown, not a duplicate of it, and the
+# difference is the process lifetime:
+#
+#   tmux-dropdown  the process outlives the overlay, in its own _ session.
+#                  For tools whose value accumulates -- btop's history graphs,
+#                  lazydocker's selected container -- and which are global, so
+#                  one instance is the right number.
+#
+#   tmux-popup     the process is born and dies with the overlay. For tools
+#                  scoped to a DIRECTORY. A persistent lazygit would pin itself
+#                  to whichever repo it first opened in and show you that one
+#                  forever; a git status and a directory listing are re-read
+#                  from disk in milliseconds, so there is nothing to preserve.
+#
+# The caller supplies the directory: display-popup needs an explicit
+# -d '#{pane_current_path}' or the popup opens in $HOME no matter which pane
+# you pressed the key in -- wrong in a way that looks like it worked.
+set -uo pipefail
+
+if [ "$#" -eq 0 ]; then
+    printf 'usage: tmux-popup <command> [args...]\n' >&2
+    exit 2
+fi
+
+if ! command -v "$1" >/dev/null 2>&1; then
+    # A bare failure here would flash the popup open and shut with nothing to
+    # read, which on a fresh checkout looks like a broken keybinding rather
+    # than a missing package.
+    printf '\ntmux-popup: %s is not installed\n\n  [any key] close  ' "$1"
+    # The redirect wraps the group: failure to open /dev/tty is reported by the
+    # shell, not by read, so `read ... 2>/dev/null` would not silence it.
+    { IFS= read -r -n1 -s _ </dev/tty; } 2>/dev/null || true
+    exit 1
+fi
+
+exec "$@"
