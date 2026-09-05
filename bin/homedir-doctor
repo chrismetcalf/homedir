@@ -1,0 +1,370 @@
+#!/usr/bin/env bash
+# homedir-doctor — report what is wrong with this host's checkout.
+#
+#   homedir-doctor            full report
+#   homedir-doctor --quiet    only problems (for a shell rc or a cron)
+#   homedir-doctor --list     the checks, without running them
+#
+# REPORT ONLY. It never installs, links, or edits anything -- a doctor that
+# mutates is one you hesitate to run, and hesitating is how a host stays broken.
+# `homedir-install` fetches missing tools; `gitfix` re-links; `prefix + I`
+# installs tmux plugins. Every FAIL below names the command that fixes it.
+#
+# Exit status: 0 if nothing failed (warnings are fine), 1 if any check FAILED.
+#
+# PORTABILITY: this repo deploys to several Linux distros, macOS and WSL, so
+# this script targets **bash 3.2** -- the version macOS still ships. No
+# associative arrays, no mapfile, no ${var,,}, no `readlink -f`, no `sort -V`,
+# and no GNU-only flags to stat/df/find. Test changes on macOS or assume they
+# are broken there.
+set -uo pipefail
+
+HOMEDIR="${HOMEDIR_ROOT:-$HOME/.homedir}"
+
+QUIET=0
+case "${1:-}" in
+    --quiet|-q) QUIET=1 ;;
+    --list|-l)  sed -n 's/^check_\([a-z0-9_]*\)().*/  \1/p' "$0"; exit 0 ;;
+    --help|-h)  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    "")         ;;
+    *)          printf 'homedir-doctor: unknown option %s\n' "$1" >&2; exit 2 ;;
+esac
+
+# --- output ------------------------------------------------------------------
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_BAD=$'\033[31m'
+    C_DIM=$'\033[2m'; C_HEAD=$'\033[1m'; C_OFF=$'\033[0m'
+else
+    C_OK=; C_WARN=; C_BAD=; C_DIM=; C_HEAD=; C_OFF=
+fi
+
+N_OK=0; N_WARN=0; N_BAD=0; N_SKIP=0
+SECTION=""
+_section_shown=0
+
+section() { SECTION="$1"; _section_shown=0; }
+
+_head() {
+    [ "$_section_shown" = 1 ] && return
+    _section_shown=1
+    printf '\n%s%s%s\n' "$C_HEAD" "$SECTION" "$C_OFF"
+}
+
+ok()   { N_OK=$((N_OK+1));   [ "$QUIET" = 1 ] && return; _head; printf '  %sok%s   %s\n' "$C_OK" "$C_OFF" "$1"; }
+skip() { N_SKIP=$((N_SKIP+1)); [ "$QUIET" = 1 ] && return; _head; printf '  %sskip%s %s %s%s%s\n' "$C_DIM" "$C_OFF" "$1" "$C_DIM" "${2:-}" "$C_OFF"; }
+warn() { N_WARN=$((N_WARN+1)); _head; printf '  %swarn%s %s\n' "$C_WARN" "$C_OFF" "$1"; [ -n "${2:-}" ] && printf '       %s%s%s\n' "$C_DIM" "$2" "$C_OFF"; return 0; }
+bad()  { N_BAD=$((N_BAD+1));  _head; printf '  %sFAIL%s %s\n' "$C_BAD" "$C_OFF" "$1"; [ -n "${2:-}" ] && printf '       %s%s%s\n' "$C_DIM" "$2" "$C_OFF"; return 0; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# BSD and GNU stat take different flags for the same question, and macOS has
+# only the BSD one. Try each rather than detecting the platform.
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null; }
+
+# `sort -V` is GNU-only; BSD sort has no such flag. Compare the first two
+# numeric components by hand, which is all any gate here needs.
+version_ge() { # version_ge HAVE WANT
+    hv_major=$(printf '%s' "$1" | sed -n 's/^[^0-9]*\([0-9][0-9]*\).*/\1/p')
+    hv_minor=$(printf '%s' "$1" | sed -n 's/^[^0-9]*[0-9][0-9]*[.]\([0-9][0-9]*\).*/\1/p')
+    wv_major=$(printf '%s' "$2" | sed -n 's/^[^0-9]*\([0-9][0-9]*\).*/\1/p')
+    wv_minor=$(printf '%s' "$2" | sed -n 's/^[^0-9]*[0-9][0-9]*[.]\([0-9][0-9]*\).*/\1/p')
+    [ -n "$hv_major" ] || return 1
+    [ "${hv_minor:-0}" ] || hv_minor=0
+    [ "${wv_minor:-0}" ] || wv_minor=0
+    [ "$hv_major" -gt "$wv_major" ] && return 0
+    [ "$hv_major" -lt "$wv_major" ] && return 1
+    [ "${hv_minor:-0}" -ge "${wv_minor:-0}" ]
+}
+
+# --- checks ------------------------------------------------------------------
+
+check_checkout() {
+    section "Checkout"
+    if [ ! -d "$HOMEDIR" ]; then
+        bad "no checkout at $HOMEDIR" "git clone --recurse-submodules <repo> $HOMEDIR"
+        return 1
+    fi
+    if [ ! -d "$HOMEDIR/.git" ]; then
+        bad "$HOMEDIR is not a git repository"
+        return 1
+    fi
+    ok "checkout at $HOMEDIR"
+
+    # Submodules are the single biggest fresh-host trap: a plain `git clone`
+    # leaves every one of them an empty directory, which surfaces later as
+    # "[oh-my-zsh] plugin not found" and a missing powerlevel10k prompt rather
+    # than as anything mentioning submodules.
+    missing=""
+    for p in $(git -C "$HOMEDIR" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null | awk '{print $2}'); do
+        # A populated submodule has content; an uninitialised one is an empty dir.
+        if [ -z "$(ls -A "$HOMEDIR/$p" 2>/dev/null)" ]; then
+            missing="$missing $p"
+        fi
+    done
+    if [ -n "$missing" ]; then
+        bad "uninitialised submodules:$missing" \
+            "git -C $HOMEDIR submodule update --init --recursive"
+    else
+        ok "all submodules populated"
+    fi
+}
+
+check_links() {
+    section "Links (gitfix)"
+    # The entries that matter: without them the shell, editor, tmux and Claude
+    # Code all fall back to defaults with no error message.
+    for l in .zshrc .tmux.conf .vim .claude .gitconfig CLAUDE.md bin; do
+        if [ -e "$HOME/$l" ]; then
+            ok "~/$l"
+        else
+            bad "~/$l is missing" "run: $HOMEDIR/bin/gitfix"
+        fi
+    done
+
+    # bin/lib is the specific regression worth naming: it is a recently added
+    # SUBDIRECTORY, and a host that ran gitfix before it existed has a ~/bin
+    # without it. The symptom is not an error -- frecency_sort is simply
+    # undefined, and prefix + p comes up empty while every other check passes.
+    if [ -r "$HOME/bin/lib/tmux-theme.sh" ] && [ -r "$HOME/bin/lib/tmux-frecency.sh" ]; then
+        ok "~/bin/lib/ (tmux pickers' shared code)"
+    else
+        bad "~/bin/lib/ is not reachable" \
+            "re-run $HOMEDIR/bin/gitfix -- this is what leaves prefix + p empty"
+    fi
+
+    for l in tmux bat; do
+        if [ -e "$HOME/.config/$l" ]; then ok "~/.config/$l"
+        else warn "~/.config/$l is missing" "run: $HOMEDIR/bin/gitfix"; fi
+    done
+}
+
+check_shell() {
+    section "Shell"
+    case "${SHELL:-}" in
+        */zsh) ok "login shell is zsh" ;;
+        *)     warn "login shell is ${SHELL:-unset}, not zsh" "chsh -s \"\$(command -v zsh)\"" ;;
+    esac
+
+    if [ -f "$HOME/.zshrc.local" ]; then
+        m=$(file_mode "$HOME/.zshrc.local")
+        if [ "$m" = "600" ]; then
+            ok ".zshrc.local present, mode 600"
+        else
+            warn ".zshrc.local is mode ${m:-unknown}, expected 600" \
+                 "it holds per-host secrets: chmod 600 ~/.zshrc.local"
+        fi
+    else
+        warn ".zshrc.local is missing" \
+             "per-host secrets and \$PATH live there; it is deliberately not in the repo"
+    fi
+
+    case ":$PATH:" in *":$HOME/bin:"*) ok "~/bin on PATH" ;;
+        *) bad "~/bin is not on PATH" "PATH is built in ~/.zshrc.local" ;; esac
+    case ":$PATH:" in *":$HOME/.local/bin:"*) ok "~/.local/bin on PATH" ;;
+        *) warn "~/.local/bin is not on PATH" "homedir-install puts binaries there" ;; esac
+
+    # A network mount early in PATH stats on every command lookup, so a slow or
+    # remounting NFS/automount dir stalls the whole box. This is lag that looks
+    # like a CPU problem and is not.
+    early=""
+    for d in $(printf '%s' "$PATH" | tr ':' ' '); do
+        case "$d" in
+            "$HOME"/*|/usr/*|/bin|/sbin|/opt/homebrew/*|/usr/local/*) ;;
+            /mnt/*|/net/*|/Volumes/*|/media/*) early="$early $d" ;;
+        esac
+    done
+    if [ -n "$early" ]; then
+        warn "network mounts on PATH:$early" \
+             "every command lookup stats these; a slow mount lags the whole shell"
+    else
+        ok "no network mounts on PATH"
+    fi
+}
+
+check_tools() {
+    section "Tools"
+    for t in git zsh tmux fzf node python3; do
+        if have "$t"; then ok "$t"; else bad "$t is missing" "required"; fi
+    done
+
+    if have tmux; then
+        tv=$(tmux -V 2>/dev/null | awk '{print $2}')
+        if version_ge "$tv" 3.2; then ok "tmux $tv (>= 3.2)"
+        else bad "tmux $tv is too old" "display-popup and set-option -e need >= 3.2"; fi
+    fi
+
+    section "Tools (optional)"
+    # Absent optional tools are a warn, never a FAIL: every .zsh/rc fragment is
+    # guarded on the binary existing, so the shell is correct without them --
+    # just plainer. The point of listing them is that nothing else tells you.
+    for t in zoxide eza lazygit lazydocker yazi btop rg nvim; do
+        if have "$t"; then ok "$t"; else warn "$t is not installed" "homedir-install $t"; fi
+    done
+    # Debian, Ubuntu and WSL-Ubuntu call it batcat; bacula-console-qt had the
+    # name first. .zsh/rc/bat resolves either.
+    if have bat;      then ok "bat"
+    elif have batcat; then ok "bat (as batcat, the Debian/Ubuntu name)"
+    else warn "bat is not installed" "homedir-install bat"; fi
+
+    if have lazydocker; then
+        lv=$(lazydocker --version 2>/dev/null | sed -n 's/^Version: *//p' | head -1)
+        if version_ge "$lv" 0.25; then ok "lazydocker $lv (>= 0.25)"
+        else bad "lazydocker $lv is too old" \
+                 "0.24.x builds its event client without FromEnv and every open errors with 'client version 1.25 is too old'; homedir-install lazydocker"; fi
+    fi
+}
+
+check_tool_state() {
+    section "Tool state"
+    if have bat || have batcat; then
+        # bat compiles themes into ~/.cache/bat, which is per-host and not in
+        # the repo. Without it bat SILENTLY falls back to its default theme --
+        # the symptom is "colours look wrong", never an error.
+        if [ -f "$HOME/.cache/bat/themes.bin" ]; then ok "bat theme cache built"
+        else warn "bat theme cache not built" "run: bat cache --build (Tokyo Night is silently ignored until you do)"; fi
+    else
+        skip "bat theme cache" "(bat not installed)"
+    fi
+
+    if have zoxide; then
+        if [ -s "$HOME/.local/share/zoxide/db.zo" ]; then ok "zoxide database"
+        else warn "zoxide database is empty" "import an existing one with: zoxide import autojump"; fi
+    else
+        skip "zoxide database" "(zoxide not installed)"
+    fi
+
+    if [ -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then ok "lazy.nvim bootstrapped"
+    else warn "lazy.nvim not bootstrapped" "open nvim once, or run: nvim --headless '+Lazy! sync' +qa"; fi
+}
+
+check_tmux() {
+    section "tmux runtime"
+    if ! have tmux; then skip "tmux runtime" "(tmux not installed)"; return; fi
+    if ! tmux has-session 2>/dev/null; then
+        skip "tmux runtime" "(no server running -- start tmux and re-run)"
+        return
+    fi
+
+    # tpm plugin dirs are named after the repo's basename.
+    want=$(grep -E "^set -g @plugin" "$HOMEDIR/.tmux.conf" 2>/dev/null | sed "s|.*/||; s|'.*||")
+    missing=""
+    for p in $want; do
+        [ -d "$HOME/.tmux/plugins/$p" ] || missing="$missing $p"
+    done
+    if [ -n "$missing" ]; then
+        bad "tmux plugins not installed:$missing" "press prefix + I inside tmux"
+    else
+        ok "all tpm plugins installed"
+    fi
+
+    if [ -n "$(tmux show-options -gqv @theme-bg 2>/dev/null)" ]; then
+        # The active theme's NAME is not a tmux option -- themes/<name>.conf
+        # sets the ten @theme-* colour options and nothing that says which file
+        # they came from. tmarchy-theme persists the name here instead.
+        th=$(cat "$HOME/.local/state/tmarchy/theme" 2>/dev/null)
+        ok "tmarchy loaded (theme: ${th:-unknown})"
+    else
+        bad "tmarchy is not loaded" "the bar reads @theme-* options; check the run-shell line in .tmux.conf"
+    fi
+
+    mk=$(tmux show-options -gwv mode-keys 2>/dev/null)
+    if [ "$mk" = "vi" ]; then
+        ok "mode-keys is vi"
+    else
+        bad "mode-keys is ${mk:-unset}, not vi" \
+            "tmux guesses this from EDITOR in the SERVER's environment, frozen at server start -- so V, v and y in copy-mode silently do nothing. .tmux.conf sets it explicitly; reload with prefix + r"
+    fi
+
+    # The server's environment is captured at server start, so it can name a
+    # different binary than an ordinary login shell does. This is what silently
+    # ran a stale root-owned claude in every window opened from a binding.
+    spath=$(tmux show-environment -g PATH 2>/dev/null | sed 's/^PATH=//')
+    case ":$spath:" in
+        *":$HOME/.local/bin:"*) ok "tmux server PATH has ~/.local/bin" ;;
+        *) bad "tmux server PATH lacks ~/.local/bin" \
+               "a binding that runs a binary directly bypasses the login shell and will use a different one: tmux set-environment -g PATH ..." ;;
+    esac
+
+    tick="$HOMEDIR/tmarchy/bin/tmarchy-tick"
+    if [ -x "$tick" ]; then
+        t0=$(date +%s)
+        "$tick" >/dev/null 2>&1
+        t1=$(date +%s)
+        d=$((t1-t0))
+        if [ "$d" -le 1 ]; then ok "tmarchy-tick runs in ${d}s"
+        else warn "tmarchy-tick took ${d}s" "the bar redraws on this; suspect a segment in tmarchy/segments.d/"; fi
+    else
+        skip "tmarchy-tick" "(not executable)"
+    fi
+}
+
+check_system() {
+    section "System"
+    # /tmp bloat makes every temp-file operation O(n). tmpfs, so it is never the
+    # cause of a full disk -- but it is a common cause of interactive lag.
+    n=$(ls -1 /tmp 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${n:-0}" -gt 20000 ]; then
+        bad "/tmp has $n entries" "see CLAUDE.md Troubleshooting for the age-filtered sweep"
+    elif [ "${n:-0}" -gt 5000 ]; then
+        warn "/tmp has $n entries" "tens of thousands make every temp-file op slow"
+    else
+        ok "/tmp has $n entries"
+    fi
+
+    # -P is the POSIX output format; without it macOS and Linux differ.
+    use=$(df -P "$HOME" 2>/dev/null | awk 'NR==2 {gsub("%","",$5); print $5}')
+    if [ -n "$use" ]; then
+        if [ "$use" -ge 95 ]; then bad "\$HOME filesystem ${use}% full"
+        elif [ "$use" -ge 90 ]; then warn "\$HOME filesystem ${use}% full"
+        else ok "\$HOME filesystem ${use}% full"; fi
+    fi
+}
+
+check_claude() {
+    section "Claude Code"
+    if [ ! -f "$HOME/.claude/settings.json" ]; then
+        warn "~/.claude/settings.json is missing" "run: $HOMEDIR/bin/gitfix"
+        return
+    fi
+    ok "settings.json"
+
+    if have python3; then
+        want=$(python3 -c "
+import json,sys
+try:
+    d=json.load(open('$HOME/.claude/settings.json'))
+except Exception:
+    sys.exit(0)
+p=d.get('enabledPlugins') or {}
+print(' '.join(sorted(k.split('@')[0] for k in p)) if isinstance(p,dict) else '')
+" 2>/dev/null)
+        missing=""
+        for p in $want; do
+            [ -d "$HOME/.claude/plugins/cache" ] || { missing="$want"; break; }
+            ls -d "$HOME/.claude/plugins/cache/"*"/$p" >/dev/null 2>&1 || missing="$missing $p"
+        done
+        if [ -z "$want" ]; then
+            skip "plugins" "(none enabled)"
+        elif [ -n "$missing" ]; then
+            warn "plugins not installed:$missing" "run: $HOMEDIR/bin/claude-restore-plugins"
+        else
+            ok "all enabled plugins installed"
+        fi
+    fi
+}
+
+# --- run ---------------------------------------------------------------------
+printf '%shomedir-doctor%s  %s  %s\n' "$C_HEAD" "$C_OFF" \
+    "$(uname -s) $(uname -m)" "$(hostname 2>/dev/null || echo '?')"
+
+check_checkout || { printf '\n%sCannot continue without a checkout.%s\n' "$C_BAD" "$C_OFF"; exit 1; }
+check_links
+check_shell
+check_tools
+check_tool_state
+check_tmux
+check_system
+check_claude
+
+printf '\n%s%d ok, %d warn, %d FAIL, %d skipped%s\n' "$C_HEAD" "$N_OK" "$N_WARN" "$N_BAD" "$N_SKIP" "$C_OFF"
+[ "$N_BAD" -eq 0 ]

@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+# homedir-install — fetch the CLI tools this repo's config expects, built for
+# THIS platform, into ~/.local/bin.
+#
+#   homedir-install               install everything missing
+#   homedir-install bat lazygit   install (or reinstall) named tools
+#   homedir-install --all         install or update everything, present or not
+#   homedir-install --list        what is known, what is installed
+#
+# The companion to homedir-doctor, kept separate on purpose: the doctor only
+# reports, so it is safe to run anywhere at any time. This one writes to disk.
+#
+# SCOPE is the tools .zsh/rc/* and .tmux.conf actually depend on and that are
+# awkward to get from a package manager. Deliberately NOT here: fzf, ripgrep,
+# btop and git (every package manager has them, current enough), and neovim
+# (bin/install-neovim already does it, with its own version policy).
+#
+# PORTABILITY: targets bash 3.2, the version macOS ships. No associative
+# arrays, no mapfile, no GNU-only flags.
+set -uo pipefail
+
+DEST="${HOMEDIR_BIN:-$HOME/.local/bin}"
+TOOLS="zoxide eza bat lazygit lazydocker yazi"
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_BAD=$'\033[31m'; C_DIM=$'\033[2m'; C_OFF=$'\033[0m'
+else
+    C_OK=; C_WARN=; C_BAD=; C_DIM=; C_OFF=
+fi
+say()  { printf '  %s\n' "$1"; }
+good() { printf '  %s%s%s\n' "$C_OK" "$1" "$C_OFF"; }
+warn() { printf '  %s%s%s\n' "$C_WARN" "$1" "$C_OFF"; }
+die()  { printf '  %s%s%s\n' "$C_BAD" "$1" "$C_OFF" >&2; }
+
+# --- platform ----------------------------------------------------------------
+# Normalise to the two axes every upstream varies on. uname -m alone is not
+# enough: the same CPU is "x86_64" on Linux and "amd64" in some release names,
+# "aarch64" on Linux and "arm64" on macOS.
+case "$(uname -s)" in
+    Linux)  OS=linux ;;
+    Darwin) OS=darwin ;;
+    *)      die "unsupported OS: $(uname -s)"; exit 1 ;;
+esac
+case "$(uname -m)" in
+    x86_64|amd64)  ARCH=x86_64 ;;
+    aarch64|arm64) ARCH=arm64 ;;
+    *)             die "unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+
+# WSL is Linux for every purpose here, but say so -- a "linux x86_64" line on
+# what the user thinks of as a Windows box is otherwise confusing.
+PLATFORM_NOTE=""
+if [ "$OS" = linux ] && grep -qi microsoft /proc/version 2>/dev/null; then
+    PLATFORM_NOTE=" (WSL)"
+fi
+
+# --- per-tool knowledge ------------------------------------------------------
+# repo_for/asset_re are case statements rather than arrays because bash 3.2 has
+# no associative arrays and this must run on macOS.
+repo_for() {
+    case "$1" in
+        zoxide)     echo ajeetdsouza/zoxide ;;
+        eza)        echo eza-community/eza ;;
+        bat)        echo sharkdp/bat ;;
+        lazygit)    echo jesseduffield/lazygit ;;
+        lazydocker) echo jesseduffield/lazydocker ;;
+        yazi)       echo sxyazi/yazi ;;
+        *)          return 1 ;;
+    esac
+}
+
+# A regex matched against the release's asset NAMES. Upstreams disagree about
+# everything -- capitalisation (lazydocker ships "Linux", lazygit "linux"),
+# libc (musl vs gnu), and archive format (yazi ships .zip) -- so each one is
+# spelled out rather than generated from a template.
+asset_re() { # asset_re TOOL OS ARCH
+    case "$1:$2:$3" in
+        zoxide:linux:x86_64)      echo 'x86_64-unknown-linux-musl\.tar\.gz$' ;;
+        zoxide:linux:arm64)       echo 'aarch64-unknown-linux-musl\.tar\.gz$' ;;
+        zoxide:darwin:x86_64)     echo 'x86_64-apple-darwin\.tar\.gz$' ;;
+        zoxide:darwin:arm64)      echo 'aarch64-apple-darwin\.tar\.gz$' ;;
+
+        eza:linux:x86_64)         echo '^eza_x86_64-unknown-linux-gnu\.tar\.gz$' ;;
+        eza:linux:arm64)          echo '^eza_aarch64-unknown-linux-gnu\.tar\.gz$' ;;
+        # eza publishes no macOS binaries; Homebrew is upstream's answer there.
+        eza:darwin:*)             return 1 ;;
+
+        bat:linux:x86_64)         echo 'x86_64-unknown-linux-gnu\.tar\.gz$' ;;
+        bat:linux:arm64)          echo 'aarch64-unknown-linux-gnu\.tar\.gz$' ;;
+        bat:darwin:x86_64)        echo 'x86_64-apple-darwin\.tar\.gz$' ;;
+        bat:darwin:arm64)         echo 'aarch64-apple-darwin\.tar\.gz$' ;;
+
+        lazygit:linux:x86_64)     echo '_linux_x86_64\.tar\.gz$' ;;
+        lazygit:linux:arm64)      echo '_linux_arm64\.tar\.gz$' ;;
+        lazygit:darwin:x86_64)    echo '_darwin_x86_64\.tar\.gz$' ;;
+        lazygit:darwin:arm64)     echo '_darwin_arm64\.tar\.gz$' ;;
+
+        lazydocker:linux:x86_64)  echo '_Linux_x86_64\.tar\.gz$' ;;
+        lazydocker:linux:arm64)   echo '_Linux_arm64\.tar\.gz$' ;;
+        lazydocker:darwin:x86_64) echo '_Darwin_x86_64\.tar\.gz$' ;;
+        lazydocker:darwin:arm64)  echo '_Darwin_arm64\.tar\.gz$' ;;
+
+        yazi:linux:x86_64)        echo '^yazi-x86_64-unknown-linux-gnu\.zip$' ;;
+        yazi:linux:arm64)         echo '^yazi-aarch64-unknown-linux-gnu\.zip$' ;;
+        yazi:darwin:x86_64)       echo '^yazi-x86_64-apple-darwin\.zip$' ;;
+        yazi:darwin:arm64)        echo '^yazi-aarch64-apple-darwin\.zip$' ;;
+        *)                        return 1 ;;
+    esac
+}
+
+# Which executables to pull out of the archive. yazi ships two: `ya` is its
+# package/plugin CLI and the shell wrapper expects it alongside.
+binaries_for() {
+    case "$1" in
+        yazi) echo "yazi ya" ;;
+        *)    echo "$1" ;;
+    esac
+}
+
+installed_version() {
+    command -v "$1" >/dev/null 2>&1 || { echo ""; return; }
+    case "$1" in
+        zoxide|bat)     "$1" --version 2>/dev/null | head -1 | awk '{print $2}' ;;
+        # eza puts its tagline on line 1 and the version on line 2 ("v0.23.5
+        # [+git]"), unlike every other tool here.
+        eza)            "$1" --version 2>/dev/null | sed -n '2s/^v\{0,1\}\([0-9][0-9.]*\).*/\1/p' ;;
+        lazygit)        "$1" --version 2>/dev/null | tr ',' '\n' | sed -n 's/.*version=//p' | head -1 ;;
+        lazydocker)     "$1" --version 2>/dev/null | sed -n 's/^Version: *//p' | head -1 ;;
+        yazi)           "$1" --version 2>/dev/null | sed -n 's/^ *Version: *\([0-9.]*\).*/\1/p' | head -1 ;;
+        *)              echo "?" ;;
+    esac
+}
+
+# sha256sum is GNU; macOS has shasum. Try each.
+sha256_of() { sha256sum "$1" 2>/dev/null | awk '{print $1}' || shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'; }
+
+need() {
+    for c in "$@"; do
+        command -v "$c" >/dev/null 2>&1 || { die "$c is required but not installed"; exit 1; }
+    done
+}
+
+# --- fetch -------------------------------------------------------------------
+# Returns "URL<TAB>NAME<TAB>TAG" for the asset matching the regex.
+resolve_asset() { # resolve_asset REPO REGEX
+    curl -fsS --max-time 30 "https://api.github.com/repos/$1/releases/latest" 2>/dev/null | python3 -c '
+import sys, json, re
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+pat = re.compile(sys.argv[1])
+tag = d.get("tag_name", "?")
+for a in d.get("assets", []):
+    if pat.search(a["name"]):
+        print("\t".join([a["browser_download_url"], a["name"], tag]))
+        break
+else:
+    sys.exit(2)
+' "$2"
+}
+
+# Best effort, and honest about it: only some of these upstreams publish a flat
+# checksums.txt. When one does we verify; when it does not we say so rather
+# than implying a check happened.
+verify_checksum() { # verify_checksum REPO ASSET_NAME FILE
+    sums=$(curl -fsS --max-time 20 "https://api.github.com/repos/$1/releases/latest" 2>/dev/null | python3 -c '
+import sys, json
+try: d = json.load(sys.stdin)
+except Exception: sys.exit(1)
+for a in d.get("assets", []):
+    if a["name"] in ("checksums.txt", "SHA256SUMS", "sha256sums.txt"):
+        print(a["browser_download_url"]); break
+else: sys.exit(2)
+' 2>/dev/null) || { echo "unverified"; return 0; }
+    want=$(curl -fsSL --max-time 20 "$sums" 2>/dev/null | grep -F " $2" | awk '{print $1}' | head -1)
+    [ -n "$want" ] || { echo "unverified"; return 0; }
+    got=$(sha256_of "$3")
+    if [ "$want" = "$got" ]; then echo "verified"; else echo "MISMATCH"; fi
+}
+
+install_tool() { # install_tool NAME
+    tool=$1
+    repo=$(repo_for "$tool") || { die "$tool: unknown tool"; return 1; }
+    re=$(asset_re "$tool" "$OS" "$ARCH") || {
+        if [ "$tool" = eza ] && [ "$OS" = darwin ]; then
+            warn "eza: upstream publishes no macOS binary -- use: brew install eza"
+        else
+            warn "$tool: no build for $OS/$ARCH"
+        fi
+        return 1
+    }
+
+    line=$(resolve_asset "$repo" "$re") || { die "$tool: no asset matching $re in the latest $repo release"; return 1; }
+    url=$(printf '%s' "$line" | cut -f1)
+    name=$(printf '%s' "$line" | cut -f2)
+    tag=$(printf '%s' "$line" | cut -f3)
+
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/homedir-install.XXXXXX") || return 1
+    # The trap is on the function's own temp dir, so an interrupted download
+    # never leaves a half-extracted tree behind.
+    trap 'rm -rf "$tmp"' RETURN
+
+    curl -fsSL --max-time 300 -o "$tmp/$name" "$url" || { die "$tool: download failed"; return 1; }
+
+    v=$(verify_checksum "$repo" "$name" "$tmp/$name")
+    if [ "$v" = "MISMATCH" ]; then
+        die "$tool: SHA256 MISMATCH -- refusing to install"
+        return 1
+    fi
+
+    case "$name" in
+        *.zip)     need unzip; unzip -oq "$tmp/$name" -d "$tmp/x" || return 1 ;;
+        *.tar.gz|*.tgz) mkdir -p "$tmp/x" && tar xzf "$tmp/$name" -C "$tmp/x" || return 1 ;;
+        *)         die "$tool: unhandled archive format: $name"; return 1 ;;
+    esac
+
+    # Find each binary by name anywhere in the extracted tree. Upstreams differ
+    # on whether the binary sits at the root or inside a versioned directory,
+    # and searching sidesteps having to encode that per tool.
+    mkdir -p "$DEST"
+    for b in $(binaries_for "$tool"); do
+        src=$(find "$tmp/x" -type f -name "$b" -perm -u+x 2>/dev/null | head -1)
+        [ -n "$src" ] || { die "$tool: $b not found inside $name"; return 1; }
+        install -m 755 "$src" "$DEST/$b" || return 1
+    done
+
+    good "$tool $tag -> $DEST  [$v]"
+    return 0
+}
+
+# --- modes -------------------------------------------------------------------
+list_tools() {
+    printf '%shomedir-install%s  %s/%s%s  ->  %s\n\n' "$C_DIM" "$C_OFF" "$OS" "$ARCH" "$PLATFORM_NOTE" "$DEST"
+    for t in $TOOLS; do
+        iv=$(installed_version "$t")
+        if [ -n "$iv" ]; then
+            printf '  %s%-12s%s installed %s\n' "$C_OK" "$t" "$C_OFF" "$iv"
+        elif asset_re "$t" "$OS" "$ARCH" >/dev/null 2>&1; then
+            printf '  %s%-12s%s not installed\n' "$C_WARN" "$t" "$C_OFF"
+        else
+            printf '  %s%-12s%s no build for this platform\n' "$C_DIM" "$t" "$C_OFF"
+        fi
+    done
+    # batcat is the Debian/Ubuntu/WSL name; report it so `bat: not installed`
+    # is not printed on a host that has it under the other name.
+    if [ -z "$(installed_version bat)" ] && command -v batcat >/dev/null 2>&1; then
+        printf '\n  %snote:%s bat is present as `batcat` (the Debian/Ubuntu name)\n' "$C_DIM" "$C_OFF"
+    fi
+}
+
+need curl python3 tar
+
+MODE=missing
+REQUESTED=""
+for a in "$@"; do
+    case "$a" in
+        --list|-l) list_tools; exit 0 ;;
+        --all|-a)  MODE=all ;;
+        --help|-h) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -*)        die "unknown option: $a"; exit 2 ;;
+        *)         repo_for "$a" >/dev/null 2>&1 || { die "unknown tool: $a"; exit 2; }
+                   REQUESTED="$REQUESTED $a"; MODE=named ;;
+    esac
+done
+
+printf '%shomedir-install%s  %s/%s%s  ->  %s\n\n' "$C_DIM" "$C_OFF" "$OS" "$ARCH" "$PLATFORM_NOTE" "$DEST"
+
+case "$MODE" in
+    named)   targets="$REQUESTED" ;;
+    all)     targets="$TOOLS" ;;
+    missing) targets=""
+             for t in $TOOLS; do
+                 [ -n "$(installed_version "$t")" ] || targets="$targets $t"
+             done
+             if [ -z "$targets" ]; then good "everything already installed"; exit 0; fi ;;
+esac
+
+rc=0
+for t in $targets; do
+    install_tool "$t" || rc=1
+done
+
+case ":$PATH:" in
+    *":$DEST:"*) ;;
+    *) printf '\n'; warn "$DEST is not on your PATH -- add it in ~/.zshrc.local" ;;
+esac
+exit $rc
