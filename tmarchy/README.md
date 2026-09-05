@@ -137,14 +137,16 @@ name a real colorscheme and a real bat theme. bat **silently ignores** an
 unknown theme name, so the selftest checks the one you write actually
 exists.
 
-Nothing else references a theme file by name except `bin/tmarchy-theme`
-(which lists `themes/*.conf` by globbing the directory) and the `+Theme`
-which-key submenu (`.config/tmux/plugins/tmux-which-key/config.yaml`), which
-needs one new `command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme
-set my-theme"` entry if you want it reachable from `prefix + ?`. Run
-`tmarchy/bin/tmarchy-selftest` afterward — it asserts every theme file
-defines every required colour and that the theme count matches what's on
-disk.
+Nothing else references a theme file by name: `bin/tmarchy-theme` and
+`bin/tmux-theme-pick` (the which-key `+Set → Theme…` entry, and one of
+tmux's fzf pickers in its own right) both list themes by globbing
+`themes/*.conf`, so dropping a new `.conf` in is the whole job — there is no
+menu entry to add. (There used to be: a `+Theme` which-key submenu once
+listed every theme as its own entry, needing a new one per theme. It was
+replaced by `tmux-theme-pick`'s single glob-driven entry for exactly this
+reason.) Run `tmarchy/bin/tmarchy-selftest` afterward — it asserts every
+theme file defines every required colour and that the theme count matches
+what's on disk.
 
 ## The quota segment is not like the others
 
