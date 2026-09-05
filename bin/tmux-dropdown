@@ -37,8 +37,63 @@ esac
 
 if ! command -v "${COMMAND[0]}" >/dev/null 2>&1; then
     printf '\ntmux-dropdown: %s is not installed\n\n  [any key] close  ' "${COMMAND[0]}"
-    IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+    # The redirect is inside the group: a failure to open /dev/tty is reported
+    # by the shell, not by read, so `read ... 2>/dev/null` would not silence it
+    # and the clean one-line message would be followed by shell noise.
+    { IFS= read -r -n1 -s _ </dev/tty; } 2>/dev/null || true
     exit 1
+fi
+
+# --- the dropdown-client registry -------------------------------------------
+#
+# A popup client is an ordinary tmux client, so every prefix binding still works
+# inside it — including the ones that switch session. One stray keypress moves
+# it off the dropdown session and onto main, and then main renders INSIDE the
+# popup (a whole session in a 90%-size box) and #{m:_*,#{session_name}} is false,
+# so the very key that opened the overlay can no longer close it. That is not
+# hypothetical: it is how this registry came to exist.
+#
+# So record the popup's tty in a global option. The toggle bindings detach on
+# "my session is a dropdown OR my client is a registered dropdown client", which
+# survives the wander, and a client-session-changed hook detaches immediately on
+# leaving, so the nested render never appears in the first place.
+REGISTRY=@dropdown-clients
+
+registry_get() { tmux show-options -gqv "$REGISTRY" 2>/dev/null; }
+
+# Values are stored space-delimited AND space-padded (" /dev/pts/9 /dev/pts/24 ")
+# because the bindings match with the pattern "* $tty *". Without the padding
+# /dev/pts/2 would match inside /dev/pts/24 and the wrong client would be
+# detached.
+registry_add() {
+    local mine="$1" live entry out=" "
+    # Drop any tty that is no longer an attached client. A dropdown killed with
+    # SIGKILL skips the EXIT trap below and leaves its entry behind; pts numbers
+    # get reused, so a stale entry could otherwise match a brand-new real client
+    # and let prefix + B detach the terminal you are working in.
+    live=$(tmux list-clients -F '#{client_tty}' 2>/dev/null)
+    for entry in $(registry_get); do
+        [ "$entry" = "$mine" ] && continue
+        printf '%s\n' "$live" | grep -qxF -- "$entry" && out="$out$entry "
+    done
+    tmux set-option -g "$REGISTRY" "$out$mine "
+}
+
+registry_remove() {
+    local mine="$1" entry out=" "
+    for entry in $(registry_get); do
+        [ "$entry" = "$mine" ] && continue
+        out="$out$entry "
+    done
+    tmux set-option -g "$REGISTRY" "$out"
+}
+
+MY_TTY=$(tty 2>/dev/null) || MY_TTY=""
+if [ -n "$MY_TTY" ]; then
+    registry_add "$MY_TTY"
+    # HUP and TERM matter as much as EXIT: closing the popup signals the client
+    # rather than letting it return normally.
+    trap 'registry_remove "$MY_TTY"' EXIT HUP INT TERM
 fi
 
 # =NAME is an exact match. Without it tmux matches on prefix, so _btop would be
