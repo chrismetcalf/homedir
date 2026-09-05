@@ -1,8 +1,11 @@
 # yazi — file manager. `prefix + e` opens it in a tmux popup; this wrapper is
 # the other half, for use inside a shell.
 #
-# The point of `y` over plain `yazi` is the cwd handoff: quit with Q and the
-# SHELL follows you to wherever you browsed. A popup cannot do that (it has no
+# The point of `y` over plain `yazi` is the cwd handoff: quit with **q** and the
+# SHELL follows you to wherever you browsed. Note it is lowercase q -- uppercase
+# Q is literally "quit WITHOUT outputting cwd-file", so it is the key that
+# deliberately leaves you where you started (verified: q writes the file, Q
+# leaves it empty). A popup cannot do that (it has no
 # way to move its parent pane without injecting a command into it, which is the
 # hazard tmux-gen exists to guard against), so browsing-to-navigate belongs
 # here and glance-at-a-tree belongs on the key.
