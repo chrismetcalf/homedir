@@ -233,6 +233,25 @@ check_tool_state() {
         skip "zoxide database" "(zoxide not installed)"
     fi
 
+    # The theme propagates through two GENERATED files. If they are missing or
+    # name a different theme than the bar, the shell and the editor are quietly
+    # on a stale palette -- visible only as "the colours look off", never as an
+    # error.
+    st="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy"
+    if [ -f "$st/theme" ]; then
+        want=$(head -n1 "$st/theme" 2>/dev/null | tr -d '[:space:]')
+        if [ ! -f "$st/current.sh" ] || [ ! -f "$st/current.lua" ]; then
+            warn "tmarchy theme state not generated" "run: tmarchy/bin/tmarchy-theme sync (bat and nvim will not follow the bar until then)"
+        else
+            got=$(sed -n "s/^TMARCHY_THEME='\(.*\)'$/\1/p" "$st/current.sh")
+            if [ "$got" = "$want" ]; then ok "theme propagated to shell + nvim ($want)"
+            else warn "theme state is stale: bar says $want, generated state says ${got:-none}" \
+                      "run: tmarchy/bin/tmarchy-theme sync"; fi
+        fi
+    else
+        skip "tmarchy theme state" "(no theme persisted yet)"
+    fi
+
     if [ -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then ok "lazy.nvim bootstrapped"
     else warn "lazy.nvim not bootstrapped" "open nvim once, or run: nvim --headless '+Lazy! sync' +qa"; fi
 }

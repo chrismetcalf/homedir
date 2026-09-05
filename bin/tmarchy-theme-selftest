@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# tmarchy-theme-selftest — the theme propagates to every surface, and every
+# downstream name it declares actually exists.
+#
+# The second half is the point. bat SILENTLY ignores an unknown theme and falls
+# back to its default, and nvim would land on Neovim's default scheme, so a typo
+# in a mapping is invisible: the colours are merely wrong, never an error. This
+# is the only thing that would catch it.
+#
+# Never touches the live theme: every case runs with XDG_STATE_HOME pointed at a
+# scratch dir and uses `sync <name>` rather than `set`.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../tmarchy" && pwd)"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/tmarchy-theme-selftest.XXXXXX") || exit 1
+trap 'rm -rf "$TMP"' EXIT
+
+pass=0; fail=0
+ok()   { pass=$((pass+1)); }
+bad()  { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
+chk()  { if [ "$2" = "$3" ]; then ok; else bad "$1: got [$2] want [$3]"; fi; }
+
+themes=$("$DIR/bin/tmarchy-theme" list)
+[ -n "$themes" ] || { echo "FAIL: no themes found"; exit 1; }
+
+# --- every theme declares both downstream names ------------------------------
+for t in $themes; do
+    conf="$DIR/themes/$t.conf"
+    for key in nvim bat; do
+        v=$(sed -n "s/^set -g @theme-$key  *\"\(.*\)\".*/\1/p" "$conf")
+        [ -n "$v" ] || bad "$t declares no @theme-$key"
+        [ -n "$v" ] && ok
+    done
+done
+
+# --- every bat theme named actually exists -----------------------------------
+# Guards the silent-fallback trap described above.
+if command -v bat >/dev/null 2>&1 || command -v batcat >/dev/null 2>&1; then
+    BAT=$(command -v bat 2>/dev/null || command -v batcat)
+    avail=$("$BAT" --list-themes 2>/dev/null)
+    for t in $themes; do
+        want=$(sed -n 's/^set -g @theme-bat  *"\(.*\)".*/\1/p' "$DIR/themes/$t.conf")
+        if printf '%s\n' "$avail" | grep -qxF "$want"; then ok
+        else bad "$t names bat theme '$want', which bat does not have (it would silently fall back)"; fi
+    done
+else
+    printf '  skip  bat theme existence (bat not installed)\n'
+fi
+
+# --- sync writes both state files, with the right values ---------------------
+for t in $themes; do
+    XDG_STATE_HOME="$TMP" "$DIR/bin/tmarchy-theme" sync "$t" >/dev/null 2>&1 || { bad "$t: sync failed"; continue; }
+
+    sh="$TMP/tmarchy/current.sh"; lua="$TMP/tmarchy/current.lua"
+    [ -f "$sh" ]  || { bad "$t: no current.sh"; continue; }
+    [ -f "$lua" ] || { bad "$t: no current.lua"; continue; }
+
+    got=$(sed -n "s/^TMARCHY_THEME='\(.*\)'$/\1/p" "$sh")
+    chk "$t current.sh theme" "$got" "$t"
+
+    want_bat=$(sed -n 's/^set -g @theme-bat  *"\(.*\)".*/\1/p' "$DIR/themes/$t.conf")
+    got_bat=$(sed -n "s/^TMARCHY_BAT='\(.*\)'$/\1/p" "$sh")
+    chk "$t current.sh bat" "$got_bat" "$want_bat"
+
+    want_nvim=$(sed -n 's/^set -g @theme-nvim  *"\(.*\)".*/\1/p' "$DIR/themes/$t.conf")
+    got_nvim=$(sed -n 's/^  nvim = "\(.*\)",$/\1/p' "$lua")
+    chk "$t current.lua nvim" "$got_nvim" "$want_nvim"
+
+    # The shell sources this file on every login: a syntax error is a broken
+    # login, not a wrong colour.
+    if sh -n "$sh" 2>/dev/null; then ok; else bad "$t: current.sh is not valid shell"; fi
+
+    # Lua table keys cannot contain a dash; accent-alt would produce a file that
+    # loads as nil and silently disables the theme.
+    if grep -qE '^  [a-z_]+ = ' "$lua" && ! grep -qE '^  [a-z]+-[a-z]+ = ' "$lua"; then ok
+    else bad "$t: current.lua has an invalid key"; fi
+done
+
+# --- sync refuses an unknown theme -------------------------------------------
+if XDG_STATE_HOME="$TMP" "$DIR/bin/tmarchy-theme" sync definitely-not-a-theme >/dev/null 2>&1; then
+    bad "sync accepted an unknown theme"
+else ok; fi
+
+printf '%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

@@ -22,6 +22,21 @@ return {
     },
   },
 
+  -- The other tmarchy themes. All lazy: lazy.nvim loads a colorscheme plugin
+  -- on demand when :colorscheme names one it provides, so declaring them costs
+  -- nothing at startup and only the active one is ever read. tokyonight stays
+  -- eager above because it is the fallback.
+  --
+  -- Two of the nine tmarchy themes are deliberately absent: matte-black maps to
+  -- Neovim's built-in `quiet` (near-monochrome) and jewel to `retrobox`, so
+  -- they need no plugin.
+  { "catppuccin/nvim",       name = "catppuccin", lazy = true },
+  { "ellisonleao/gruvbox.nvim",                   lazy = true },
+  { "gbprod/nord.nvim",                           lazy = true },
+  { "neanias/everforest-nvim", name = "everforest", lazy = true },
+  { "rebelot/kanagawa.nvim",                      lazy = true },
+  { "rose-pine/neovim",      name = "rose-pine",  lazy = true },
+
   ---------------------------------------------------------------------------
   -- Statusline / icons / startup screen (eager)
   ---------------------------------------------------------------------------
@@ -31,7 +46,7 @@ return {
     lazy = false,
     opts = {
       options = {
-        theme = 'tokyonight', -- follows the colorscheme rather than fighting it
+        theme = 'auto', -- follows whatever tmarchy selected; naming one would pin it
         icons_enabled = true,
         section_separators = { left = '', right = '' },
         component_separators = { left = '', right = '' },

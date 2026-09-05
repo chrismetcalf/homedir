@@ -40,6 +40,16 @@ apply_theme_colours() {
 apply_theme_colours
 fi
 
+# Regenerate the downstream state files (shell + neovim) from the theme we just
+# resolved. Here rather than only in `tmarchy-theme set` because the theme can
+# change WITHOUT that command ever running: a fresh checkout, a host where the
+# state file was never written, or a persisted theme that no longer exists and
+# fell back above. Doing it on every load means the shell and the editor cannot
+# drift from the bar. Idempotent and cheap -- it writes two small files.
+if [ -x "$DIR/bin/tmarchy-theme" ]; then
+  "$DIR/bin/tmarchy-theme" sync >/dev/null 2>&1 || true
+fi
+
 # bar.conf lands in Task 2; guard it the same way so a checkout that only has
 # the theme (this task) still loads its colours instead of erroring on every
 # reload — the whole point of "idempotent, safe to run on every reload" above.
