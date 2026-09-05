@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # tmarchy-selftest — asserts tmarchy loads and renders correctly.
-# Uses a throwaway tmux server AND a throwaway XDG_STATE_HOME so it never
-# touches a live session or a real persisted theme choice.
+# Uses a throwaway tmux server, XDG_STATE_HOME **and** CLAUDE_CONFIG_DIR so it
+# never touches a live session, a real persisted theme choice, or the generated
+# Claude Code theme. That last one is not hypothetical: `sync` writes outside the
+# state dir, so redirecting XDG_STATE_HOME alone left the `set kanagawa` case
+# below rewriting the real ~/.claude/themes/tmarchy.json on every run.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -41,6 +44,11 @@ SOCK="tmarchy-test-$$"
 SOCK_PATH="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/$SOCK"
 STATE_HOME="$(mktemp -d)"
 export XDG_STATE_HOME="$STATE_HOME"
+# The Claude Code theme is generated into the CLI's own config dir, not the
+# state dir, so it needs redirecting separately or a `set` here repaints the
+# real one.
+export CLAUDE_CONFIG_DIR="$STATE_HOME/claude"
+mkdir -p "$CLAUDE_CONFIG_DIR/themes"
 # tokyo-night is both the shipped default AND the only valid persisted-theme
 # value available, so persisting "tokyo-night" can't distinguish "restore
 # applied it" from "restore is dead code and the default just matched by
@@ -398,9 +406,19 @@ rm -rf "$RO_STATE_DIR"
 rm -f "$SENTINEL_PATH"
 
 echo "all themes"
-EXPECTED_KEYS="@theme-bg @theme-fg @theme-dim @theme-accent @theme-accent-alt @theme-border @theme-wait @theme-busy @theme-done @theme-remote"
+# Ten for the bar, four more the prompt needs. Checked here by SOURCING each
+# theme into a real tmux server, so this catches a file that does not parse as
+# tmux config -- which reading the text with sed would not.
+EXPECTED_KEYS="@theme-bg @theme-fg @theme-dim @theme-accent @theme-accent-alt @theme-border @theme-wait @theme-busy @theme-done @theme-remote @theme-info @theme-accent-muted @theme-alert @theme-fg-muted"
 for theme_file in "$DIR"/themes/*.conf; do
   theme_name="$(basename "$theme_file" .conf)"
+  # Unset first. Every theme is sourced into the SAME server, so without this a
+  # theme inherits any option the previously-sourced one set and the check is
+  # vacuous for all but the first: removing a colour from kanagawa.conf still
+  # passed, because jewel had set it moments earlier.
+  for key in $EXPECTED_KEYS; do
+    tmux -L "$SOCK" set -gu "$key" 2>/dev/null
+  done
   tmux -L "$SOCK" source-file "$theme_file"
   missing=""
   for key in $EXPECTED_KEYS; do

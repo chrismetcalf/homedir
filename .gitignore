@@ -54,6 +54,10 @@ bin/nvim
 # Custom Claude Code themes are plain JSON and belong with the rest of the
 # look-and-feel (tmarchy, nvim, p10k, rio) rather than being per-host.
 !.claude/themes/
+# ...except this one, which tmarchy-theme GENERATES from the active theme on
+# every switch and every tmux load. Versioning it would dirty the repo each time
+# the theme changed, and its contents are per-host state, not configuration.
+.claude/themes/tmarchy.json
 # Host-specific symlink into the Otto install; dangles on any other machine.
 .claude/skills/relay
 

@@ -7,13 +7,24 @@
 # in a mapping is invisible: the colours are merely wrong, never an error. This
 # is the only thing that would catch it.
 #
-# Never touches the live theme: every case runs with XDG_STATE_HOME pointed at a
-# scratch dir and uses `sync <name>` rather than `set`.
+# Never touches the live theme: every case runs with BOTH XDG_STATE_HOME and
+# CLAUDE_CONFIG_DIR pointed at a scratch dir, and uses `sync <name>` rather than
+# `set`. Both redirections are exported once below rather than repeated at each
+# call site -- when the Claude Code output was added, three of the five `sync`
+# calls did not carry it and the suite quietly rewrote the real
+# ~/.claude/themes/tmarchy.json to whichever theme its loop ended on.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../tmarchy" && pwd)"
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/tmarchy-theme-selftest.XXXXXX") || exit 1
 trap 'rm -rf "$TMP"' EXIT
+
+# Redirect every consumer's output into the scratch dir for the whole run. A
+# per-call-site override still works (one case deliberately points at an absent
+# directory), but forgetting one can no longer reach the real config.
+export XDG_STATE_HOME="$TMP"
+export CLAUDE_CONFIG_DIR="$TMP/claude"
+mkdir -p "$TMP/claude/themes"
 
 pass=0; fail=0
 ok()   { pass=$((pass+1)); }
@@ -75,6 +86,89 @@ for t in $themes; do
     if grep -qE '^  [a-z_]+ = ' "$lua" && ! grep -qE '^  [a-z]+-[a-z]+ = ' "$lua"; then ok
     else bad "$t: current.lua has an invalid key"; fi
 done
+
+# --- every theme declares all fourteen colour roles --------------------------
+# Ten describe the bar; the four the prompt added (info, accent-muted, alert,
+# fg-muted) have no bar consumer, so nothing else would notice one missing --
+# p10k would just fall back to a literal and look almost right.
+COLOURS="bg fg dim accent accent-alt border wait busy done remote info accent-muted alert fg-muted"
+for t in $themes; do
+    for key in $COLOURS; do
+        v=$(sed -n "s/^set -g @theme-$key  *\"\(.*\)\".*/\1/p" "$DIR/themes/$t.conf")
+        if [ -n "$v" ]; then ok; else bad "$t declares no @theme-$key"; fi
+    done
+done
+
+# --- the prompt's heaviest colours stay distinct -----------------------------
+# DIR is `remote`, the load/RAM/version/time segments are `info`, and VCS-clean
+# is `done` -- all on one prompt line. Three themes originally collapsed two of
+# these onto one hue, which reads as a rendering bug rather than as a palette
+# choice. A theme with too few hues must reach for a shade, not reuse one.
+for t in $themes; do
+    conf="$DIR/themes/$t.conf"
+    val() { sed -n "s/^set -g @theme-$1  *\"\([^\"]*\)\".*/\1/p" "$conf"; }
+    i=$(val info); r=$(val remote); d=$(val done); m=$(val accent-muted)
+    [ "$i" != "$r" ] && ok || bad "$t: @theme-info and @theme-remote are both $i (DIR and load segments would match)"
+    [ "$i" != "$d" ] && ok || bad "$t: @theme-info and @theme-done are both $i (load and VCS-clean would match)"
+    [ "$m" != "$r" ] && ok || bad "$t: @theme-accent-muted and @theme-remote are both $m"
+done
+
+# --- sync writes a usable p10k palette ---------------------------------------
+# p10k takes #rrggbb or a bare 0-255 index. tmux's "colour214" spelling reaching
+# this file is the jewel-theme trap: p10k drops the value and that ONE segment
+# renders in the default colour, with no error anywhere.
+P10K_VARS="tm_accent tm_accent_muted tm_alert tm_busy tm_dim tm_done tm_fg_muted tm_info tm_remote tm_wait"
+for t in $themes; do
+    XDG_STATE_HOME="$TMP" "$DIR/bin/tmarchy-theme" sync "$t" >/dev/null 2>&1 || continue
+    f="$TMP/tmarchy/current.p10k.zsh"
+    [ -f "$f" ] || { bad "$t: no current.p10k.zsh"; continue; }
+    if sh -n "$f" 2>/dev/null; then ok; else bad "$t: current.p10k.zsh is not valid shell"; fi
+    for v in $P10K_VARS; do
+        got=$(sed -n "s/^$v='\(.*\)'$/\1/p" "$f")
+        if [ -z "$got" ]; then bad "$t: current.p10k.zsh has no $v"; continue; fi
+        case "$got" in
+            '#'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ok ;;
+            colour*|color*) bad "$t: $v is '$got' -- p10k does not understand tmux's spelling" ;;
+            *[!0-9]*) bad "$t: $v is '$got', neither #rrggbb nor an index" ;;
+            *) if [ "$got" -le 255 ] 2>/dev/null; then ok; else bad "$t: $v index '$got' out of range"; fi ;;
+        esac
+    done
+done
+
+# --- sync writes a valid Claude Code theme -----------------------------------
+# Claude Code themes are hex-only and an unknown token name is ignored silently,
+# so the failure mode is again wrong colours rather than an error.
+CLAUDE_TOKENS="claude error success warning permission permissionShimmer autoAccept autoAcceptShimmer planMode thinking bashBorder secondaryBorder diffAdded diffRemoved diffAddedWord diffRemovedWord diffAddedDimmed diffRemovedDimmed"
+if command -v python3 >/dev/null 2>&1; then
+    mkdir -p "$TMP/claude/themes"
+    for t in $themes; do
+        XDG_STATE_HOME="$TMP" CLAUDE_CONFIG_DIR="$TMP/claude" \
+            "$DIR/bin/tmarchy-theme" sync "$t" >/dev/null 2>&1 || continue
+        j="$TMP/claude/themes/tmarchy.json"
+        [ -f "$j" ] || { bad "$t: no tmarchy.json"; continue; }
+        out=$(python3 - "$j" "$CLAUDE_TOKENS" <<'PYCHK'
+import json, re, sys
+d = json.load(open(sys.argv[1]))
+ov = d.get("overrides", {})
+if d.get("base") != "dark": print("base is not dark")
+for k in sys.argv[2].split():
+    v = ov.get(k)
+    if v is None: print(f"missing token {k}")
+    elif not re.fullmatch(r"#[0-9a-fA-F]{6}", v): print(f"{k} is {v!r}, not #rrggbb")
+PYCHK
+) || { bad "$t: tmarchy.json is not valid JSON"; continue; }
+        if [ -z "$out" ]; then ok; else bad "$t: tmarchy.json -- $(printf '%s' "$out" | tr '\n' ';')"; fi
+    done
+else
+    printf '  skip  Claude theme validation (python3 not installed)\n'
+fi
+
+# --- a host without Claude Code is not a sync failure ------------------------
+# ~/.claude does not exist on every machine this repo deploys to, and a missing
+# CLI must not fail a tmux load.
+if XDG_STATE_HOME="$TMP" CLAUDE_CONFIG_DIR="$TMP/definitely-absent" \
+    "$DIR/bin/tmarchy-theme" sync tokyo-night >/dev/null 2>&1; then ok
+else bad "sync failed when the Claude config dir is absent"; fi
 
 # --- sync refuses an unknown theme -------------------------------------------
 if XDG_STATE_HOME="$TMP" "$DIR/bin/tmarchy-theme" sync definitely-not-a-theme >/dev/null 2>&1; then

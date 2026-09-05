@@ -109,12 +109,33 @@ expensive process starts can bound that unconditionally.
 ## How to add a theme
 
 Copy an existing file in `themes/` (e.g. `cp themes/tokyo-night.conf
-themes/my-theme.conf`) and set its ten `@theme-*` options to your palette:
+themes/my-theme.conf`) and set its fourteen `@theme-*` options to your
+palette:
 
 ```
-@theme-bg @theme-fg @theme-dim @theme-accent @theme-accent-alt
-@theme-border @theme-wait @theme-busy @theme-done @theme-remote
+@theme-bg   @theme-fg     @theme-dim    @theme-accent  @theme-accent-alt
+@theme-border  @theme-wait  @theme-busy  @theme-done   @theme-remote
+@theme-info @theme-accent-muted  @theme-alert  @theme-fg-muted
 ```
+
+The first ten describe the bar. The last four exist for the **prompt**,
+which draws distinctions a status bar does not: a load average merely high
+against one that is critical, a truncated path segment against its anchor.
+Take them from your palette's own published colours rather than deriving
+them from the first ten — derived values collapse saturated darks into grey,
+which is the same trap that turned p10k's error red into a dim blue-grey.
+
+Three of them must be pairwise distinct: `@theme-info`, `@theme-remote` and
+`@theme-done` render on one prompt line (the load segments, the directory,
+and VCS-clean), so reusing a hue there reads as a rendering bug rather than
+as a palette choice. A palette short on hues should reach for a *shade* — a
+neutral aqua against a bright one — not reuse. `bin/tmarchy-theme-selftest`
+enforces this.
+
+Two of the fourteen are names, not colours: `@theme-nvim` and `@theme-bat`
+name a real colorscheme and a real bat theme. bat **silently ignores** an
+unknown theme name, so the selftest checks the one you write actually
+exists.
 
 Nothing else references a theme file by name except `bin/tmarchy-theme`
 (which lists `themes/*.conf` by globbing the directory) and the `+Theme`
@@ -191,6 +212,26 @@ restore-from-persisted-state both work, that rendering produces the right
 SGR codes, that the tick guard actually rate-limits and recovers from a
 corrupt stamp file, that the theme switcher lists/sets/rejects themes
 correctly, and that every shipped theme defines every required colour.
+
+That last check unsets every `@theme-*` option before sourcing each theme.
+All nine go into the same throwaway server, so without the unset a theme
+inherits whatever the previously-sourced one set and the assertion is
+vacuous for all but the first — deleting a colour from `kanagawa.conf`
+passed cleanly, because `jewel.conf` had set it moments earlier.
+
+`bin/tmarchy-theme-selftest` is the other half, and covers what leaves the
+bar: that every theme declares all fourteen colours, that the three the
+prompt renders together stay distinct, that `current.p10k.zsh` holds only
+values p10k understands (`#rrggbb` or a bare index — never tmux's
+`colour214`), and that the generated Claude Code theme is valid JSON whose
+every token is hex. Both downstream *names* are checked against what bat and
+nvim actually have, because both fall back silently rather than erroring.
+
+It exports `XDG_STATE_HOME` **and** `CLAUDE_CONFIG_DIR` into a scratch dir
+for the whole run. That is not belt-and-braces: the Claude Code output
+writes outside the state dir, and when it was added three of the five `sync`
+calls carried only `XDG_STATE_HOME`, so running the suite quietly rewrote
+the real `~/.claude/themes/tmarchy.json`.
 
 ## Rollback
 

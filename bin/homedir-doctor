@@ -233,20 +233,40 @@ check_tool_state() {
         skip "zoxide database" "(zoxide not installed)"
     fi
 
-    # The theme propagates through two GENERATED files. If they are missing or
-    # name a different theme than the bar, the shell and the editor are quietly
-    # on a stale palette -- visible only as "the colours look off", never as an
-    # error.
+    # The theme propagates through three GENERATED files plus one written into
+    # the Claude config dir. If any is missing or names a different theme than
+    # the bar, that surface is quietly on a stale palette -- visible only as
+    # "the colours look off", never as an error.
     st="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy"
     if [ -f "$st/theme" ]; then
         want=$(head -n1 "$st/theme" 2>/dev/null | tr -d '[:space:]')
-        if [ ! -f "$st/current.sh" ] || [ ! -f "$st/current.lua" ]; then
-            warn "tmarchy theme state not generated" "run: tmarchy/bin/tmarchy-theme sync (bat and nvim will not follow the bar until then)"
+        missing=""
+        for f in current.sh current.lua current.p10k.zsh; do
+            [ -f "$st/$f" ] || missing="$missing $f"
+        done
+        if [ -n "$missing" ]; then
+            warn "tmarchy theme state not generated:$missing" "run: tmarchy/bin/tmarchy-theme sync (bat, nvim and the prompt will not follow the bar until then)"
         else
             got=$(sed -n "s/^TMARCHY_THEME='\(.*\)'$/\1/p" "$st/current.sh")
-            if [ "$got" = "$want" ]; then ok "theme propagated to shell + nvim ($want)"
+            if [ "$got" = "$want" ]; then ok "theme propagated to shell + nvim + prompt ($want)"
             else warn "theme state is stale: bar says $want, generated state says ${got:-none}" \
                       "run: tmarchy/bin/tmarchy-theme sync"; fi
+        fi
+
+        # The Claude Code theme is the one generated file that lives outside the
+        # state dir, because the CLI reads themes from its own config dir. It is
+        # gitignored, so a fresh checkout has settings.json naming custom:tmarchy
+        # with no such theme on disk yet -- and an unknown theme name is ignored
+        # silently, which is the whole failure mode this repo keeps hitting.
+        cdir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+        if [ ! -d "$cdir" ]; then
+            skip "Claude Code theme" "(no $cdir on this host)"
+        elif [ -f "$cdir/themes/tmarchy.json" ]; then
+            if grep -q "\"tmarchy ($want)\"" "$cdir/themes/tmarchy.json" 2>/dev/null
+            then ok "theme propagated to Claude Code ($want)"
+            else warn "Claude Code theme is stale (bar says $want)" "run: tmarchy/bin/tmarchy-theme sync"; fi
+        else
+            warn "Claude Code theme not generated" "run: tmarchy/bin/tmarchy-theme sync (settings.json names custom:tmarchy; an absent theme is ignored silently)"
         fi
     else
         skip "tmarchy theme state" "(no theme persisted yet)"

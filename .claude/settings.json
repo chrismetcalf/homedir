@@ -264,6 +264,6 @@
   "alwaysThinkingEnabled": true,
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
-  "theme": "custom:tokyo-night",
+  "theme": "custom:tmarchy",
   "agentPushNotifEnabled": true
 }
