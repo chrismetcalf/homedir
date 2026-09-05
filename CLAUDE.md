@@ -262,7 +262,9 @@ Utility scripts on `$PATH` (via `.zsh/rc/exports`). Notable ones:
 - **`merge-tmux`**: combine all tmux sessions into "main"
 - **`pi-system-status`**, **`ping-monitor*`**, **`sshscan`**, **`set-time-from-nmea-ip`**: misc system tools
 
-Submodules under `bin/` (named `*.git/`): `ansiweather.git`, `multi-git-status.git`, `isomorphic-copy.git`. Top-level symlinks `ansiweather` and `mgitstatus` invoke the binaries inside.
+Submodules under `bin/` (named `*.git/`): `ansiweather.git`, `isomorphic-copy.git`, `recordstream.git`. The top-level symlink `ansiweather` invokes the binary inside.
+
+`multi-git-status.git` and its `mgitstatus` symlink were **dropped 2026-09-05**: upstream `fboender/multi-git-status` is gone from GitHub (404 anonymously, which git surfaces as the misleading `could not read Username for 'https://github.com'` rather than a not-found error). No local objects survived under `.git/modules/`, so the submodule could not be initialised on any fresh checkout — don't re-add it without a working fork URL.
 
 ## Gitfix
 
