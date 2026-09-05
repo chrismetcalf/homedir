@@ -12,13 +12,21 @@
 set -uo pipefail
 
 REF="${1:-HEAD}"
-CONFIG="${2:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
+CONFIG_ARG="${2:-}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REL=".config/tmux/plugins/tmux-which-key/config.yaml"
 
 export TMUX_CMD_LIB=1
 # shellcheck source=/dev/null
 . "$(dirname "${BASH_SOURCE[0]}")/tmux-cmd"
+
+# tmux-cmd's own top-level code sets $CONFIG unconditionally (from
+# TMUX_CMD_CONFIG, defaulting to $HOME/...), and sourcing it above just
+# stomped whatever this script assigned to that same variable name first --
+# silently ignoring the [config-path] argument and always reading $HOME's
+# live config instead of the one this invocation was pointed at. So CONFIG is
+# (re)computed here, AFTER the source, not before it.
+CONFIG="${CONFIG_ARG:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
 
 cmds_of() { flatten_menu "$1" | cut -f1 | sort -u; }
 
