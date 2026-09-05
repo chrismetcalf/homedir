@@ -54,6 +54,31 @@ GLYPH_TOOL='󰘳'        # command: opens one of this repo's tools
 GLYPH_CMD='󰘳'         # default, for anything unclassified
 GLYPH_PATH='›'
 
+# Glyph by DECLARED verb — the first segment of the row's menu path.
+#
+# This replaces guessing from command text. The heuristic below got `resizep`
+# and `swapp` wrong, filing both under navigate because that arm matches their
+# names; under a verb-first menu they are declared Move and the glyph follows
+# the declaration. Space-separated pairs rather than an associative array:
+# this repo still targets bash 3.2 for macOS.
+VERB_GLYPHS="Go:$GLYPH_NAVIGATE Open:$GLYPH_TOOL Move:$GLYPH_NAVIGATE Set:$GLYPH_CONFIG Copy:$GLYPH_CLIPBOARD New:$GLYPH_CREATE Ask:$GLYPH_PROMPT Show:$GLYPH_INFO Kill:$GLYPH_DESTRUCTIVE Agents:$GLYPH_TOOL"
+
+glyph_for_verb() {
+    local trail="${1:-}" cmds="${2:-}" verb pair
+    verb=${trail%% *}
+    if [ -n "$verb" ]; then
+        for pair in $VERB_GLYPHS; do
+            if [ "${pair%%:*}" = "$verb" ]; then
+                printf '%s' "${pair#*:}"
+                return 0
+            fi
+        done
+    fi
+    # No verb, or one not in the table: the favourites row sits outside every
+    # verb and still has to render something. class_for stays for exactly this.
+    glyph_for "$cmds"
+}
+
 # Classify by the tmux verb. Order matters: a kill is destructive even though it
 # arrives wrapped in a confirm, and a theme switch is config even though it
 # arrives as a run-shell.
@@ -238,7 +263,7 @@ rows_from_flat() {
         [ "${#shown}" -gt 64 ] && shown="${shown:0:63}…"
         printf '%s\tmenu\t%s%s%s %s  %s%s  %s%s\n' \
             "$cmds" \
-            "$C_ACCENT" "$(glyph_for "$cmds")" "${C_ACCENT:+$C_RESET}" \
+            "$C_ACCENT" "$(glyph_for_verb "$trail" "$cmds")" "${C_ACCENT:+$C_RESET}" \
             "$label" \
             "$C_DIM" "${key:+[$key]}" "$shown" "${C_DIM:+$C_RESET}"
     done <<< "$flat"
