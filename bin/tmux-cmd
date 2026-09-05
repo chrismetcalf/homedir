@@ -218,7 +218,7 @@ def emit(items, macros, trail, out):
         # Strip the "+" that marks a submenu heading; it is noise in a flat list.
         pretty = [p[1:] if p.startswith("+") else p for p in path]
         cmds = [quote_bare_formats(c) for c in cmds]
-        out.append("\t".join([SEP.join(cmds), key, " ".join(pretty[:-1]), pretty[-1]]))
+        out.append((SEP.join(cmds), key, " ".join(pretty[:-1]), pretty[-1]))
 
 try:
     doc = yaml.safe_load(sys.stdin.read()) or {}
@@ -230,7 +230,30 @@ for m in doc.get("macros") or []:
         macros[str(m["name"])] = m.get("commands") or []
 out = []
 emit(doc.get("items"), macros, [], out)
-print("\n".join(out))
+
+# Dedupe by command string.
+#
+# The favourites row repeats ten commands that also live inside a verb. The
+# menu wants both copies -- one is a shortcut strip, the other is where the
+# command actually belongs. The palette wants one, or the row count inflates by
+# exactly the size of the favourites row.
+#
+# Merge rather than pick: the trail comes from the copy inside a verb, so the
+# glyph and section are right, while the key comes from whichever copy is
+# advertised, so the shortcut is still shown.
+best = {}
+order = []
+for cmds, key, trail, leaf in out:
+    if cmds not in best:
+        best[cmds] = [cmds, key, trail, leaf]
+        order.append(cmds)
+        continue
+    prev = best[cmds]
+    if trail and not prev[2]:
+        prev[2], prev[3] = trail, leaf
+    if key and not prev[1]:
+        prev[1] = key
+print("\n".join("\t".join(best[c]) for c in order))
 ' 2>/dev/null
 }
 

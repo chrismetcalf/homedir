@@ -354,4 +354,29 @@ assert_eq "Agents overrides non-tool classification"      "$GLYPH_TOOL"        "
 assert_eq "empty trail falls back to class_for" "$(glyph_for "killp")" "$(glyph_for_verb "" "killp")"
 assert_eq "unknown verb falls back to class_for" "$(glyph_for "killp")" "$(glyph_for_verb "Nonsense" "killp")"
 
+echo "favourites dedupe"
+DEDUPE_YAML='items:
+  - name: lazygit
+    key: G
+    command: display-popup -E lazygit
+  - name: +Open
+    key: o
+    menu:
+      - name: lazygit
+        command: display-popup -E lazygit
+      - name: yazi
+        key: e
+        command: display-popup -E yazi'
+
+DEDUPE_OUT=$(flatten_menu "$DEDUPE_YAML")
+assert_eq "duplicate command yields one row" "1" \
+    "$(printf '%s\n' "$DEDUPE_OUT" | grep -c 'display-popup -E lazygit')"
+assert_eq "surviving row keeps the verb path" "Open" \
+    "$(printf '%s\n' "$DEDUPE_OUT" | grep 'lazygit' | cut -f3)"
+assert_eq "surviving row keeps the advertised key" "G" \
+    "$(printf '%s\n' "$DEDUPE_OUT" | grep 'lazygit' | cut -f2)"
+assert_eq "non-duplicate rows are untouched" "1" \
+    "$(printf '%s\n' "$DEDUPE_OUT" | grep -c 'display-popup -E yazi')"
+assert_eq "total rows after dedupe" "2" "$(printf '%s\n' "$DEDUPE_OUT" | grep -c .)"
+
 exit "$FAILED"
