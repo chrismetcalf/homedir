@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# tmux-dropdown — run a long-lived TUI in a detached session and attach a popup
+# to it. The mechanism behind prefix + B (btop) and prefix + e (lazydocker).
+#
+#   tmux-dropdown <session> <command> [args...]
+#
+# Why a session rather than just `display-popup -E btop`: a popup running the
+# command directly starts a FRESH process on every toggle, losing whatever state
+# the tool has built up — btop's history graphs, lazydocker's selected container
+# and scroll position — and paying startup each time. Here the process outlives
+# the overlay; the popup only ever attaches a second client to it.
+#
+# Keeping it in a session rather than a window also keeps it out of the tab bar.
+# Sessions named with a leading _ are treated as infrastructure and hidden from
+# tmux-goto's picker, since they are somewhere you summon, not somewhere you
+# navigate to.
+set -uo pipefail
+
+SESSION="${1:-}"
+shift || true
+COMMAND=("$@")
+
+if [ -z "$SESSION" ] || [ "${#COMMAND[@]}" -eq 0 ]; then
+    printf 'usage: tmux-dropdown <session> <command> [args...]\n' >&2
+    exit 2
+fi
+
+case "$SESSION" in
+    _*) ;;
+    # Enforced, not just conventional: the toggle binding detaches on
+    # #{m:_*,#{session_name}}, and tmux-goto hides the same pattern. A dropdown
+    # named without the underscore would be un-closeable by its own key and
+    # would show up as a destination in the picker.
+    *) printf 'tmux-dropdown: session name must start with _ (got %s)\n' "$SESSION" >&2
+       exit 2 ;;
+esac
+
+if ! command -v "${COMMAND[0]}" >/dev/null 2>&1; then
+    printf '\ntmux-dropdown: %s is not installed\n\n  [any key] close  ' "${COMMAND[0]}"
+    IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+    exit 1
+fi
+
+# =NAME is an exact match. Without it tmux matches on prefix, so _btop would be
+# satisfied by a session called _btop-old and we would attach to the wrong one.
+if ! tmux has-session -t "=$SESSION" 2>/dev/null; then
+    tmux new-session -d -s "$SESSION" -n "${COMMAND[0]}" "${COMMAND[@]}"
+    # Plain name here, NOT "=$SESSION": this tmux accepts the = exact-match
+    # prefix for has-session but rejects it for set-option ("no such session").
+    tmux set-option -t "$SESSION" status off
+fi
+
+# TMUX= is required: tmux refuses to attach a client from inside another client
+# ("sessions should be nested with care") unless the variable is cleared. This
+# is a deliberate nested attach — the popup IS a second client on the same
+# server — which is exactly the case that warning is about.
+TMUX= tmux attach-session -t "=$SESSION"
