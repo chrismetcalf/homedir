@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# tmux-menu-coverage — every command in the OLD which-key config must still be
+# reachable in the new one.
+#
+# The verb rewrite moves ~97 entries by hand. Dropping one is invisible: the
+# menu still opens, the palette still lists things, and the command is simply
+# gone. This diffs the two command sets and is the only thing that would notice.
+#
+#   tmux-menu-coverage <old-ref> [config-path]
+#
+# <old-ref> is any git ref, e.g. HEAD or the commit before the rewrite.
+set -uo pipefail
+
+REF="${1:-HEAD}"
+CONFIG="${2:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REL=".config/tmux/plugins/tmux-which-key/config.yaml"
+
+export TMUX_CMD_LIB=1
+# shellcheck source=/dev/null
+. "$(dirname "${BASH_SOURCE[0]}")/tmux-cmd"
+
+cmds_of() { flatten_menu "$1" | cut -f1 | sort -u; }
+
+old="$(git -C "$REPO" show "$REF:$REL" 2>/dev/null)"
+if [ -z "$old" ]; then
+    printf 'tmux-menu-coverage: cannot read %s at %s\n' "$REL" "$REF" >&2
+    exit 2
+fi
+new="$(cat "$CONFIG" 2>/dev/null)"
+
+missing="$(comm -23 <(cmds_of "$old") <(cmds_of "$new"))"
+added="$(comm -13 <(cmds_of "$old") <(cmds_of "$new"))"
+
+printf 'tmux-menu-coverage  (old=%s)\n\n' "$REF"
+printf '  old commands   %s\n' "$(cmds_of "$old" | grep -c .)"
+printf '  new commands   %s\n' "$(cmds_of "$new" | grep -c .)"
+if [ -n "$missing" ]; then
+    printf '\n  MISSING from the new config:\n'
+    printf '%s\n' "$missing" | sed 's/^/    /'
+fi
+if [ -n "$added" ]; then
+    printf '\n  added (expected: the theme picker):\n'
+    printf '%s\n' "$added" | sed 's/^/    /'
+fi
+[ -z "$missing" ] || exit 1
+printf '\n  no commands lost\n'
