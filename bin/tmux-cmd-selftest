@@ -381,20 +381,21 @@ assert_eq "total rows after dedupe" "2" "$(printf '%s\n' "$DEDUPE_OUT" | grep -c
 
 # Test reverse order: verb copy (with trail) first, bare favourite second.
 # The merge logic must fill in missing fields regardless of encounter order.
+# Both copies have keys to test that the first occurrence's key is preserved.
 REVERSE_YAML='items:
   - name: +Open
-    key: o
     menu:
       - name: lazygit
+        key: V
         command: display-popup -E lazygit
   - name: lazygit
-    key: G
+    key: F
     command: display-popup -E lazygit'
 
 REVERSE_OUT=$(flatten_menu "$REVERSE_YAML")
 assert_eq "reverse order: merge still takes trail from verb" "Open" \
     "$(printf '%s\n' "$REVERSE_OUT" | grep 'lazygit' | cut -f3)"
-assert_eq "reverse order: merge still takes key from favourite" "G" \
+assert_eq "reverse order: merge keeps key from first occurrence" "V" \
     "$(printf '%s\n' "$REVERSE_OUT" | grep 'lazygit' | cut -f2)"
 
 # Test row order preservation: deduped row keeps the position of its FIRST
