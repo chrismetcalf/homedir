@@ -20,13 +20,27 @@ FAILED=0
 
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
 
 echo "tmux-menu selftest"
 
 [ -r "$CONFIG" ] || { printf '  FAIL config not readable: %s\n' "$CONFIG"; exit 1; }
+
+echo "verb structure"
+MENU_CFG="$CONFIG"
+for verb in Go Open Move Set Copy New Ask Show Kill Agents; do
+    assert_eq "+$verb exists" "1" "$(grep -c "name: +$verb\$" "$MENU_CFG")"
+done
+assert_eq "no tmarchy-theme set entries remain" "0" "$(grep -c 'tmarchy-theme.*set ' "$MENU_CFG")"
+assert_eq "the theme picker is referenced" "1" "$(grep -c 'tmux-theme-pick' "$MENU_CFG")"
+# Every command containing a #{...} format must be quoted, or YAML treats the
+# space-hash as a comment and truncates it.
+assert_eq "no unquoted #{ } formats" "0" \
+    "$(grep -E '^\s+command: [^'"'"'"]*#\{' "$MENU_CFG" | grep -c .)"
+
 if ! [ -r "$BUILDER" ]; then
     echo "  skip (tmux-which-key not installed; run prefix + I)"
-    exit 0
+    exit "$FAILED"
 fi
 
 TMPDIR_RUN=$(mktemp -d)

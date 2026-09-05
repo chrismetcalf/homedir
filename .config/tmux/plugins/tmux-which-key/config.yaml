@@ -45,171 +45,218 @@ macros:
       - display "#{log_info} Restarting pane"
       - 'respawnp -k -c #{pane_current_path}'
 
+# Grouped by VERB, not by tmux noun. You know you want to Go/Open/Move/... something
+# before you know whether it's a pane, a window or a tool -- so the top level asks
+# "what do you want to DO" and the noun only shows up one level down, where volume
+# actually requires it (+Go's window/pane/session/client, +Move's Layout/Resize,
+# +Open's Tools/Overlays). Agents is a deliberate noun exception: those four commands
+# (scout picker, next-wait, sidebar, vault session) are a single recognisable unit,
+# not a verb.
 items:
-  - name: Run
-    key: space
-    command: command-prompt
-  - name: Last window
-    key: tab
-    command: last-window
-  - name: Last pane
-    key: '`'
-    command: last-pane
-  # Quoted scalars throughout: unquoted, YAML reads ` #{...}` as a comment and
-  # silently truncates the command.
+  # Favourites. These ten repeat commands that also live inside a verb below --
+  # the menu wants both (this is a shortcut strip), the palette wants one, and
+  # tmux-cmd dedupes by command string keeping the verb's path and this key.
+  # Command strings here must be byte-for-byte identical to their twin inside a
+  # verb menu below, or the palette dedupe will not fire and the count will be
+  # 89 instead of 88.
+  - name: Command palette
+    key: p
+    command: 'display-popup -E -w 70% -h 70% "~/bin/tmux-cmd"'
   - name: Go to session/window/pane
     key: u
     command: 'display-popup -E -w 70% -h 60% "~/bin/tmux-goto"'
-  # No nested quoting in any of these on purpose. An escaped quote inside a
-  # menu command parses fine as an option value but TRUNCATES the inline
-  # display-menu that prefix + m is bound to, silently dropping every entry
-  # after it -- which is exactly how the root menu lost 12 items once.
-  # Key P, not p: the root menu already gives p to +Panes, and the builder
-  # asserts on a duplicate rather than warning -- which leaves the whole menu
-  # unbuilt. The palette's own binding is still prefix + p.
-  - name: Command palette
-    key: P
-    command: 'display-popup -E -w 70% -h 70% "~/bin/tmux-cmd"'
   - name: SSH to a host
     key: S
     command: 'display-popup -E -w 60% -h 70% "~/bin/tmux-ssh"'
   - name: Ask Claude for a command
     key: g
     command: 'display-popup -E -w 80% -h 60% "~/bin/tmux-gen"'
-  - name: Copy
-    key: c
-    menu:
-      - name: Copy
-        key: c
-        command: copy-mode
-      - name: List buffers
-        key: '#'
-        command: list-buffers
+  - name: lazygit
+    key: G
+    command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup lazygit"'
+  - name: yazi
+    key: e
+    command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup yazi"'
+  - name: btop
+    key: B
+    command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _btop btop"'
+  - name: lazydocker
+    key: D
+    command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _docker lazydocker"'
+  - name: Window sidebar
+    key: W
+    command: run-shell -b tmux-sidebar-toggle
+  - name: Next agent awaiting input
+    key: '~'
+    command: run-shell -b tmux-scout-next-wait
   - separator: true
 
-  - name: +Agents
-    key: a
+  # Key 'j', not 'g': 'g' is already taken at this level by the "Ask Claude for
+  # a command" favourite above, and the builder asserts on a duplicate key
+  # rather than warning -- which leaves the whole menu unbuilt. Same trap the
+  # original file's "Command palette" key P vs +Panes' p already documented.
+  - name: +Go
+    key: j
     menu:
-      - name: Session picker (tmux-scout)
-        key: '`'
-        command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-scout/scripts/picker/picker.sh
-      - name: Next pane awaiting input
-        key: '~'
-        command: run-shell -b tmux-scout-next-wait
-      - separator: true
-      - name: Toggle window sidebar
-        key: W
-        command: run-shell -b tmux-sidebar-toggle
-      # Braces, not nested single quotes: the generated menu string is itself
-      # single-quoted, so a `'%1'` in here would close it and break the parse.
-      - name: New vault session
-        key: V
-        command: 'command-prompt -I vault -p "vault session name:" { new-window -c /opt/docker-config/obsidian/Metcalf -n "%1" "claude --remote-control %1" }'
-
-  - name: +Tools
-    key: t
-    menu:
-      # Quoted scalar: unquoted, YAML would treat ` #{pane_id}` as a comment.
-      - name: Extract text (extrakto)
-        key: e
-        command: 'run-shell "$TMUX_PLUGIN_MANAGER_PATH/extrakto/scripts/open.sh #{pane_id}"'
-      - name: Fuzzy finder (tmux-fzf)
-        key: f
-        command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-fzf/main.sh
-      - separator: true
-      - name: Toggle pane logging
-        key: l
-        command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/toggle_logging.sh
-      - name: Save complete history
-        key: h
-        command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/save_complete_history.sh
-      - name: Screen capture
-        key: s
-        command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/screen_capture.sh
-      - name: Clear pane history
-        key: C
-        command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/clear_history.sh
-      - separator: true
-      - name: Copy pane path
-        key: y
-        command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-yank/scripts/copy_pane_pwd.sh
-
-  - name: +Overlays
-    key: o
-    menu:
-      # Every command here is quoted for YAML (an unquoted ` #{...}` would be a
-      # COMMENT) and uses only DOUBLE quotes internally -- the generated menu
-      # string is wrapped in single quotes, so a single quote in here would
-      # close it early and truncate the command.
-      #
-      # These open the overlay rather than reproducing the keybinding's toggle:
-      # the toggle's job is closing an overlay you are already inside, and you
-      # cannot open this menu from in there.
-      - name: btop (dropdown)
-        key: B
-        command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _btop btop"'
-      - name: lazydocker (dropdown)
-        key: D
-        command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _docker lazydocker"'
-      - separator: true
-      # These two are one-shot popups scoped to the calling pane's directory,
-      # not persistent dropdown sessions -- see bin/tmux-popup.
-      - name: lazygit (this directory)
-        key: G
-        command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup lazygit"'
-      - name: yazi file manager (this directory)
-        key: e
-        command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup yazi"'
-
-  - name: +Theme
-    key: T
-    menu:
-      - name: Tokyo Night
-        key: t
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set tokyo-night"
-      - name: Catppuccin
-        key: c
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set catppuccin"
-      - name: Everforest
-        key: e
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set everforest"
-      - name: Gruvbox
-        key: g
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set gruvbox"
-      - name: Kanagawa
-        key: k
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set kanagawa"
-      - name: Nord
-        key: n
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set nord"
-      - name: Rose Pine
-        key: r
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set rose-pine"
-      - name: Matte Black
-        key: m
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set matte-black"
-      - name: Jewel (pre-tmarchy)
-        key: j
-        command: run-shell -b "~/.homedir/tmarchy/bin/tmarchy-theme set jewel"
-
-  - name: +Windows
-    key: w
-    menu:
-      - name: Last
+      - name: Last window
         key: tab
         command: last-window
-      - name: Choose
+      - name: Last pane
+        key: '`'
+        command: last-pane
+      - separator: true
+      - name: +Window
         key: w
-        command: choose-tree -Zw
-      - name: Previous
+        menu:
+          # Duplicate of "Last window" above -- both existed in the OLD config
+          # too (top-level and +Windows), just in different menu scopes so no
+          # key collision existed then either. Kept as two entries here so the
+          # palette's dedupe (by command string) has both copies to collapse,
+          # exactly as the favourites strip's copies do.
+          - name: Last
+            key: tab
+            command: last-window
+          - name: Choose
+            key: w
+            command: choose-tree -Zw
+          - name: Previous
+            key: p
+            command: previous-window
+          - name: Next
+            key: n
+            command: next-window
+      - name: +Pane
         key: p
-        command: previous-window
-      - name: Next
-        key: n
-        command: next-window
-      - name: New
+        menu:
+          - name: Last
+            key: tab
+            command: lastp
+          - name: Choose
+            key: p
+            command: displayp -d 0
+          - separator: true
+          - name: Left
+            key: h
+            command: selectp -L
+          - name: Down
+            key: j
+            command: selectp -D
+          - name: Up
+            key: k
+            command: selectp -U
+          - name: Right
+            key: l
+            command: selectp -R
+          - separator: true
+          - name: Mark
+            key: m
+            command: selectp -m
+          - name: Unmark
+            key: M
+            command: selectp -M
+      - name: +Session
+        key: s
+        menu:
+          - name: Choose
+            key: s
+            command: choose-tree -Zs
+      - name: +Client
         key: c
-        command: 'neww -c #{pane_current_path}'
+        menu:
+          - name: Choose
+            key: c
+            command: choose-client -Z
+          - name: Last
+            key: l
+            command: switchc -l
+          - name: Previous
+            key: p
+            command: switchc -p
+          - name: Next
+            key: n
+            command: switchc -n
+          - separator: true
+          - name: Detach
+            key: D
+            command: detach
+          - name: Suspend
+            key: Z
+            command: suspendc
+
+  - name: +Open
+    key: o
+    menu:
+      - name: Go to session/window/pane
+        key: u
+        command: 'display-popup -E -w 70% -h 60% "~/bin/tmux-goto"'
+      - name: Command palette
+        key: p
+        command: 'display-popup -E -w 70% -h 70% "~/bin/tmux-cmd"'
+      - name: SSH to a host
+        key: S
+        command: 'display-popup -E -w 60% -h 70% "~/bin/tmux-ssh"'
+      - name: Ask Claude for a command
+        key: g
+        command: 'display-popup -E -w 80% -h 60% "~/bin/tmux-gen"'
+      - separator: true
+      - name: +Tools
+        key: t
+        menu:
+          # Quoted scalar: unquoted, YAML would treat ` #{pane_id}` as a comment.
+          - name: Extract text (extrakto)
+            key: e
+            command: 'run-shell "$TMUX_PLUGIN_MANAGER_PATH/extrakto/scripts/open.sh #{pane_id}"'
+          - name: Fuzzy finder (tmux-fzf)
+            key: f
+            command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-fzf/main.sh
+          - separator: true
+          - name: Toggle pane logging
+            key: l
+            command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/toggle_logging.sh
+          - name: Save complete history
+            key: h
+            command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/save_complete_history.sh
+          - name: Screen capture
+            key: s
+            command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/screen_capture.sh
+          - name: Clear pane history
+            key: C
+            command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tmux-logging/scripts/clear_history.sh
+      - name: +Overlays
+        key: v
+        menu:
+          # Every command here is quoted for YAML (an unquoted ` #{...}` would be a
+          # COMMENT) and uses only DOUBLE quotes internally -- the generated menu
+          # string is wrapped in single quotes, so a single quote in here would
+          # close it early and truncate the command.
+          - name: btop (dropdown)
+            key: B
+            command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _btop btop"'
+          - name: lazydocker (dropdown)
+            key: D
+            command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _docker lazydocker"'
+          - separator: true
+          # These two are one-shot popups scoped to the calling pane's directory,
+          # not persistent dropdown sessions -- see bin/tmux-popup.
+          - name: lazygit (this directory)
+            key: G
+            command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup lazygit"'
+          - name: yazi file manager (this directory)
+            key: e
+            command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup yazi"'
+      - separator: true
+      - name: Custom bindings only
+        key: c
+        # The custom-only view: list-keys shows ~314 bindings here and ~262 of
+        # them are tmux's own, so the diff is what makes it readable.
+        command: 'display-popup -E -w 85% -h 75% "~/bin/tmux-keys"'
+
+  - name: +Move
+    key: m
+    menu:
+      - name: Zoom
+        key: z
+        command: resizep -Z
       - separator: true
       - name: +Layout
         key: l
@@ -233,54 +280,6 @@ items:
           - name: Vertical main
             key: V
             command: selectl main-vertical
-      - name: Split horizontal
-        key: /
-        command: 'splitw -h -c #{pane_current_path}'
-      - name: Split vertical
-        key: '-'
-        command: 'splitw -v -c #{pane_current_path}'
-      - name: Rotate
-        key: o
-        command: rotatew
-        transient: true
-      - name: Rotate reverse
-        key: O
-        command: rotatew -D
-        transient: true
-      - separator: true
-      - name: Rename
-        key: R
-        command: command-prompt -p "Rename window:" -I "#W" "renamew -- \"%%\""
-      - name: Kill
-        key: X
-        command: 'confirm -p "Kill window #W? (y/n)" killw'
-
-  - name: +Panes
-    key: p
-    menu:
-      - name: Last
-        key: tab
-        command: lastp
-      - name: Choose
-        key: p
-        command: displayp -d 0
-      - separator: true
-      - name: Left
-        key: h
-        command: selectp -L
-      - name: Down
-        key: j
-        command: selectp -D
-      - name: Up
-        key: k
-        command: selectp -U
-      - name: Right
-        key: l
-        command: selectp -R
-      - separator: true
-      - name: Zoom
-        key: z
-        command: resizep -Z
       - name: +Resize
         key: r
         menu:
@@ -316,6 +315,15 @@ items:
             key: L
             command: resizep -R 10
             transient: true
+      - name: Rotate
+        key: o
+        command: rotatew
+        transient: true
+      - name: Rotate reverse
+        key: O
+        command: rotatew -D
+        transient: true
+      - separator: true
       - name: Swap left
         key: H
         command: swapp -t "{left-of}"
@@ -328,71 +336,14 @@ items:
       - name: Swap right
         key: L
         command: swapp -t "{right-of}"
+      - separator: true
       - name: Break to own window
         key: '!'
         command: break-pane
-      - separator: true
-      - name: Mark
-        key: m
-        command: selectp -m
-      - name: Unmark
-        key: M
-        command: selectp -M
-      - name: Capture
-        key: C
-        command: capture-pane
-      - name: Respawn pane
-        key: R
-        macro: restart-pane
-      - name: Kill
-        key: X
-        command: 'confirm -p "Kill pane #P? (y/n)" killp'
 
-  - name: +Buffers
-    key: b
-    menu:
-      - name: Choose
-        key: b
-        command: choose-buffer -Z
-      - name: List
-        key: l
-        command: lsb
-      - name: Paste
-        key: p
-        command: pasteb
-
-  - name: +Sessions
+  - name: +Set
     key: s
     menu:
-      - name: Choose
-        key: s
-        command: choose-tree -Zs
-      - name: New
-        key: N
-        command: new
-      - name: Rename
-        key: r
-        command: command-prompt -p "Rename session:" -I "#S" "rename-session -- \"%%\""
-
-  - name: +Client
-    key: C
-    menu:
-      - name: Choose
-        key: c
-        command: choose-client -Z
-      - name: Last
-        key: l
-        command: switchc -l
-      - name: Previous
-        key: p
-        command: switchc -p
-      - name: Next
-        key: n
-        command: switchc -n
-      - separator: true
-      - name: Refresh
-        key: R
-        command: refresh
       - name: +Plugins
         key: P
         menu:
@@ -405,12 +356,6 @@ items:
           - name: Clean
             key: c
             command: run-shell $TMUX_PLUGIN_MANAGER_PATH/tpm/bindings/clean_plugins
-      - name: Detach
-        key: D
-        command: detach
-      - name: Suspend
-        key: Z
-        command: suspendc
       - separator: true
       - name: Reload config
         key: r
@@ -418,22 +363,116 @@ items:
       - name: Customize
         key: ','
         command: customize-mode -Z
+      - separator: true
+      - name: Theme…
+        key: t
+        command: 'display-popup -E -w 50% -h 60% "~/bin/tmux-theme-pick"'
 
-  - separator: true
-  - name: Time
-    key: C-t
-    command: clock-mode
-  - name: Show messages
-    key: M
-    command: show-messages
-  - name: +Keys
-    key: '?'
+  - name: +Copy
+    key: c
     menu:
-      # The custom-only view: list-keys shows ~314 bindings here and ~262 of
-      # them are tmux's own, so the diff is what makes it readable.
-      - name: Custom bindings only
+      - name: Copy
         key: c
-        command: 'display-popup -E -w 85% -h 75% "~/bin/tmux-keys"'
+        command: copy-mode
+      - name: Capture
+        key: C
+        command: capture-pane
+      - name: Copy pane path
+        key: y
+        command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-yank/scripts/copy_pane_pwd.sh
+      - separator: true
+      - name: List buffers
+        key: '#'
+        command: list-buffers
+      - separator: true
+      - name: Choose
+        key: b
+        command: choose-buffer -Z
+      - name: List
+        key: l
+        command: lsb
+      - name: Paste
+        key: p
+        command: pasteb
+
+  - name: +New
+    key: n
+    menu:
+      - name: Window
+        key: c
+        command: 'neww -c #{pane_current_path}'
+      - name: Split horizontal
+        key: /
+        command: 'splitw -h -c #{pane_current_path}'
+      - name: Split vertical
+        key: '-'
+        command: 'splitw -v -c #{pane_current_path}'
+      - separator: true
+      - name: Session
+        key: N
+        command: new
+
+  - name: +Ask
+    key: a
+    menu:
+      - name: Run
+        key: space
+        command: command-prompt
+      - separator: true
+      - name: Rename window
+        key: R
+        command: command-prompt -p "Rename window:" -I "#W" "renamew -- \"%%\""
+      - name: Rename session
+        key: r
+        command: command-prompt -p "Rename session:" -I "#S" "rename-session -- \"%%\""
+
+  # Key 'i', not 's': 's' is already taken at this level by +Set.
+  - name: +Show
+    key: i
+    menu:
+      - name: Refresh
+        key: R
+        command: refresh
+      - separator: true
+      - name: Time
+        key: C-t
+        command: clock-mode
+      - name: Show messages
+        key: M
+        command: show-messages
       - name: Raw list-keys (everything)
         key: '?'
         command: list-keys -N
+
+  - name: +Kill
+    key: k
+    menu:
+      - name: Window
+        key: X
+        command: 'confirm -p "Kill window #W? (y/n)" killw'
+      - name: Pane
+        key: x
+        command: 'confirm -p "Kill pane #P? (y/n)" killp'
+      - separator: true
+      - name: Respawn pane
+        key: R
+        macro: restart-pane
+
+  - name: +Agents
+    key: A
+    menu:
+      - name: Session picker (tmux-scout)
+        key: '`'
+        command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-scout/scripts/picker/picker.sh
+      - name: Next pane awaiting input
+        key: '~'
+        command: run-shell -b tmux-scout-next-wait
+      - separator: true
+      - name: Toggle window sidebar
+        key: W
+        command: run-shell -b tmux-sidebar-toggle
+      # Braces, not nested single quotes: the generated menu string is itself
+      # single-quoted, so a `'%1'` in here would close it and break the parse.
+      - name: New vault session
+        key: V
+        command: 'command-prompt -I vault -p "vault session name:" { new-window -c /opt/docker-config/obsidian/Metcalf -n "%1" "claude --remote-control %1" }'
