@@ -337,15 +337,19 @@ else
 fi
 
 echo "glyph by declared verb"
-assert_eq "Go uses the navigate glyph"      "$GLYPH_NAVIGATE"    "$(glyph_for_verb "Go Window" "selectw -t 1")"
-assert_eq "Open uses the tool glyph"        "$GLYPH_TOOL"        "$(glyph_for_verb "Open" "display-popup -E lazygit")"
-assert_eq "Move uses the navigate glyph"    "$GLYPH_NAVIGATE"    "$(glyph_for_verb "Move Resize" "resizep -L 5")"
-assert_eq "Kill uses the destructive glyph" "$GLYPH_DESTRUCTIVE" "$(glyph_for_verb "Kill" "killp")"
-assert_eq "Set uses the config glyph"       "$GLYPH_CONFIG"      "$(glyph_for_verb "Set" "source-file ~/.tmux.conf")"
-assert_eq "Agents uses the tool glyph"      "$GLYPH_TOOL"        "$(glyph_for_verb "Agents" "run-shell -b tmux-scout-next-wait")"
-# The verb wins over the command text. This is the misclassification being
-# fixed: class_for sends `swapp` to navigate no matter which menu it sits in.
-assert_eq "declared verb beats command text" "$GLYPH_NAVIGATE" "$(glyph_for_verb "Move" "swapp -D")"
+# Each assertion uses a command that classifies DIFFERENTLY from the verb,
+# forcing the implementation to use the verb lookup. If the verb is ignored,
+# these tests fail.
+assert_eq "Go overrides non-navigate classification"      "$GLYPH_NAVIGATE"    "$(glyph_for_verb "Go" "display-message test")"
+assert_eq "Open overrides non-tool classification"        "$GLYPH_TOOL"        "$(glyph_for_verb "Open" "splitw -h")"
+assert_eq "Move overrides non-navigate classification"    "$GLYPH_NAVIGATE"    "$(glyph_for_verb "Move" "display-message test")"
+assert_eq "Set overrides non-config classification"       "$GLYPH_CONFIG"      "$(glyph_for_verb "Set" "selectw -t 1")"
+assert_eq "Copy overrides non-clipboard classification"   "$GLYPH_CLIPBOARD"   "$(glyph_for_verb "Copy" "splitw -h")"
+assert_eq "New overrides non-create classification"       "$GLYPH_CREATE"      "$(glyph_for_verb "New" "killp")"
+assert_eq "Ask overrides non-prompt classification"       "$GLYPH_PROMPT"      "$(glyph_for_verb "Ask" "selectw -t 1")"
+assert_eq "Show overrides non-info classification"        "$GLYPH_INFO"        "$(glyph_for_verb "Show" "killp")"
+assert_eq "Kill overrides non-destructive classification" "$GLYPH_DESTRUCTIVE" "$(glyph_for_verb "Kill" "selectw -t 1")"
+assert_eq "Agents overrides non-tool classification"      "$GLYPH_TOOL"        "$(glyph_for_verb "Agents" "display-message test")"
 # Fallback: the favourites row has no menu path, so the heuristic still runs.
 assert_eq "empty trail falls back to class_for" "$(glyph_for "killp")" "$(glyph_for_verb "" "killp")"
 assert_eq "unknown verb falls back to class_for" "$(glyph_for "killp")" "$(glyph_for_verb "Nonsense" "killp")"
