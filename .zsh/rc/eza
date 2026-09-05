@@ -1,0 +1,23 @@
+# eza — ls replacement. Colours come from LS_COLORS, which .zsh/rc/dircolors
+# already sets from ~/.dircolors.256dark, so this inherits the palette rather
+# than introducing a second one.
+if (( $+commands[eza] )); then
+	# --icons=auto and --color=auto, not plain --icons/--color: `auto` means
+	# "only when stdout is a terminal", so `ls | grep foo` and `ls > file`
+	# still produce clean, parseable output. Forcing them on breaks pipes in
+	# a way that is invisible until something downstream mis-parses.
+	_eza_base=(eza --icons=auto --color=auto --group-directories-first)
+
+	alias ls="${_eza_base[*]}"
+	alias l="${_eza_base[*]} --oneline"
+	# --git reads the index, so it is worth it on the long listings you look
+	# at deliberately and not on every bare `ls`.
+	alias ll="${_eza_base[*]} --long --header --git --time-style=long-iso"
+	alias la="${_eza_base[*]} --long --header --git --time-style=long-iso --all"
+	alias lt="${_eza_base[*]} --tree --level=2"
+	alias lta="${_eza_base[*]} --tree --level=2 --all"
+	unset _eza_base
+
+	# \ls or `command ls` still gets coreutils, which matters for the handful
+	# of flags eza does not have.
+fi

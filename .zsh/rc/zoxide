@@ -1,0 +1,29 @@
+# zoxide — directory jumping, replacing autojump (2026-09-04).
+#
+# Same idea, better mechanics: zoxide is a single static binary with no Python
+# runtime (autojump shells out to a Python script on every prompt), and it ranks
+# by frecency -- visit count scaled by a weight that decays with age -- which is
+# the same scoring bin/lib/tmux-frecency.sh uses for the tmux pickers.
+#
+# The old autojump database was imported once with `zoxide import autojump`, so
+# .homedir, /opt/otto, Projects and the src/github.com trees were known from the
+# first prompt. That import MERGES, so do not re-run it on a host that has one.
+#
+# GUARDED because this repo deploys to several Linux distros, macOS and WSL, and
+# zoxide is installed per host. An unguarded `eval "$(zoxide init zsh)"` on a
+# host without it prints an error on EVERY new shell -- the kind of breakage
+# that is loud, constant, and annoying to trace back to a dotfile.
+if (( $+commands[zoxide] )); then
+	eval "$(zoxide init zsh)"
+
+	# j is kept because the muscle memory is worth more than the name, and it
+	# keeps BOTH of the old function's behaviours -- which plain `z` does not:
+	# bare `z` goes to $HOME, where bare `j` used to open an fzf picker.
+	j() {
+		if (( $# == 0 )); then
+			zi          # interactive: fzf over the whole database
+		else
+			z "$@"      # jump to the best match for the query
+		fi
+	}
+fi

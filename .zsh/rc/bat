@@ -1,0 +1,40 @@
+# bat — cat with syntax highlighting, git gutter markers and automatic paging.
+# Theme and style live in .config/bat/config so every caller agrees: the shell
+# alias, MANPAGER, and any fzf preview. This file is only the shell wiring.
+#
+# Debian, Ubuntu and WSL-Ubuntu install the binary as `batcat`, because the name
+# `bat` was already taken by bacula-console-qt. Upstream tarballs, Homebrew and
+# most other distros call it `bat`. Resolve the name rather than picking one, so
+# a host that installed from apt gets the same setup as one running the release
+# binary -- otherwise the whole file silently no-ops on exactly the platform the
+# rename exists for.
+_bat_cmd=
+if (( $+commands[bat] )); then
+	_bat_cmd=bat
+elif (( $+commands[batcat] )); then
+	_bat_cmd=batcat
+	alias bat='batcat'   # so `bat` means the same thing everywhere
+fi
+
+if [[ -n $_bat_cmd ]]; then
+	# bat detects a non-terminal stdout and falls back to plain, undecorated
+	# output, so `cat f | grep x` and `cat f > out` behave exactly as before.
+	# The decorations only appear when a human is looking at them.
+	#
+	# --paging=never keeps the cat contract: cat returns, it does not take over
+	# the screen. Use `bat` directly when you want the pager.
+	#
+	# \cat or `command cat` gets coreutils back when you want to copy output
+	# without the line numbers.
+	alias cat="$_bat_cmd --paging=never"
+
+	# Coloured man pages. col -bx strips the backspace-overstrike bold/underline
+	# that man emits, which would otherwise reach bat as literal control bytes.
+	export MANPAGER="sh -c 'col -bx | $_bat_cmd --language=man --plain'"
+
+	# groff >= 1.23 needs -c to stop emitting its own colour escapes, which
+	# would fight bat's. macOS ships a much older groff that does not know the
+	# flag and errors on it, so this is Linux-only on purpose.
+	[[ $OSTYPE == linux* ]] && export MANROFFOPT='-c'
+fi
+unset _bat_cmd
