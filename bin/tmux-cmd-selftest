@@ -379,4 +379,47 @@ assert_eq "non-duplicate rows are untouched" "1" \
     "$(printf '%s\n' "$DEDUPE_OUT" | grep -c 'display-popup -E yazi')"
 assert_eq "total rows after dedupe" "2" "$(printf '%s\n' "$DEDUPE_OUT" | grep -c .)"
 
+# Test reverse order: verb copy (with trail) first, bare favourite second.
+# The merge logic must fill in missing fields regardless of encounter order.
+REVERSE_YAML='items:
+  - name: +Open
+    key: o
+    menu:
+      - name: lazygit
+        command: display-popup -E lazygit
+  - name: lazygit
+    key: G
+    command: display-popup -E lazygit'
+
+REVERSE_OUT=$(flatten_menu "$REVERSE_YAML")
+assert_eq "reverse order: merge still takes trail from verb" "Open" \
+    "$(printf '%s\n' "$REVERSE_OUT" | grep 'lazygit' | cut -f3)"
+assert_eq "reverse order: merge still takes key from favourite" "G" \
+    "$(printf '%s\n' "$REVERSE_OUT" | grep 'lazygit' | cut -f2)"
+
+# Test row order preservation: deduped row keeps the position of its FIRST
+# occurrence relative to other distinct rows.
+ORDER_YAML='items:
+  - name: first
+    command: cmd-a
+  - name: lazygit
+    key: G
+    command: display-popup -E lazygit
+  - name: second
+    command: cmd-b
+  - name: +Open
+    key: o
+    menu:
+      - name: lazygit
+        command: display-popup -E lazygit
+      - name: yazi
+        command: display-popup -E yazi'
+
+ORDER_OUT=$(flatten_menu "$ORDER_YAML")
+# Extract commands in order, one per line
+cmds_ordered=$(printf '%s\n' "$ORDER_OUT" | cut -f1)
+# Count rows before the lazygit entry to verify it stays at position 2 (after first, before second)
+before_lazygit=$(printf '%s\n' "$cmds_ordered" | grep -n 'lazygit' | head -1 | cut -d: -f1)
+assert_eq "deduped row preserves first occurrence position" "2" "$before_lazygit"
+
 exit "$FAILED"
