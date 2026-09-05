@@ -134,6 +134,33 @@ items:
         key: y
         command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-yank/scripts/copy_pane_pwd.sh
 
+  - name: +Overlays
+    key: o
+    menu:
+      # Every command here is quoted for YAML (an unquoted ` #{...}` would be a
+      # COMMENT) and uses only DOUBLE quotes internally -- the generated menu
+      # string is wrapped in single quotes, so a single quote in here would
+      # close it early and truncate the command.
+      #
+      # These open the overlay rather than reproducing the keybinding's toggle:
+      # the toggle's job is closing an overlay you are already inside, and you
+      # cannot open this menu from in there.
+      - name: btop (dropdown)
+        key: B
+        command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _btop btop"'
+      - name: lazydocker (dropdown)
+        key: D
+        command: 'display-popup -E -w 90% -h 90% "~/bin/tmux-dropdown _docker lazydocker"'
+      - separator: true
+      # These two are one-shot popups scoped to the calling pane's directory,
+      # not persistent dropdown sessions -- see bin/tmux-popup.
+      - name: lazygit (this directory)
+        key: G
+        command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup lazygit"'
+      - name: yazi file manager (this directory)
+        key: e
+        command: 'display-popup -E -w 90% -h 90% -d "#{pane_current_path}" "~/bin/tmux-popup yazi"'
+
   - name: +Theme
     key: T
     menu:
