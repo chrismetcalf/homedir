@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# tmux-theme-pick-selftest — fixture-driven tests for bin/tmux-theme-pick.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_contains() {
+    case "$3" in *"$2"*) pass "$1" ;; *) fail "$1" "to contain: $2" "$3" ;; esac
+}
+
+export TMUX_THEME_PICK_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-theme-pick"
+
+echo "tmux-theme-pick selftest"
+assert_eq "sourcing does not run main" "" "${TMUX_THEME_PICK_MAIN_RAN:-}"
+assert_eq "collect_rows is defined" "function" "$(type -t collect_rows)"
+assert_eq "swatch_for is defined"   "function" "$(type -t swatch_for)"
+
+echo "rows"
+ROWS="$(collect_rows)"
+assert_eq "nine themes are offered" "9" "$(printf '%s\n' "$ROWS" | grep -c .)"
+assert_eq "rows are TARGET<TAB>KIND<TAB>DISPLAY" "theme" \
+    "$(printf '%s\n' "$ROWS" | head -1 | cut -f2)"
+assert_contains "tokyo-night is present" "tokyo-night" "$ROWS"
+# Field 1 is the bare theme name: it is what reaches `tmarchy-theme set`, so it
+# must never be recovered from display text.
+assert_eq "field 1 is a bare theme name" "" \
+    "$(printf '%s\n' "$ROWS" | cut -f1 | grep -v '^[a-z][a-z-]*$')"
+
+echo "swatch"
+SW="$(swatch_for tokyo-night)"
+assert_contains "hex theme swatch carries an SGR escape" $'\033[38;2;' "$SW"
+# jewel is the 256-colour theme; a swatch that only understood #rrggbb would
+# render it blank, which is the silent-failure shape this repo keeps hitting.
+SWJ="$(swatch_for jewel)"
+assert_contains "256-colour theme swatch carries an SGR escape" $'\033[38;5;' "$SWJ"
+assert_eq "unknown theme yields an empty swatch" "" "$(swatch_for definitely-not-a-theme)"
+
+echo "empty state"
+# A host with no themes directory must say so rather than open an empty picker,
+# the behaviour tmux-ssh --doctor established.
+assert_eq "missing theme dir yields no rows" "" \
+    "$(TMARCHY_DIR=/definitely/not/here collect_rows)"
+
+echo "safety"
+# Enter applies; moving the cursor must not. If the preview command could apply
+# a theme, browsing nine themes would repaint the bar nine times.
+#
+# NOTE: a grep for the literal string "tmarchy-theme.*set" is vacuous here --
+# the line that actually applies a theme is `"$(theme_cmd)" set "$name"`, which
+# never contains the text "tmarchy-theme". These two assertions instead pin
+# down the two things that actually make the preview safe: it must invoke this
+# script's own --swatch mode, and it must never contain " set " anywhere in
+# that invocation.
+PREVIEW_LINE="$(grep -- '--preview=' "$DIR/tmux-theme-pick")"
+assert_contains "--preview invokes --swatch" "--swatch" "$PREVIEW_LINE"
+assert_eq "--preview never applies a theme" "0" \
+    "$(printf '%s\n' "$PREVIEW_LINE" | grep -c ' set ')"
+
+printf '\n'
+[ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
+printf 'FAILURES\n'; exit 1

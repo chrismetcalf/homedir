@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# tmux-theme-pick — fuzzy-pick a tmarchy theme, with a preview of its palette.
+#
+# The fifth picker, built like tmux-goto / tmux-ssh / tmux-cmd: rows are
+# "TARGET<TAB>KIND<TAB>DISPLAY" with fzf on --with-nth=3.., so the theme name is
+# never recovered from display text.
+#
+# It is the only one with a preview pane, and that is the whole point: a menu of
+# nine theme names tells you nothing about what you are choosing. The swatch is
+# read from tmarchy/themes/<name>.conf directly rather than from live tmux
+# options, so it works with no server running -- the same reason
+# `tmarchy-theme sync` parses the file instead of querying tmux.
+#
+# Applies on Enter ONLY. Applying on cursor-move would repaint the bar nine
+# times while browsing.
+#
+# Sourced with TMUX_THEME_PICK_LIB=1 it defines its functions and exits.
+set -uo pipefail
+
+TMUX_THEME_PICK_SELF="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+    TMUX_THEME_PICK_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+fi
+TMUX_THEME_PICK_LIBDIR="$(dirname "$TMUX_THEME_PICK_SELF")/lib"
+# shellcheck source=lib/tmux-theme.sh
+[ -r "$TMUX_THEME_PICK_LIBDIR/tmux-theme.sh" ] && . "$TMUX_THEME_PICK_LIBDIR/tmux-theme.sh"
+# shellcheck source=lib/tmux-frecency.sh
+[ -r "$TMUX_THEME_PICK_LIBDIR/tmux-frecency.sh" ] && . "$TMUX_THEME_PICK_LIBDIR/tmux-frecency.sh"
+
+GLYPH_THEME='󰏘'
+
+# tmarchy lives beside bin/ in the checkout, not inside it.
+theme_dir() {
+    printf '%s' "${TMARCHY_DIR:-$(dirname "$TMUX_THEME_PICK_LIBDIR")/../tmarchy}/themes"
+}
+
+theme_cmd() {
+    printf '%s' "${TMARCHY_THEME_BIN:-$(dirname "$TMUX_THEME_PICK_LIBDIR")/tmarchy-theme}"
+}
+
+# One @theme-* value out of a theme .conf.
+theme_val() {
+    sed -n "s/^set -g @theme-$2  *\"\(.*\)\".*/\1/p" "$1" 2>/dev/null | head -1
+}
+
+# Six blocks in the theme's own colours. ansi_for handles both #rrggbb and
+# jewel's colourNNN and yields nothing for anything else, so an unparseable
+# value costs one block rather than a broken escape sequence.
+swatch_for() {
+    local name="${1:-}" conf out key val
+    conf="$(theme_dir)/$name.conf"
+    [ -r "$conf" ] || return 0
+    out=""
+    for key in bg fg accent wait busy done; do
+        val="$(theme_val "$conf" "$key")"
+        [ -n "$val" ] || continue
+        out="$out$(ansi_for "$val")███$(printf '\033[0m') "
+    done
+    printf '%s' "$out"
+}
+
+collect_rows() {
+    local rows conf name
+    rows="$(
+        for conf in "$(theme_dir)"/*.conf; do
+            [ -r "$conf" ] || continue
+            name="$(basename "$conf" .conf)"
+            printf '%s\ttheme\t%s %s\n' "$name" "$GLYPH_THEME" "$name"
+        done
+    )"
+    [ -n "$rows" ] || return 0
+    # frecency_sort may be undefined if bin/lib/ was never linked -- the exact
+    # failure that once left tmux-cmd's palette silently empty. Degrade to
+    # alphabetical rather than to nothing.
+    if type frecency_sort >/dev/null 2>&1; then
+        frecency_sort "$rows" "$(frecency_path theme)" frecency_key_theme
+    else
+        printf '%s\n' "$rows"
+    fi
+}
+
+frecency_key_theme() { printf '%s' "${1%%	*}"; }
+
+main() {
+    TMUX_THEME_PICK_MAIN_RAN=1
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf 'tmux-theme-pick: fzf is not installed\n' >&2
+        exit 1
+    fi
+    local rows choice
+    rows=$(collect_rows)
+    if [ -z "$rows" ]; then
+        printf '\ntmux-theme-pick: no themes found in %s\n\n' "$(theme_dir)"
+        printf '  run:  bin/gitfix\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
+    # --preview shells back into this script; SELF is absolute via readlink so
+    # the preview works regardless of the popup's cwd.
+    # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index $(fzf_theme_opts) \
+        --delimiter=$'\t' --with-nth=3.. \
+        --preview="$TMUX_THEME_PICK_SELF --swatch {1}" --preview-window=down,3 \
+        --prompt='theme > ' --height=100% --reverse --no-multi) || exit 0
+    local name
+    name=${choice%%	*}
+    [ -n "$name" ] || exit 0
+    type frecency_record >/dev/null 2>&1 && frecency_record "$(frecency_path theme)" "$name"
+    "$(theme_cmd)" set "$name"
+}
+
+case "${1:-}" in
+    --swatch) [ "${TMUX_THEME_PICK_LIB:-}" = "1" ] || { swatch_for "${2:-}"; printf '\n'; exit 0; } ;;
+    --doctor) [ "${TMUX_THEME_PICK_LIB:-}" = "1" ] || {
+        printf 'tmux-theme-pick doctor\n\n'
+        printf '  lib dir        %s\n' "$TMUX_THEME_PICK_LIBDIR"
+        printf '  frecency_sort  %s\n' "$(type -t frecency_sort 2>/dev/null || echo MISSING)"
+        printf '  theme dir      %s\n' "$(theme_dir)"
+        printf '  themes         %s\n' "$(collect_rows | grep -c .)"
+        printf '  tmarchy-theme  %s\n' "$(theme_cmd)"
+        exit 0; } ;;
+esac
+
+[ "${TMUX_THEME_PICK_LIB:-}" = "1" ] || main "$@"
