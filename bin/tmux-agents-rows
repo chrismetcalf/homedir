@@ -3,7 +3,11 @@
 //
 // Pure data: bin/tmux-agents renders these through fzf. Kept separate because
 // the stale filtering and the sort are where this can go silently wrong, and a
-// separate file can be tested against a fixture with no tmux and no fzf.
+// separate file can be tested against a fixture with no tmux and no fzf --
+// PROVIDED the caller also stubs TMUX_AGENTS_CAPTURE_<id> for every pane its
+// fixture exercises through the pane-content fallback below. Leaving one
+// unstubbed does not error; it silently shells out to a real `tmux
+// capture-pane` on that pane id, which is a live-server dependent test.
 //
 // Reads ~/.tmux-scout/status.json with JSON.parse only -- NOT through scout's
 // scripts/picker/sync + render the way bin/tmux-scout-next-wait does -- so it
@@ -75,7 +79,14 @@ if (typeof doc !== 'object' || doc === null) {
 // tidier and wrong: a busy agent updates constantly, so lastUpdated is ~0s for
 // exactly the rows where the number matters most.
 function since(s, state) {
-  if (state === 'wait') return s.lastHookAt
+  // A row promoted to wait by the pane-content fallback below has no
+  // lastHookAt at all -- scout never saw a hook fire for it, that's the whole
+  // reason it needed the fallback. Falling back to lastUpdated (the session
+  // record is still being written while the pane sits on a dialog) gives it a
+  // real duration instead of ms=-1 -- which would render "--" and, worse, sort
+  // it dead last among waits, burying exactly the row Finding 3 exists to
+  // surface at the bottom of its own group.
+  if (state === 'wait') return s.lastHookAt || s.lastUpdated
   if (state === 'busy') return s.turnStartedAt
   return s.turnEndedAt || s.lastUpdated
 }

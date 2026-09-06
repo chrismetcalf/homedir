@@ -21,6 +21,23 @@ export TMUX_AGENTS_STATUS="$DIR/fixtures/agents-status.json"
 # order different from this expected order.
 export TMUX_AGENTS_PANES="%10 %11 %12 %13 %14 %16 %17 %19 %20 %99"
 export TMUX_AGENTS_CURRENT="%99"
+# The pane-content fallback shells out to a REAL `tmux capture-pane` for every
+# row not already classified wait -- here that's %12 (busy), %13 and %14
+# (idle), %19 (crashed) and %20 (done) -- unless stubbed. Pane ids restart from
+# %0 on every tmux server restart, so these ids exist on some live server
+# within a dozen splits; without a stub this suite reads REAL scrollback when
+# run inside a live tmux session (its normal environment) and a genuine
+# approval dialog sitting on any of those real ids would non-deterministically
+# reclassify a fixture row, reorder it, and break an unrelated assertion. An
+# empty value is the correct stub for "this pane is not prompting" -- it never
+# satisfies paneIsPrompting()'s selector+footer check. %10/%11 need no stub:
+# they classify as wait from sessionState() alone, so the fallback never calls
+# capturePane() for them at all (see the `state !== 'wait' &&` short-circuit).
+export TMUX_AGENTS_CAPTURE_12=""
+export TMUX_AGENTS_CAPTURE_13=""
+export TMUX_AGENTS_CAPTURE_14=""
+export TMUX_AGENTS_CAPTURE_19=""
+export TMUX_AGENTS_CAPTURE_20=""
 
 echo "tmux-agents-rows"
 OUT="$(TMUX_AGENTS_NOW=1788672000000 "$DIR/tmux-agents-rows")"
@@ -64,7 +81,10 @@ DIALOG=$'some tool output\n  \xe2\x9d\xaf 1. Yes\n    2. No\nEsc to cancel'
 QUOTED_LINES=$'\xe2\x9d\xaf 1. Yes\nEsc to cancel\n'
 for _ in $(seq 1 20); do QUOTED_LINES="${QUOTED_LINES}later output
 "; done
-FALLBACK_OUT="$(TMUX_AGENTS_PANES="%21 %22" \
+# %10 (s-wait-old, a real needsAttention wait with a 10m duration from
+# lastHookAt) rides along so the promoted row's sort position among other
+# waits can be checked, not just its own label.
+FALLBACK_OUT="$(TMUX_AGENTS_PANES="%10 %21 %22" \
     TMUX_AGENTS_CAPTURE_21="$DIALOG" \
     TMUX_AGENTS_CAPTURE_22="$QUOTED_LINES" \
     TMUX_AGENTS_NOW=1788672000000 "$DIR/tmux-agents-rows")"
@@ -74,6 +94,15 @@ assert_contains "busy pane merely quoting dialog text in scrollback stays WORK" 
     "$(printf '%s\n' "$FALLBACK_OUT" | grep '^%22')"
 assert_eq "quoted-but-not-live dialog text is never promoted to WAIT" "0" \
     "$(printf '%s\n' "$FALLBACK_OUT" | grep -c '^%22.*WAIT')"
+# A dialog-promoted row has no lastHookAt (scout never saw a hook fire for it
+# -- that's why it needed the fallback at all). since() must fall back to
+# lastUpdated (5m here: 1788672000000-1788671700000) rather than render "--"
+# and sort dead last among waits, which is what -1ms did before this fix.
+FALLBACK_PANES="$(printf '%s\n' "$FALLBACK_OUT" | cut -f1 | tr '\n' ' ')"
+assert_contains "dialog-promoted row gets a real duration, not --" "5m" \
+    "$(printf '%s\n' "$FALLBACK_OUT" | grep '^%21')"
+assert_eq "dialog-promoted row (5m) sorts among waits behind the 10m one, ahead of WORK" \
+    "%10 %21 %22 " "$FALLBACK_PANES"
 
 echo "shape"
 assert_eq "field 2 is the kind" "agent" "$(printf '%s\n' "$OUT" | head -1 | cut -f2)"

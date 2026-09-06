@@ -32,7 +32,8 @@
     "s-current":   { "tmuxPane": "%99", "workingDirectory": "/home/k/self",
                      "phase": "running", "turnStartedAt": 1788671000000 },
     "s-busy-dialog": { "tmuxPane": "%21", "workingDirectory": "/home/k/blocked-no-hook",
-                     "phase": "running", "turnStartedAt": 1788671995000 },
+                     "phase": "running", "turnStartedAt": 1788671995000,
+                     "lastUpdated": 1788671700000 },
     "s-busy-quoted": { "tmuxPane": "%22", "workingDirectory": "/home/k/not-blocked",
                      "phase": "running", "turnStartedAt": 1788671995000 }
   }
