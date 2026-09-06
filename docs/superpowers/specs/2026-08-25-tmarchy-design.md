@@ -37,7 +37,7 @@ tmarchy finishes that job: after this work, **nothing forks on a status redraw**
 | --- | --- |
 | Project/session launcher, incl. SSH connection management | Own subsystem: connection lifecycle, prefix passthrough, ControlMaster reuse, reconnect-after-drop. Only the *display* half of SSH is in scope here. |
 | Layout presets | Independent keymap work. |
-| Agent-aware navigation (cycle waiting agents, dashboard) | Independent; builds on scout. |
+| Agent-aware navigation (cycle waiting agents, dashboard) | Independent; builds on scout. **Delivered**: cycling is `prefix + ~` (`bin/tmux-scout-next-wait`, shipped with tmarchy); triage is `prefix + A` (`bin/tmux-agents`, spec `2026-09-05-agent-dashboard-design.md`). |
 | Keybinding overhaul | Deliberately last — it re-labels everything the other pieces add, and the menu should be regenerated from the final scheme rather than edited twice. |
 | Moving nvim off `spaceduck` | Real scope (colorscheme plugin, lualine theme, indent-blankline colors). Until it happens, nvim will clash with a Tokyo Night bar. Accepted knowingly. |
 
