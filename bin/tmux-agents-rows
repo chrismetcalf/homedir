@@ -1,0 +1,96 @@
+#!/usr/bin/env node
+// tmux-agents-rows — classify live agent sessions and print picker rows.
+//
+// Pure data: bin/tmux-agents renders these through fzf. Kept separate because
+// the stale filtering and the sort are where this can go silently wrong, and a
+// separate file can be tested against a fixture with no tmux and no fzf.
+//
+// Reads ~/.tmux-scout/status.json with JSON.parse only -- NOT through scout's
+// scripts/picker/sync + render the way bin/tmux-scout-next-wait does -- so it
+// still works on a host where the tpm plugin has not been installed yet.
+const fs = require('node:fs')
+const path = require('node:path')
+const { execSync } = require('node:child_process')
+const { sessionState } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout'))
+
+function tmux(args) {
+  try {
+    return execSync('tmux ' + args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch (_) { return '' }
+}
+
+const STATUS = process.env.TMUX_AGENTS_STATUS
+  || path.join(process.env.HOME || '', '.tmux-scout/status.json')
+const NOW = Number(process.env.TMUX_AGENTS_NOW) || Date.now()
+
+// Live panes and the current pane come from the environment when set, so the
+// selftest needs no tmux server.
+const livePanes = new Set(
+  (process.env.TMUX_AGENTS_PANES !== undefined
+    ? process.env.TMUX_AGENTS_PANES
+    : tmux("list-panes -a -F '#{pane_id}'")
+  ).split(/\s+/).filter(Boolean))
+const current = (process.env.TMUX_AGENTS_CURRENT !== undefined
+  ? process.env.TMUX_AGENTS_CURRENT
+  : tmux("display-message -p '#{pane_id}'")).trim()
+
+// Exit 3 on unreadable/unparseable, NOT 0. The picker distinguishes the two:
+// "no live agents" and "your status file is corrupt" are different answers, and
+// silently returning zero rows for the second would print the first.
+let doc
+try {
+  doc = JSON.parse(fs.readFileSync(STATUS, 'utf8'))
+} catch (e) {
+  process.stderr.write('tmux-agents-rows: cannot read ' + STATUS + ': ' + e.message + '\n')
+  process.exit(3)
+}
+
+// Duration is measured from a DIFFERENT field per state. One clock would be
+// tidier and wrong: a busy agent updates constantly, so lastUpdated is ~0s for
+// exactly the rows where the number matters most.
+function since(s, state) {
+  if (state === 'wait') return s.lastHookAt
+  if (state === 'busy') return s.turnStartedAt
+  return s.turnEndedAt || s.lastUpdated
+}
+
+function human(ms) {
+  if (!ms || ms < 0) return '—'
+  const sec = Math.floor(ms / 1000)
+  if (sec < 60) return sec + 's'
+  if (sec < 3600) return Math.floor(sec / 60) + 'm' + String(sec % 60).padStart(2, '0') + 's'
+  if (sec < 86400) return Math.floor(sec / 3600) + 'h'
+  return Math.floor(sec / 86400) + 'd'
+}
+
+const ORDER = { wait: 0, busy: 1, done: 2, idle: 3 }
+const rows = []
+for (const s of Object.values(doc.sessions || {})) {
+  if (!s.tmuxPane || s.tmuxPane === current) continue
+  // Stale two ways: scout's own flag, AND the pane actually being gone. The
+  // flag lags -- that is how 36 dead entries accumulated in a 587K file.
+  if (s.staleReason || s.endedAt) continue
+  if (!livePanes.has(s.tmuxPane)) continue
+  const state = sessionState(s)
+  if (!state) continue
+  const from = since(s, state)
+  rows.push({
+    pane: s.tmuxPane,
+    state,
+    ms: from ? NOW - from : -1,
+    label: path.basename(s.workingDirectory || '') || '?',
+    detail: s.activeTool || s.currentActivity || '',
+  })
+}
+
+// wait and busy: longest first, because the longest-blocked agent is the point.
+// idle: most recent first, mirroring tmux-goto's instinct of keeping
+// where-you-just-were within reach. Different directions on purpose.
+rows.sort((a, b) => (ORDER[a.state] - ORDER[b.state])
+  || (a.state === 'idle' ? a.ms - b.ms : b.ms - a.ms))
+
+const LABEL = { wait: 'WAIT', busy: 'WORK', done: 'DONE', idle: 'IDLE' }
+for (const r of rows) {
+  const disp = `${LABEL[r.state]} ${human(r.ms).padStart(7)}  ${r.label.padEnd(22).slice(0, 22)}  ${r.detail}`
+  process.stdout.write(`${r.pane}\tagent\t${disp.replace(/\s+$/, '')}\n`)
+}

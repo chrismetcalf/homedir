@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# tmux-agents-selftest — fixture-driven tests for bin/tmux-agents-rows.
+#
+# Runs entirely without tmux, fzf, or any live agent: the emitter takes its
+# status file, its live pane list and the current pane from the environment.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_contains() { case "$3" in *"$2"*) pass "$1" ;; *) fail "$1" "to contain: $2" "$3" ;; esac; }
+
+export TMUX_AGENTS_STATUS="$DIR/fixtures/agents-status.json"
+# %15 and %18 deliberately absent: one is flagged stale, one is not.
+export TMUX_AGENTS_PANES="%10 %11 %12 %13 %14 %16 %17 %19 %99"
+export TMUX_AGENTS_CURRENT="%99"
+
+echo "tmux-agents-rows"
+OUT="$(TMUX_AGENTS_NOW=1788672000000 "$DIR/tmux-agents-rows")"
+PANES="$(printf '%s\n' "$OUT" | cut -f1 | tr '\n' ' ')"
+
+assert_eq "row count" "5" "$(printf '%s\n' "$OUT" | grep -c .)"
+assert_eq "order is wait-longest, wait, busy, then idle" "%10 %11 %12 %13 %14 " "$PANES"
+
+echo "exclusions"
+assert_eq "current pane excluded"            "0" "$(printf '%s\n' "$OUT" | grep -c '^%99')"
+assert_eq "stale by flag excluded"           "0" "$(printf '%s\n' "$OUT" | grep -c '^%15')"
+assert_eq "ended excluded"                   "0" "$(printf '%s\n' "$OUT" | grep -c '^%16')"
+assert_eq "crashed (null state) excluded"    "0" "$(printf '%s\n' "$OUT" | grep -c '^%19')"
+assert_eq "session with no pane excluded"    "0" "$(printf '%s\n' "$OUT" | grep -c 'nopane')"
+# The two disagreement cases, which one-way filtering gets wrong:
+assert_eq "flagged stale but pane alive: excluded" "0" "$(printf '%s\n' "$OUT" | grep -c '^%17.*zombie')"
+assert_eq "not flagged but pane gone: excluded"    "0" "$(printf '%s\n' "$OUT" | grep -c '^%18')"
+
+echo "clocks"
+# wait uses lastHookAt: 1788672000000-1788671400000 = 600s = 10m
+assert_contains "wait duration from lastHookAt" "10m" "$(printf '%s\n' "$OUT" | grep '^%10')"
+# busy uses turnStartedAt: 900000ms = 15m
+assert_contains "busy duration from turnStartedAt" "15m" "$(printf '%s\n' "$OUT" | grep '^%12')"
+# idle uses turnEndedAt: 3600000ms = 1h
+assert_contains "idle duration from turnEndedAt" "1h" "$(printf '%s\n' "$OUT" | grep '^%13')"
+# idle with no turnEndedAt falls back to lastUpdated
+assert_contains "idle falls back to lastUpdated" "1h" "$(printf '%s\n' "$OUT" | grep '^%14')"
+
+echo "shape"
+assert_eq "field 2 is the kind" "agent" "$(printf '%s\n' "$OUT" | head -1 | cut -f2)"
+assert_contains "label is the directory basename" "otto" "$(printf '%s\n' "$OUT" | grep '^%10')"
+
+echo "empty state"
+assert_eq "no live agents yields no rows" "0" \
+    "$(TMUX_AGENTS_PANES=" " "$DIR/tmux-agents-rows" | grep -c .)"
+
+printf '\n'
+[ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
+printf 'FAILURES\n'; exit 1
