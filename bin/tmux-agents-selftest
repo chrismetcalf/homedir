@@ -67,6 +67,18 @@ jump_line() { printf '%s\n' "$JUMP_CODE" | grep -n "tmux $1" | head -1 | cut -d:
 SC=$(jump_line switch-client); SW=$(jump_line select-window); SP=$(jump_line select-pane)
 assert_eq "jump order is switch-client, select-window, select-pane" "ordered" \
     "$([ -n "$SC" ] && [ -n "$SW" ] && [ -n "$SP" ] && [ "$SC" -lt "$SW" ] && [ "$SW" -lt "$SP" ] && echo ordered || echo "out-of-order: $SC $SW $SP")"
+# All three colours colourise fetches (wait/busy/done) must actually be
+# painted onto a row -- a fetched-but-unused colour is exactly what a future
+# tidy-up deletes, since nothing else in the script reads it. Checked against
+# the case block that dispatches on $state, and that each arm paints with its
+# OWN variable, not just that the state word appears somewhere.
+CASE_BLOCK="$(sed -n '/case "\$state" in/,/esac/p' "$DIR/tmux-agents")"
+assert_contains "colourise: WAIT arm paints with \$wait"   '$wait' \
+    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *WAIT)')"
+assert_contains "colourise: WORK arm paints with \$busy"   '$busy' \
+    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *WORK)')"
+assert_contains "colourise: DONE arm paints with \$done_c" '$done_c' \
+    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *DONE)')"
 # Navigation only: no acting on agents from this tool.
 assert_eq "no kill in the picker"    "0" "$(grep -c 'kill-pane\|kill-window\|kill-session' "$DIR/tmux-agents")"
 assert_eq "ctrl-v is not bound"      "0" "$(grep -c 'expect=ctrl-v' "$DIR/tmux-agents")"

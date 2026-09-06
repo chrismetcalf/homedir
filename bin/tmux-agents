@@ -37,6 +37,7 @@ colourise() {
         case "$state" in
             WAIT) printf '%s%s%s\n' "$wait" "$line" "$reset" ;;
             WORK) printf '%s%s%s\n' "$busy" "$line" "$reset" ;;
+            DONE) printf '%s%s%s\n' "$done_c" "$line" "$reset" ;;
             *)    printf '%s\n' "$line" ;;
         esac
     done
