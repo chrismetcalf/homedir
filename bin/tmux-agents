@@ -20,7 +20,10 @@ DIR="$(dirname "$SELF")"
 # shellcheck source=lib/tmux-theme.sh
 [ -r "$DIR/lib/tmux-theme.sh" ] && . "$DIR/lib/tmux-theme.sh"
 
-ROWS_BIN="$DIR/tmux-agents-rows"
+# TMUX_AGENTS_ROWS_BIN override exists for the selftest, so the "missing" and
+# "non-executable" preflight branches and the exit-code passthrough can be
+# exercised against a throwaway stand-in rather than mutating the real emitter.
+ROWS_BIN="${TMUX_AGENTS_ROWS_BIN:-$DIR/tmux-agents-rows}"
 STATUS="${TMUX_AGENTS_STATUS:-$HOME/.tmux-scout/status.json}"
 
 # Tint each row by its state, using the same @theme-* values as the bar and
@@ -48,6 +51,9 @@ doctor() {
     printf '  status file    %s\n' "$STATUS"
     printf '  readable       %s\n' "$([ -r "$STATUS" ] && echo yes || echo NO)"
     printf '  node           %s\n' "$(command -v node || echo MISSING)"
+    printf '  fzf            %s\n' "$(command -v fzf || echo MISSING)"
+    printf '  rows bin       %s\n' "$ROWS_BIN"
+    printf '  rows bin exec  %s\n' "$([ -x "$ROWS_BIN" ] && echo yes || echo NO)"
     printf '  lib dir        %s\n' "$DIR/lib"
     printf '  ansi_for       %s\n' "$(type -t ansi_for 2>/dev/null || echo MISSING)"
     if [ -r "$STATUS" ] && command -v python3 >/dev/null 2>&1; then
@@ -68,9 +74,21 @@ main() {
         printf '\ntmux-agents: node is not installed, and the row emitter needs it.\n\n'
         printf 'Press ENTER to close'; read -r _; exit 1
     fi
+    # Same check every sibling picker makes (tmux-goto, tmux-cmd, tmux-ssh),
+    # wrapped in this script's own pause-before-close so the popup (bound with
+    # display-popup -E, which closes the instant the command exits) doesn't
+    # flash open and shut with the message unread.
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf '\ntmux-agents: fzf is not installed\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
     if [ ! -r "$STATUS" ]; then
         printf '\ntmux-agents: no scout status file at\n  %s\n\n' "$STATUS"
         printf '  tmux-scout writes it; install it with prefix + I\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
+    if [ ! -x "$ROWS_BIN" ]; then
+        printf '\ntmux-agents: the row emitter is missing or not executable at\n  %s\n\n' "$ROWS_BIN"
         printf 'Press ENTER to close'; read -r _; exit 1
     fi
     local rows choice pane rc
@@ -78,6 +96,14 @@ main() {
     if [ "$rc" = 3 ]; then
         printf '\ntmux-agents: the scout status file could not be parsed.\n  %s\n\n' "$STATUS"
         printf '  It exists but is not valid JSON -- scout may have been interrupted mid-write.\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
+    # Any other non-zero rc (126 permission denied, 127 not found, a node crash)
+    # is a real failure, not "zero rows" -- falling through to the empty-list
+    # branch would report "no live agents" and send the user looking in the
+    # wrong place, exactly the class of bug bin/lib/ being unlinked caused before.
+    if [ "$rc" != 0 ]; then
+        printf '\ntmux-agents: the row emitter failed (exit %s).\n  %s\n\n' "$rc" "$ROWS_BIN"
         printf 'Press ENTER to close'; read -r _; exit 1
     fi
     if [ -z "$rows" ]; then

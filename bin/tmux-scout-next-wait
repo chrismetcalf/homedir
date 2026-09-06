@@ -3,9 +3,9 @@
 //
 // Reuses tmux-scout's own sync/render modules to classify sessions exactly
 // the way tmarchy/bin/tmarchy-tick does, then collects every pane in the
-// "wait" state (needsAttention, or a tool-use pending >5s) and switches the
-// client to the next one after the current pane — cycling across windows and
-// sessions. Bound to `prefix + ~` in .tmux.conf.
+// "wait" state (as sessionState() in tmarchy/lib/scout.js defines it) and
+// switches the client to the next one after the current pane — cycling across
+// windows and sessions. Bound to `prefix + ~` in .tmux.conf.
 
 const { execSync } = require('child_process')
 const path = require('path')

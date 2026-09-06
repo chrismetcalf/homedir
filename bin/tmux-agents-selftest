@@ -14,15 +14,20 @@ assert_contains() { case "$3" in *"$2"*) pass "$1" ;; *) fail "$1" "to contain: 
 
 export TMUX_AGENTS_STATUS="$DIR/fixtures/agents-status.json"
 # %15 and %18 deliberately absent: one is flagged stale, one is not.
-export TMUX_AGENTS_PANES="%10 %11 %12 %13 %14 %16 %17 %19 %99"
+# NOTE: the fixture's `sessions` object deliberately does NOT declare its keys
+# in this order (see bin/fixtures/agents-status.json) -- input order already
+# equalling sorted order is exactly what let `rows.sort(...)` be deleted from
+# tmux-agents-rows without this suite noticing. Keep the fixture's declared
+# order different from this expected order.
+export TMUX_AGENTS_PANES="%10 %11 %12 %13 %14 %16 %17 %19 %20 %99"
 export TMUX_AGENTS_CURRENT="%99"
 
 echo "tmux-agents-rows"
 OUT="$(TMUX_AGENTS_NOW=1788672000000 "$DIR/tmux-agents-rows")"
 PANES="$(printf '%s\n' "$OUT" | cut -f1 | tr '\n' ' ')"
 
-assert_eq "row count" "5" "$(printf '%s\n' "$OUT" | grep -c .)"
-assert_eq "order is wait-longest, wait, busy, then idle" "%10 %11 %12 %13 %14 " "$PANES"
+assert_eq "row count" "6" "$(printf '%s\n' "$OUT" | grep -c .)"
+assert_eq "order is wait-longest, wait, busy, done, then idle" "%10 %11 %12 %20 %13 %14 " "$PANES"
 
 echo "exclusions"
 assert_eq "current pane excluded"            "0" "$(printf '%s\n' "$OUT" | grep -c '^%99')"
@@ -43,6 +48,32 @@ assert_contains "busy duration from turnStartedAt" "15m" "$(printf '%s\n' "$OUT"
 assert_contains "idle duration from turnEndedAt" "1h" "$(printf '%s\n' "$OUT" | grep '^%13')"
 # idle with no turnEndedAt falls back to lastUpdated
 assert_contains "idle falls back to lastUpdated" "1h" "$(printf '%s\n' "$OUT" | grep '^%14')"
+# done uses turnEndedAt: 1200000ms = 20m -- done was previously unexercised
+# (reachable in practice, but no fixture entry classified to it before this).
+assert_contains "done duration from turnEndedAt" "20m" "$(printf '%s\n' "$OUT" | grep '^%20')"
+assert_contains "done label is DONE" "DONE" "$(printf '%s\n' "$OUT" | grep '^%20')"
+
+echo "pane-content fallback (dialog on a hookless/latched session)"
+# sessionState() alone misses a live approval dialog when needsAttention never
+# fired (a session started before the PermissionRequest hook existed) or the
+# phase is latched to something else. TMUX_AGENTS_CAPTURE_<id> stubs
+# capture-pane per pane with no tmux server. s-busy-dialog (%21) and
+# s-busy-quoted (%22) are both plain `phase: running` (busy) sessions in the
+# fixture; only their pane content differs.
+DIALOG=$'some tool output\n  \xe2\x9d\xaf 1. Yes\n    2. No\nEsc to cancel'
+QUOTED_LINES=$'\xe2\x9d\xaf 1. Yes\nEsc to cancel\n'
+for _ in $(seq 1 20); do QUOTED_LINES="${QUOTED_LINES}later output
+"; done
+FALLBACK_OUT="$(TMUX_AGENTS_PANES="%21 %22" \
+    TMUX_AGENTS_CAPTURE_21="$DIALOG" \
+    TMUX_AGENTS_CAPTURE_22="$QUOTED_LINES" \
+    TMUX_AGENTS_NOW=1788672000000 "$DIR/tmux-agents-rows")"
+assert_contains "busy pane with a live approval dialog is promoted to WAIT" "WAIT" \
+    "$(printf '%s\n' "$FALLBACK_OUT" | grep '^%21')"
+assert_contains "busy pane merely quoting dialog text in scrollback stays WORK" "WORK" \
+    "$(printf '%s\n' "$FALLBACK_OUT" | grep '^%22')"
+assert_eq "quoted-but-not-live dialog text is never promoted to WAIT" "0" \
+    "$(printf '%s\n' "$FALLBACK_OUT" | grep -c '^%22.*WAIT')"
 
 echo "shape"
 assert_eq "field 2 is the kind" "agent" "$(printf '%s\n' "$OUT" | head -1 | cut -f2)"
@@ -88,10 +119,70 @@ assert_contains "absent status file is explained" "no scout status file" \
     "$(TMUX_AGENTS_STATUS=/definitely/absent bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
 # A corrupt file and an empty one are different answers; saying "no live agents"
 # for a truncated write would send you looking in the wrong place entirely.
-printf 'not json' > "$DIR/fixtures/.corrupt.json"
+# mktemp, not a file under fixtures/, so an interrupted run leaves nothing
+# untracked behind (every other selftest in this repo follows the same rule).
+CORRUPT="$(mktemp)"
+printf 'not json' > "$CORRUPT"
 assert_contains "corrupt status file is explained" "could not be parsed" \
-    "$(TMUX_AGENTS_STATUS="$DIR/fixtures/.corrupt.json" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
-rm -f "$DIR/fixtures/.corrupt.json"
+    "$(TMUX_AGENTS_STATUS="$CORRUPT" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+rm -f "$CORRUPT"
+
+# JSON.parse("null") succeeds -- "null" is valid JSON -- so the emitter must
+# reject it explicitly rather than let `doc.sessions` throw a TypeError and
+# exit 1, which would print "no live agents" for a file that is actually broken.
+NULLFILE="$(mktemp)"
+printf 'null' > "$NULLFILE"
+TMUX_AGENTS_STATUS="$NULLFILE" "$DIR/tmux-agents-rows" >/dev/null 2>&1
+NULLRC=$?
+assert_eq "a parsed-but-non-object status file exits 3, not 1" "3" "$NULLRC"
+rm -f "$NULLFILE"
+
+echo "preflight: fzf"
+# Every sibling picker (tmux-goto, tmux-cmd, tmux-ssh) refuses to open without
+# fzf; this one didn't, so a host missing it got an empty popup with nothing to
+# read (display-popup -E closes the instant the command exits). Build a PATH
+# containing only bash, node and dirname -- everything the script needs to
+# reach the fzf check -- and deliberately no fzf, so the check under test is
+# the only thing that can produce this message. (A plain `PATH=... bash ...`
+# doesn't work here: bash resolves the command it's about to run using the
+# NEW PATH, not the invoking shell's, so bash itself must be on it too.)
+NOFZF_DIR="$(mktemp -d)"
+ln -s "$(command -v bash)" "$NOFZF_DIR/bash"
+ln -s "$(command -v node)" "$NOFZF_DIR/node"
+ln -s "$(command -v dirname)" "$NOFZF_DIR/dirname"
+assert_contains "missing fzf is explained, not flashed away" "fzf is not installed" \
+    "$(PATH="$NOFZF_DIR" TMUX_AGENTS_STATUS="$DIR/fixtures/agents-status.json" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+rm -rf "$NOFZF_DIR"
+
+echo "preflight: row emitter missing/non-executable/failing"
+# TMUX_AGENTS_ROWS_BIN lets these point at a throwaway stand-in instead of
+# mutating the real bin/tmux-agents-rows.
+MISSING_ROWS="$(mktemp -u)"  # deliberately never created
+assert_contains "missing row emitter is explained, not reported as 'no live agents'" \
+    "missing or not executable" \
+    "$(TMUX_AGENTS_ROWS_BIN="$MISSING_ROWS" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+
+NOEXEC_ROWS="$(mktemp)"
+printf '#!/usr/bin/env bash\nprintf "should never run\\n"\n' > "$NOEXEC_ROWS"
+# left non-executable deliberately
+assert_contains "non-executable row emitter is explained" "missing or not executable" \
+    "$(TMUX_AGENTS_ROWS_BIN="$NOEXEC_ROWS" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+rm -f "$NOEXEC_ROWS"
+
+# A row emitter that runs but fails with some exit code other than 0 or 3 (a
+# permission error, a node crash, anything) must be reported by exit code, not
+# silently folded into the empty-rows "no live agents" branch.
+FAILING_ROWS="$(mktemp)"
+printf '#!/usr/bin/env bash\nexit 42\n' > "$FAILING_ROWS"
+chmod +x "$FAILING_ROWS"
+assert_contains "a row emitter exit code other than 0/3 is named, not swallowed" "exit 42" \
+    "$(TMUX_AGENTS_ROWS_BIN="$FAILING_ROWS" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+rm -f "$FAILING_ROWS"
+
+echo "doctor reports fzf and the row emitter"
+DOCTOR_OUT="$("$DIR/tmux-agents" --doctor)"
+assert_contains "doctor reports fzf" "fzf" "$DOCTOR_OUT"
+assert_contains "doctor reports whether the row emitter is executable" "rows bin exec" "$DOCTOR_OUT"
 
 printf '\n'
 [ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }

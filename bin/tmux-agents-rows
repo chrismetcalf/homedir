@@ -11,12 +11,30 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { execSync } = require('node:child_process')
-const { sessionState } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout'))
+const { sessionState, paneIsPrompting } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout'))
 
 function tmux(args) {
   try {
     return execSync('tmux ' + args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
   } catch (_) { return '' }
+}
+
+// The bar's wait state is sessionState() UNION paneIsPrompting(): scout's
+// needsAttention hook never fires for a session started before the
+// PermissionRequest hook was registered, so tmarchy/lib/scout.js's paneStates()
+// scrapes the pane for a live approval dialog as a fallback. This picker exists
+// to answer "is anything blocked on me" -- missing exactly the sessions that
+// fallback was built for would defeat the point. Mirrored here rather than
+// shared code because paneStates() rolls panes up into windows and this needs
+// per-pane rows; the predicate itself (paneIsPrompting) is shared.
+//
+// Test override: TMUX_AGENTS_CAPTURE_<paneid-without-%> supplies capture-pane
+// output for one pane with no tmux server, e.g. TMUX_AGENTS_CAPTURE_12='...'
+// stubs pane %12. Falls through to a real `tmux capture-pane` when unset.
+function capturePane(pane) {
+  const key = 'TMUX_AGENTS_CAPTURE_' + pane.replace(/^%/, '')
+  if (key in process.env) return process.env[key]
+  return tmux("capture-pane -p -t '" + pane + "'")
 }
 
 const STATUS = process.env.TMUX_AGENTS_STATUS
@@ -42,6 +60,14 @@ try {
   doc = JSON.parse(fs.readFileSync(STATUS, 'utf8'))
 } catch (e) {
   process.stderr.write('tmux-agents-rows: cannot read ' + STATUS + ': ' + e.message + '\n')
+  process.exit(3)
+}
+// "null" and "42" both pass JSON.parse but are not a status document ("null"
+// is the one that actually crashes: doc.sessions on null throws a TypeError,
+// so the picker would see exit 1, not 3, and report "no live agents" for a
+// file that is actually broken).
+if (typeof doc !== 'object' || doc === null) {
+  process.stderr.write('tmux-agents-rows: ' + STATUS + ' did not parse to a JSON object\n')
   process.exit(3)
 }
 
@@ -71,7 +97,11 @@ for (const s of Object.values(doc.sessions || {})) {
   // flag lags -- that is how 36 dead entries accumulated in a 587K file.
   if (s.staleReason || s.endedAt) continue
   if (!livePanes.has(s.tmuxPane)) continue
-  const state = sessionState(s)
+  let state = sessionState(s)
+  // Pane-content fallback, same as paneStates(): sessionState() alone misses a
+  // live approval dialog on a hookless session (needsAttention never fires),
+  // which is exactly the case this picker exists to surface.
+  if (state !== 'wait' && paneIsPrompting(capturePane(s.tmuxPane))) state = 'wait'
   if (!state) continue
   const from = since(s, state)
   rows.push({
