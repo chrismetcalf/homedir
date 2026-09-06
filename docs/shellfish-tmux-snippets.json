@@ -1,34 +1,110 @@
-/* tmux shortcuts for Secure ShellFish — generated Jun 28, 2026. Prefix is Ctrl-A (\u0001). */
+/* tmux + tmarchy shortcuts for Secure ShellFish — regenerated Sep 6, 2026.
+   Prefix is Ctrl-A (\u0001).
+
+   Regenerate with bin/gen-shellfish-snippets. Ids are
+   stable (uuid5 of the body), so re-importing updates rather than
+   duplicates. `menu` and `palette` reach every other command, so the rest
+   are here for the ones worth one tap. */
 {
   "F77B4F9E-4AE5-4AEC-B8CA-DFCFE4D3CC64": {
-    "description": "tmux menu (tappable)",
+    "description": "tmux menu (tappable, centred)",
     "keyboardLabel": "menu",
     "body": "\u0001m"
+  },
+  "3629AC44-CAA9-4E2F-A82F-AD24FC99AE39": {
+    "description": "Command palette (fuzzy, all commands)",
+    "keyboardLabel": "palette",
+    "body": "\u0001p"
+  },
+  "7A42FB5C-4791-5608-A72C-371F7D607FE6": {
+    "description": "Go to session/window/pane",
+    "keyboardLabel": "goto",
+    "body": "\u0001u"
+  },
+  "C094FC1D-F546-57FA-B9B6-712460F8A7A5": {
+    "description": "Agent triage — waiting first",
+    "keyboardLabel": "agents",
+    "body": "\u0001A"
+  },
+  "249ED944-7C37-4E3E-930D-5865C99ADE2B": {
+    "description": "Jump to next agent awaiting input",
+    "keyboardLabel": "waiting",
+    "body": "\u0001~"
+  },
+  "C30FD90E-1290-46CE-8990-25B224563D01": {
+    "description": "Agent session picker (tmux-scout)",
+    "keyboardLabel": "scout",
+    "body": "\u0001`"
+  },
+  "47FB0C76-14BE-5D59-A202-B8C52C996E3F": {
+    "description": "Toggle window sidebar",
+    "keyboardLabel": "sidebar",
+    "body": "\u0001W"
+  },
+  "469C17C9-B024-546B-9ADD-CE40680E091D": {
+    "description": "Theme picker (menu > Set > Theme)",
+    "keyboardLabel": "theme",
+    "body": "\u0001?st"
+  },
+  "6E9BF3D3-1F94-5574-8C10-6102E8CA98AE": {
+    "description": "lazygit (this pane's repo)",
+    "keyboardLabel": "git",
+    "body": "\u0001G"
+  },
+  "40643BAB-56B5-5ABC-B19B-D9123618172E": {
+    "description": "yazi file manager (this pane's dir)",
+    "keyboardLabel": "files",
+    "body": "\u0001e"
+  },
+  "52ECFDD9-1EC4-5523-A597-CF2E38EC32DB": {
+    "description": "btop (dropdown, stays running)",
+    "keyboardLabel": "btop",
+    "body": "\u0001B"
+  },
+  "59620E7C-ED32-5731-A315-DA5D0899A7B4": {
+    "description": "lazydocker (dropdown)",
+    "keyboardLabel": "docker",
+    "body": "\u0001D"
+  },
+  "A41C3B55-CE3A-5ECA-8E73-9A102CF62632": {
+    "description": "SSH to a host (fuzzy)",
+    "keyboardLabel": "ssh",
+    "body": "\u0001S"
+  },
+  "D2063A79-8F9B-5293-82A2-BCB866DC64DB": {
+    "description": "Ask Claude for a shell command",
+    "keyboardLabel": "ask",
+    "body": "\u0001g"
+  },
+  "7DD980AA-50D8-5133-A468-1F7A6FF52F46": {
+    "description": "Dismiss overlay / dropdown",
+    "keyboardLabel": "esc",
+    "body": "\u0001\u001b"
+  },
+  "0A411400-A05D-424F-BC49-B3B004081567": {
+    "description": "Grab text (extrakto)",
+    "keyboardLabel": "grab",
+    "body": "\u0001\t"
+  },
+  "D699B565-A37D-4F76-B9BE-CBF86EF96DCA": {
+    "description": "Scroll / copy mode",
+    "keyboardLabel": "scroll",
+    "body": "\u0001["
+  },
+  "623ECF2F-A1E2-431A-926C-072BEB1379ED": {
+    "description": "Paste buffer",
+    "keyboardLabel": "paste",
+    "body": "\u0001]"
   },
   "DA9632FE-BB8F-4C7D-B0F2-E4B54DCAEA21": {
     "description": "Zoom pane (fullscreen)",
     "keyboardLabel": "zoom",
     "body": "\u0001z"
   },
-  "72A7D0C1-BFC6-435B-BA92-06066724C8EB": {
-    "description": "Break pane to window",
-    "keyboardLabel": "break",
-    "body": "\u0001b"
-  },
   "FDD7E062-A04A-4808-BDBD-240875A68959": {
     "description": "Pane numbers",
     "keyboardLabel": "panes",
     "body": "\u0001q"
-  },
-  "18A5E2D5-06CB-4CF8-AA16-D7F8E7A4A7CC": {
-    "description": "Pane/window picker (fzf)",
-    "keyboardLabel": "pick",
-    "body": "\u0001F"
-  },
-  "6B8B4818-222B-457D-9939-6590BB935E8F": {
-    "description": "Choose tree",
-    "keyboardLabel": "tree",
-    "body": "\u0001s"
   },
   "5FD201D1-0FCB-48A3-9FDE-DA867F62EC15": {
     "description": "Cycle to next pane",
@@ -45,6 +121,16 @@
     "keyboardLabel": "spl-",
     "body": "\u0001-"
   },
+  "72A7D0C1-BFC6-435B-BA92-06066724C8EB": {
+    "description": "Break pane to its own window",
+    "keyboardLabel": "break",
+    "body": "\u0001b"
+  },
+  "A9B82464-70FA-4E73-80DD-9CB0786FFE3A": {
+    "description": "Kill pane (confirms)",
+    "keyboardLabel": "killp",
+    "body": "\u0001x"
+  },
   "A744EDD2-603C-42EA-A359-41D0C3FC2080": {
     "description": "New window",
     "keyboardLabel": "win+",
@@ -55,10 +141,10 @@
     "keyboardLabel": "win>",
     "body": "\u0001n"
   },
-  "3629AC44-CAA9-4E2F-A82F-AD24FC99AE39": {
-    "description": "Previous window",
+  "70388D6D-BAA8-5E17-94BD-AD0DCCE8EECA": {
+    "description": "Previous window (C-a C-p)",
     "keyboardLabel": "win<",
-    "body": "\u0001p"
+    "body": "\u0001\u0010"
   },
   "E40AB1B4-78A9-42FA-BE15-0BBF6B5236C7": {
     "description": "Last window",
@@ -70,43 +156,18 @@
     "keyboardLabel": "ren",
     "body": "\u0001,"
   },
-  "A9B82464-70FA-4E73-80DD-9CB0786FFE3A": {
-    "description": "Kill pane",
-    "keyboardLabel": "killp",
-    "body": "\u0001x"
+  "6B8B4818-222B-457D-9939-6590BB935E8F": {
+    "description": "Choose tree",
+    "keyboardLabel": "tree",
+    "body": "\u0001s"
   },
-  "FE9F8110-BDD6-45AE-9FF3-39A1ECCB39DB": {
-    "description": "Detach",
-    "keyboardLabel": "detach",
-    "body": "\u0001d"
-  },
-  "D699B565-A37D-4F76-B9BE-CBF86EF96DCA": {
-    "description": "Scroll / copy mode",
-    "keyboardLabel": "scroll",
-    "body": "\u0001["
-  },
-  "623ECF2F-A1E2-431A-926C-072BEB1379ED": {
-    "description": "Paste buffer",
-    "keyboardLabel": "paste",
-    "body": "\u0001]"
-  },
-  "0A411400-A05D-424F-BC49-B3B004081567": {
-    "description": "Grab text (extrakto)",
-    "keyboardLabel": "grab",
-    "body": "\u0001\t"
-  },
-  "249ED944-7C37-4E3E-930D-5865C99ADE2B": {
-    "description": "Next agent awaiting input",
-    "keyboardLabel": "claudes",
-    "body": "\u0001~"
-  },
-  "C30FD90E-1290-46CE-8990-25B224563D01": {
-    "description": "Agent session picker",
-    "keyboardLabel": "agents",
-    "body": "\u0001`"
+  "18A5E2D5-06CB-4CF8-AA16-D7F8E7A4A7CC": {
+    "description": "tmux-fzf (commands, keys, processes)",
+    "keyboardLabel": "fzf",
+    "body": "\u0001F"
   },
   "AEE1158E-BA04-4B0A-A2F2-A51F652134B2": {
-    "description": "Vault console",
+    "description": "New vault session",
     "keyboardLabel": "vault",
     "body": "\u0001V"
   },
@@ -116,8 +177,13 @@
     "body": "\u0001r"
   },
   "EF91CC9F-3DC7-4015-A762-6354C4B3F275": {
-    "description": "Install tmux plugins (tpm)",
+    "description": "Install tmux plugins (prefix + I)",
     "keyboardLabel": "tpm",
     "body": "\u0001I"
+  },
+  "FE9F8110-BDD6-45AE-9FF3-39A1ECCB39DB": {
+    "description": "Detach",
+    "keyboardLabel": "detach",
+    "body": "\u0001d"
   }
 }

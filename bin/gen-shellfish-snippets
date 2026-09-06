@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Regenerate docs/shellfish-tmux-snippets.json from the current keymap.
+
+Run from the repo root: bin/gen-shellfish-snippets
+
+UUIDs are stable: an existing entry keeps its id when its body is unchanged,
+and a new entry's id is uuid5(URL, "tmux-snippet:" + body). So re-running this
+never duplicates a snippet in ShellFish, which keys on the id.
+"""
+import json, re, uuid, datetime, pathlib
+
+OUT = pathlib.Path("docs/shellfish-tmux-snippets.json")
+NS = uuid.NAMESPACE_URL
+
+# label, description, body. Order is the order they appear in ShellFish's row,
+# so the phone-useful ones lead: menu and palette reach everything else.
+SNIPPETS = [
+    ("menu",    "tmux menu (tappable, centred)",        "m"),
+    ("palette", "Command palette (fuzzy, all commands)", "p"),
+    ("goto",    "Go to session/window/pane",            "u"),
+    ("agents",  "Agent triage — waiting first",         "A"),
+    ("waiting", "Jump to next agent awaiting input",    "~"),
+    ("scout",   "Agent session picker (tmux-scout)",    "`"),
+    ("sidebar", "Toggle window sidebar",                "W"),
+    ("theme",   "Theme picker (menu > Set > Theme)",    "?st"),
+    ("git",     "lazygit (this pane's repo)",           "G"),
+    ("files",   "yazi file manager (this pane's dir)",  "e"),
+    ("btop",    "btop (dropdown, stays running)",       "B"),
+    ("docker",  "lazydocker (dropdown)",                "D"),
+    ("ssh",     "SSH to a host (fuzzy)",                "S"),
+    ("ask",     "Ask Claude for a shell command",       "g"),
+    ("esc",     "Dismiss overlay / dropdown",           ""),
+    ("grab",    "Grab text (extrakto)",                 "\t"),
+    ("scroll",  "Scroll / copy mode",                   "["),
+    ("paste",   "Paste buffer",                         "]"),
+    ("zoom",    "Zoom pane (fullscreen)",               "z"),
+    ("panes",   "Pane numbers",                         "q"),
+    ("pane>",   "Cycle to next pane",                   ""),
+    ("spl|",    "Split right",                          "|"),
+    ("spl-",    "Split below",                          "-"),
+    ("break",   "Break pane to its own window",         "b"),
+    ("killp",   "Kill pane (confirms)",                 "x"),
+    ("win+",    "New window",                           "c"),
+    ("win>",    "Next window",                          "n"),
+    ("win<",    "Previous window (C-a C-p)",            ""),
+    ("last",    "Last window",                          " "),
+    ("ren",     "Rename window",                        ","),
+    ("tree",    "Choose tree",                          "s"),
+    ("fzf",     "tmux-fzf (commands, keys, processes)", "F"),
+    ("vault",   "New vault session",                    "V"),
+    ("reload",  "Reload tmux config",                   "r"),
+    ("tpm",     "Install tmux plugins (prefix + I)",    "I"),
+    ("detach",  "Detach",                               "d"),
+]
+
+old_by_body = {}
+if OUT.exists():
+    raw = OUT.read_text()
+    stripped = re.sub(r"^/\*.*?\*/\s*", "", raw, flags=re.S)
+    for k, v in json.loads(stripped).items():
+        old_by_body[v["body"]] = k
+
+out, reused, minted = {}, 0, 0
+for label, desc, body in SNIPPETS:
+    if body in old_by_body:
+        sid = old_by_body[body]
+        reused += 1
+    else:
+        sid = str(uuid.uuid5(NS, "tmux-snippet:" + body)).upper()
+        minted += 1
+    out[sid] = {"description": desc, "keyboardLabel": label, "body": body}
+
+today = datetime.date.today().strftime("%b %-d, %Y")
+header = (
+    "/* tmux + tmarchy shortcuts for Secure ShellFish — regenerated %s.\n"
+    "   Prefix is Ctrl-A (\\u0001).\n"
+    "\n"
+    "   Regenerate with bin/gen-shellfish-snippets. Ids are\n"
+    "   stable (uuid5 of the body), so re-importing updates rather than\n"
+    "   duplicates. `menu` and `palette` reach every other command, so the rest\n"
+    "   are here for the ones worth one tap. */\n"
+) % today
+
+OUT.write_text(header + json.dumps(out, indent=2, ensure_ascii=False) + "\n")
+
+dropped = set(old_by_body) - {b for _, _, b in SNIPPETS}
+print("wrote %s: %d snippets (%d ids reused, %d minted)" % (OUT, len(out), reused, minted))
+if dropped:
+    print("dropped %d stale:" % len(dropped))
+    for b in sorted(dropped):
+        print("   %r" % b)
