@@ -56,17 +56,23 @@ GLYPH_PATH='›'
 
 # Glyph by DECLARED verb — the first segment of the row's menu path.
 #
-# This replaces guessing from command text. The heuristic below got `resizep`
-# and `swapp` wrong, filing both under navigate because that arm matches their
-# names; under a verb-first menu they are declared Move and the glyph follows
-# the declaration. Space-separated pairs rather than an associative array:
-# this repo still targets bash 3.2 for macOS.
+# This replaces guessing from command text. `resizep` and `swapp` draw the
+# navigate glyph under the heuristic below, and still draw it here, because
+# they are declared under Move — the same answer, arrived at because it was
+# declared rather than because a text match happened to agree. Space-separated
+# pairs rather than an associative array: this repo still targets bash 3.2 for
+# macOS.
 VERB_GLYPHS="Go:$GLYPH_NAVIGATE Open:$GLYPH_TOOL Move:$GLYPH_NAVIGATE Set:$GLYPH_CONFIG Copy:$GLYPH_CLIPBOARD New:$GLYPH_CREATE Ask:$GLYPH_PROMPT Show:$GLYPH_INFO Kill:$GLYPH_DESTRUCTIVE Agents:$GLYPH_TOOL"
 
 glyph_for_verb() {
     local trail="${1:-}" cmds="${2:-}" verb pair
     verb=${trail%% *}
     if [ -n "$verb" ]; then
+        # Unquoted on purpose, to split VERB_GLYPHS on spaces -- which also
+        # means each word is subject to pathname expansion. This relies on no
+        # glyph in the table containing a glob metacharacter (* ? [ ]); one
+        # that did would risk expanding against files in the cwd instead of
+        # printing literally.
         for pair in $VERB_GLYPHS; do
             if [ "${pair%%:*}" = "$verb" ]; then
                 printf '%s' "${pair#*:}"
@@ -241,6 +247,12 @@ emit(doc.get("items"), macros, [], out)
 # Merge rather than pick: the trail comes from the copy inside a verb, so the
 # glyph and section are right, while the key comes from whichever copy is
 # advertised, so the shortcut is still shown.
+#
+# This assumes a command lives under exactly one verb. If the same command
+# string ever appeared under two different verbs, the trail (and so the
+# glyph) would come from whichever one this loop hit first -- file order,
+# not intent. Not reachable today: the design rests on each command having
+# one unambiguous verb.
 best = {}
 order = []
 for cmds, key, trail, leaf in out:

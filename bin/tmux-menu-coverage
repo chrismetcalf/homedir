@@ -30,6 +30,11 @@ CONFIG="${CONFIG_ARG:-$HOME/.config/tmux/plugins/tmux-which-key/config.yaml}"
 
 cmds_of() { flatten_menu "$1" | cut -f1 | sort -u; }
 
+# The nine per-theme entries were deliberately replaced by bin/tmux-theme-pick.
+# Overridable so a future deliberate removal can extend it (or a test can
+# tighten it) without editing this script.
+EXPECT_MISSING="${TMUX_MENU_COVERAGE_EXPECT_MISSING:-tmarchy-theme.*set }"
+
 old="$(git -C "$REPO" show "$REF:$REL" 2>/dev/null)"
 if [ -z "$old" ]; then
     printf 'tmux-menu-coverage: cannot read %s at %s\n' "$REL" "$REF" >&2
@@ -37,12 +42,22 @@ if [ -z "$old" ]; then
 fi
 new="$(cat "$CONFIG" 2>/dev/null)"
 
-missing="$(comm -23 <(cmds_of "$old") <(cmds_of "$new"))"
+all_missing="$(comm -23 <(cmds_of "$old") <(cmds_of "$new"))"
 added="$(comm -13 <(cmds_of "$old") <(cmds_of "$new"))"
+
+expected_removals="$(printf '%s\n' "$all_missing" | grep -E "$EXPECT_MISSING")"
+missing="$(printf '%s\n' "$all_missing" | grep -vE "$EXPECT_MISSING")"
+# grep on an empty input still emits an empty line; normalise back to empty.
+[ -n "$expected_removals" ] || expected_removals=""
+[ -n "$missing" ] || missing=""
 
 printf 'tmux-menu-coverage  (old=%s)\n\n' "$REF"
 printf '  old commands   %s\n' "$(cmds_of "$old" | grep -c .)"
 printf '  new commands   %s\n' "$(cmds_of "$new" | grep -c .)"
+if [ -n "$expected_removals" ]; then
+    printf '\n  expected removals (exempted by EXPECT_MISSING=%s):\n' "$EXPECT_MISSING"
+    printf '%s\n' "$expected_removals" | sed 's/^/    /'
+fi
 if [ -n "$missing" ]; then
     printf '\n  MISSING from the new config:\n'
     printf '%s\n' "$missing" | sed 's/^/    /'
@@ -52,4 +67,4 @@ if [ -n "$added" ]; then
     printf '%s\n' "$added" | sed 's/^/    /'
 fi
 [ -z "$missing" ] || exit 1
-printf '\n  no commands lost\n'
+printf '\n  no commands lost beyond the expected removals\n'

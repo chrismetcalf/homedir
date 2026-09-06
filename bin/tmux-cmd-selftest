@@ -319,13 +319,13 @@ unset -f tmux
 rm -rf "$SHIM"
 
 echo "against the real config"
-if [ -r "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml" ]; then
-    real=$(flatten_menu "$(cat "$HOME/.config/tmux/plugins/tmux-which-key/config.yaml")")
+if [ -r "$CONFIG" ]; then
+    real=$(flatten_menu "$(cat "$CONFIG")")
     n=$(printf '%s\n' "$real" | grep -c .)
     [ "$n" -gt 40 ] && pass "the live config flattens to $n commands" \
       || fail "the live config flattens to a plausible count" ">40" "$n"
     # The palette exists to reach this repo's own tools too, not just tmux verbs.
-    for want in tmux-goto tmux-ssh tmarchy-theme; do
+    for want in tmux-goto tmux-ssh tmux-theme-pick; do
         printf '%s\n' "$real" | grep -q "$want" \
           && pass "$want is reachable from the palette" \
           || fail "$want is reachable from the palette" "$want" "absent"

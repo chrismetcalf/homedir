@@ -32,6 +32,18 @@ assert_contains "tokyo-night is present" "tokyo-night" "$ROWS"
 assert_eq "field 1 is a bare theme name" "" \
     "$(printf '%s\n' "$ROWS" | cut -f1 | grep -v '^[a-z][a-z-]*$')"
 
+echo "name_from_choice"
+assert_eq "name_from_choice is defined" "function" "$(type -t name_from_choice)"
+# Use a REAL row from collect_rows, not a hand-written string -- a
+# space/tab slip in the delimiter would still pass a fixture that happened
+# to type the tab correctly by hand.
+FIRST_ROW="$(printf '%s\n' "$ROWS" | head -1)"
+FIRST_NAME="$(printf '%s\n' "$ROWS" | head -1 | cut -f1)"
+assert_eq "name_from_choice recovers field 1 from a real row" "$FIRST_NAME" \
+    "$(name_from_choice "$FIRST_ROW")"
+assert_eq "name_from_choice never leaks a tab" "0" \
+    "$(name_from_choice "$FIRST_ROW" | grep -c "	")"
+
 echo "swatch"
 SW="$(swatch_for tokyo-night)"
 assert_contains "hex theme swatch carries an SGR escape" $'\033[38;2;' "$SW"
@@ -61,6 +73,30 @@ PREVIEW_LINE="$(grep -- '--preview=' "$DIR/tmux-theme-pick")"
 assert_contains "--preview invokes --swatch" "--swatch" "$PREVIEW_LINE"
 assert_eq "--preview never applies a theme" "0" \
     "$(printf '%s\n' "$PREVIEW_LINE" | grep -c ' set ')"
+
+# Behavioural, not textual: the two assertions above would still pass if
+# swatch_for itself applied a theme, as long as the string "tmarchy-theme" or
+# " set " never appeared literally in the --preview line. Point the picker at
+# a stub "tmarchy-theme" that leaves evidence if it's ever invoked, run the
+# actual --swatch code path, and check the evidence is absent.
+STUB_DIR=$(mktemp -d)
+MARKER="$STUB_DIR/applied"
+cat > "$STUB_DIR/stub-theme-cmd" <<STUB
+#!/usr/bin/env bash
+touch "$MARKER"
+STUB
+chmod +x "$STUB_DIR/stub-theme-cmd"
+rm -f "$MARKER"
+# TMUX_THEME_PICK_LIB=1 is exported at the top of this file so we can source
+# the script's functions; that same export would otherwise leak into the
+# subprocess below and make it library-source itself instead of running the
+# --swatch case, which would pass vacuously no matter what --swatch does.
+env -u TMUX_THEME_PICK_LIB TMARCHY_THEME_BIN="$STUB_DIR/stub-theme-cmd" \
+    bash "$DIR/tmux-theme-pick" --swatch tokyo-night >/dev/null
+[ ! -e "$MARKER" ] \
+    && pass "swatch preview never invokes tmarchy-theme" \
+    || fail "swatch preview never invokes tmarchy-theme" "marker absent" "marker exists"
+rm -rf "$STUB_DIR"
 
 printf '\n'
 [ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }

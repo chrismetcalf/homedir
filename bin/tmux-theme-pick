@@ -81,6 +81,12 @@ collect_rows() {
 
 frecency_key_theme() { printf '%s' "${1%%	*}"; }
 
+# A row is "TARGET<TAB>KIND<TAB>DISPLAY"; the target is everything before the
+# first tab. Split out so it can be tested against a real row from
+# collect_rows rather than a hand-written string -- a delimiter slip here
+# would silently ship the wrong theme name to tmarchy-theme.
+name_from_choice() { printf '%s' "${1%%	*}"; }
+
 main() {
     TMUX_THEME_PICK_MAIN_RAN=1
     if ! command -v fzf >/dev/null 2>&1; then
@@ -102,7 +108,7 @@ main() {
         --preview="$TMUX_THEME_PICK_SELF --swatch {1}" --preview-window=down,3 \
         --prompt='theme > ' --height=100% --reverse --no-multi) || exit 0
     local name
-    name=${choice%%	*}
+    name=$(name_from_choice "$choice")
     [ -n "$name" ] || exit 0
     type frecency_record >/dev/null 2>&1 && frecency_record "$(frecency_path theme)" "$name"
     "$(theme_cmd)" set "$name"
