@@ -52,17 +52,29 @@ GLYPH_PROMPT='󰏫'      # pencil: asks you for text first
 GLYPH_INFO='󰋽'        # info: shows you something, changes nothing
 GLYPH_TOOL='󰘳'        # command: opens one of this repo's tools
 GLYPH_CMD='󰘳'         # default, for anything unclassified
+GLYPH_MOVE='󰁅'      # arrows: rearranges what is already there rather
+                    # than taking you somewhere new
+GLYPH_AGENT='󰚩'     # robot: an agent pane. Deliberately the same glyph
+                    # tmarchy's bar uses for its agent count, so the palette
+                    # and the status line name the same thing the same way
 GLYPH_PATH='›'
 
 # Glyph by DECLARED verb — the first segment of the row's menu path.
 #
-# This replaces guessing from command text. `resizep` and `swapp` draw the
-# navigate glyph under the heuristic below, and still draw it here, because
-# they are declared under Move — the same answer, arrived at because it was
-# declared rather than because a text match happened to agree. Space-separated
-# pairs rather than an associative array: this repo still targets bash 3.2 for
-# macOS.
-VERB_GLYPHS="Go:$GLYPH_NAVIGATE Open:$GLYPH_TOOL Move:$GLYPH_NAVIGATE Set:$GLYPH_CONFIG Copy:$GLYPH_CLIPBOARD New:$GLYPH_CREATE Ask:$GLYPH_PROMPT Show:$GLYPH_INFO Kill:$GLYPH_DESTRUCTIVE Agents:$GLYPH_TOOL"
+# This replaces guessing from command text, and now changes the answer as well
+# as the reasoning. `resizep` and `swapp` matched the heuristic's `navigate` arm
+# and drew the arrow; they are declared under Move, which has its own glyph, so
+# they no longer read as "goes somewhere" when they rearrange what is already
+# there. Agents likewise splits from Open.
+#
+# Splitting them was worth doing for a reason the table does not show: with Move
+# folded into Go and Agents into Open, 42 of the palette's 88 rows carried one
+# arrow and 22 more shared the command glyph -- two thirds of the list drawn as
+# two symbols, which is no signal at all.
+#
+# Space-separated pairs rather than an associative array: this repo still targets
+# bash 3.2 for macOS.
+VERB_GLYPHS="Go:$GLYPH_NAVIGATE Open:$GLYPH_TOOL Move:$GLYPH_MOVE Set:$GLYPH_CONFIG Copy:$GLYPH_CLIPBOARD New:$GLYPH_CREATE Ask:$GLYPH_PROMPT Show:$GLYPH_INFO Kill:$GLYPH_DESTRUCTIVE Agents:$GLYPH_AGENT"
 
 glyph_for_verb() {
     local trail="${1:-}" cmds="${2:-}" verb pair
