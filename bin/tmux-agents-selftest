@@ -54,9 +54,19 @@ assert_eq "no live agents yields no rows" "0" \
 
 echo "picker"
 assert_eq "picker is executable" "yes" "$([ -x "$DIR/tmux-agents" ] && echo yes || echo no)"
+# Comment-stripped source: a comment mentioning switch-client/select-window
+# must not be able to satisfy these on its own -- only real code counts.
+JUMP_CODE="$(grep -vE '^[[:space:]]*#' "$DIR/tmux-agents")"
 # Enter must jump across sessions, not just within one.
-assert_contains "jump switches client before selecting" "switch-client" "$(cat "$DIR/tmux-agents")"
-assert_contains "jump selects the window too" "select-window" "$(cat "$DIR/tmux-agents")"
+assert_contains "jump switches client before selecting" "switch-client" "$JUMP_CODE"
+assert_contains "jump selects the window too" "select-window" "$JUMP_CODE"
+# The name promises an ORDER, so check the order: switch-client, then
+# select-window, then select-pane. A bare select-pane from another session
+# silently does nothing, which is the exact bug this guards against.
+jump_line() { printf '%s\n' "$JUMP_CODE" | grep -n "tmux $1" | head -1 | cut -d: -f1; }
+SC=$(jump_line switch-client); SW=$(jump_line select-window); SP=$(jump_line select-pane)
+assert_eq "jump order is switch-client, select-window, select-pane" "ordered" \
+    "$([ -n "$SC" ] && [ -n "$SW" ] && [ -n "$SP" ] && [ "$SC" -lt "$SW" ] && [ "$SW" -lt "$SP" ] && echo ordered || echo "out-of-order: $SC $SW $SP")"
 # Navigation only: no acting on agents from this tool.
 assert_eq "no kill in the picker"    "0" "$(grep -c 'kill-pane\|kill-window\|kill-session' "$DIR/tmux-agents")"
 assert_eq "ctrl-v is not bound"      "0" "$(grep -c 'expect=ctrl-v' "$DIR/tmux-agents")"
