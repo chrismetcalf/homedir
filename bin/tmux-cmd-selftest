@@ -319,8 +319,16 @@ unset -f tmux
 rm -rf "$SHIM"
 
 echo "against the real config"
-if [ -r "$CONFIG" ]; then
-    real=$(flatten_menu "$(cat "$CONFIG")")
+# This must be green in a worktree, not only after merge: $CONFIG (set by
+# tmux-cmd itself) defaults to $HOME's live config, which is the MAIN
+# checkout's copy and can lag a branch under test. Prefer an explicit
+# TMUX_CMD_CONFIG override, then this repo's own copy, then $HOME as a
+# last resort -- mirroring bin/tmux-menu-selftest's repo-relative path.
+SELFTEST_CONFIG="${TMUX_CMD_CONFIG:-}"
+[ -n "$SELFTEST_CONFIG" ] || SELFTEST_CONFIG="$DIR/../.config/tmux/plugins/tmux-which-key/config.yaml"
+[ -r "$SELFTEST_CONFIG" ] || SELFTEST_CONFIG="$HOME/.config/tmux/plugins/tmux-which-key/config.yaml"
+if [ -r "$SELFTEST_CONFIG" ]; then
+    real=$(flatten_menu "$(cat "$SELFTEST_CONFIG")")
     n=$(printf '%s\n' "$real" | grep -c .)
     [ "$n" -gt 40 ] && pass "the live config flattens to $n commands" \
       || fail "the live config flattens to a plausible count" ">40" "$n"
