@@ -16,7 +16,7 @@ process.env.TMUX_TMPDIR = sockDir
 process.on('exit', () => fs.rmSync(sockDir, { recursive: true, force: true }))
 
 const {
-  paneIsPrompting, paneStates, windowStates, scoutStates, resetScoutStates,
+  paneIsPrompting, paneStates, windowStates, scoutStates, resetScoutStates, sessionState,
 } = require('../lib/scout')
 
 test('detects a live approval dialog', () => {
@@ -85,8 +85,6 @@ test('scoutStates is computed once per process', () => {
   resetScoutStates()
   assert.notStrictEqual(scoutStates(), first)
 })
-
-const { sessionState } = require('../lib/scout')
 
 test('sessionState: each of the four wait signals', () => {
   assert.equal(sessionState({ needsAttention: true }), 'wait')
