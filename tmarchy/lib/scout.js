@@ -22,29 +22,43 @@ function paneIsPrompting(text) {
   return hasSelector && hasFooter
 }
 
+// The single definition of what an agent session's state IS. Three consumers
+// call it: paneStates() below, bin/tmux-scout-next-wait, and bin/tmux-agents-rows.
+//
+// It lived in two places before -- here and in next-wait -- byte-identical,
+// comment included, and stayed in sync by luck. Drift would be invisible in the
+// worst way: the bar tints a window red while the picker calls it idle.
+//
+// Deliberately NOT a pendingToolUse-age heuristic. That painted merely-busy
+// panes red: a long-running tool is not the user being asked something.
+//
+// Pure function of one session object -- no tmux calls, no file reads -- so a
+// consumer needs only JSON.parse, not scout's own sync/render modules.
+function sessionState(s) {
+  const phase = s.phase || ''
+  if (s.needsAttention || s.pendingInteraction
+    || phase === 'waitingForApproval' || phase === 'waitingForAnswer') return 'wait'
+  if (phase) {
+    // phase is authoritative when present (status can lag behind it)
+    if (phase === 'running') return 'busy'
+    if (phase === 'completed') return 'done'
+    if (phase === 'idle') return 'idle'
+    return null // crashed/stale/interrupted — not an answer
+  }
+  if (s.status === 'working') return 'busy'
+  if (s.status === 'completed') return 'done'
+  if (s.status === 'idle') return 'idle'
+  return null
+}
+
 function paneStates(active) {
   const paneState = new Map()
   for (const s of active) {
     if (!s.tmuxPane) continue
     // tmux-scout >= the 2025 refactor expresses state via `phase`; older builds
     // only set `status`. Map both so tinting survives the upgrade.
-    const phase = s.phase || ''
-    // Mirrors scout's own isNeedsAttention(). Deliberately NOT a
-    // pendingToolUse-age heuristic: that painted merely-busy panes red.
-    const waiting = !!(s.needsAttention || s.pendingInteraction
-      || phase === 'waitingForApproval' || phase === 'waitingForAnswer')
-    let state
-    if (waiting) state = 'wait'
-    else if (phase) {
-      // phase is authoritative when present (status can lag behind it)
-      if (phase === 'running') state = 'busy'
-      else if (phase === 'completed') state = 'done'
-      else if (phase === 'idle') state = 'idle'
-      else continue // crashed/stale/interrupted — leave untinted
-    } else if (s.status === 'working') state = 'busy'
-    else if (s.status === 'completed') state = 'done'
-    else if (s.status === 'idle') state = 'idle'
-    else continue
+    const state = sessionState(s)
+    if (!state) continue
 
     const prev = paneState.get(s.tmuxPane)
     if (!prev || PRIO[state] > PRIO[prev]) paneState.set(s.tmuxPane, state)
@@ -146,5 +160,6 @@ module.exports = {
   windowStates,
   paneIsPrompting,
   paneStates,
+  sessionState,
   PRIO,
 }

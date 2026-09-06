@@ -85,3 +85,44 @@ test('scoutStates is computed once per process', () => {
   resetScoutStates()
   assert.notStrictEqual(scoutStates(), first)
 })
+
+const { sessionState } = require('../lib/scout')
+
+test('sessionState: each of the four wait signals', () => {
+  assert.equal(sessionState({ needsAttention: true }), 'wait')
+  assert.equal(sessionState({ pendingInteraction: {} }), 'wait')
+  assert.equal(sessionState({ phase: 'waitingForApproval' }), 'wait')
+  assert.equal(sessionState({ phase: 'waitingForAnswer' }), 'wait')
+})
+
+test('sessionState: phase beats status when both are present', () => {
+  // status can lag behind phase; phase is authoritative.
+  assert.equal(sessionState({ phase: 'running', status: 'idle' }), 'busy')
+  assert.equal(sessionState({ phase: 'idle', status: 'working' }), 'idle')
+})
+
+test('sessionState: falls back to status when phase is absent', () => {
+  assert.equal(sessionState({ status: 'working' }), 'busy')
+  assert.equal(sessionState({ status: 'completed' }), 'done')
+  assert.equal(sessionState({ status: 'idle' }), 'idle')
+})
+
+test('sessionState: unknown phase is null, not a guess', () => {
+  assert.equal(sessionState({ phase: 'crashed' }), null)
+  assert.equal(sessionState({ phase: 'interrupted' }), null)
+  assert.equal(sessionState({}), null)
+})
+
+test('sessionState: wait wins over any phase', () => {
+  assert.equal(sessionState({ needsAttention: true, phase: 'running' }), 'wait')
+})
+
+test('next-wait does not carry its own copy of the predicate', () => {
+  // The predicate lived in two places and stayed in sync by luck. If someone
+  // re-inlines it, CLAUDE.md's "same criteria" claim silently goes false again.
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'bin', 'tmux-scout-next-wait'), 'utf8')
+  assert.equal(/needsAttention\s*\|\|/.test(src), false,
+    'bin/tmux-scout-next-wait inlines the wait predicate again; call sessionState() instead')
+})
