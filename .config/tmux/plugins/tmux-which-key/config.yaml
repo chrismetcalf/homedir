@@ -461,6 +461,9 @@ items:
   - name: +Agents
     key: A
     menu:
+      - name: Agent triage (waiting first)
+        key: A
+        command: 'display-popup -E -w 70% -h 60% "~/bin/tmux-agents"'
       - name: Session picker (tmux-scout)
         key: '`'
         command: run-shell -b $TMUX_PLUGIN_MANAGER_PATH/tmux-scout/scripts/picker/picker.sh
