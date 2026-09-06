@@ -1,7 +1,7 @@
 # tmux-goto — one picker for sessions, windows and panes
 
 **Date:** 2026-08-26
-**Status:** design approved, not yet implemented
+**Status:** implemented
 **Branch:** `tmux-goto` (cut from master, which has tmarchy and tmux-gen)
 
 ## Context

@@ -1,7 +1,7 @@
 # tmux-gen — a toolless command generator in a tmux popup
 
 **Date:** 2026-08-26
-**Status:** design approved, not yet implemented
+**Status:** implemented
 **Branch:** `tmux-gen` (cut from `tmarchy`, which is live and unmerged)
 
 ## Context

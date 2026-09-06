@@ -1,6 +1,6 @@
 # tmux agent triage — one place that answers "who needs me"
 
-Status: designed, not yet implemented.
+Status: implemented.
 
 ## Context
 

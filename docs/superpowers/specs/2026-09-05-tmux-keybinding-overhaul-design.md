@@ -1,6 +1,6 @@
 # tmux keybindings — a verb-first action menu
 
-Status: designed, not yet implemented.
+Status: implemented.
 
 ## Context
 
