@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# tmux-agents — fuzzy-pick a live agent, waiting first. prefix + A.
+#
+# The sixth picker, built like the others: rows are "TARGET<TAB>KIND<TAB>DISPLAY"
+# with fzf on --with-nth=3.., so the pane id is never recovered from display text.
+#
+# Sorted by TIME IN STATE, not by frecency. That is why this is its own tool
+# rather than a mode of tmux-goto: tmux-goto's Enter-is-alt-tab behaviour
+# depends on frecency ordering, and it is used 40+ times a week.
+#
+# Navigation only. Enter jumps; Ctrl-V is deliberately unbound, because an agent
+# already lives in a pane and there is nothing to open a second copy of.
+set -uo pipefail
+
+SELF="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+    SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+fi
+DIR="$(dirname "$SELF")"
+# shellcheck source=lib/tmux-theme.sh
+[ -r "$DIR/lib/tmux-theme.sh" ] && . "$DIR/lib/tmux-theme.sh"
+
+ROWS_BIN="$DIR/tmux-agents-rows"
+STATUS="${TMUX_AGENTS_STATUS:-$HOME/.tmux-scout/status.json}"
+
+# Tint each row by its state, using the same @theme-* values as the bar and
+# tmux-goto -- agent state should read identically everywhere.
+colourise() {
+    local wait busy done_c reset line state
+    wait=$(ansi_for "$(tmux show -gv @theme-wait 2>/dev/null)" 2>/dev/null)
+    busy=$(ansi_for "$(tmux show -gv @theme-busy 2>/dev/null)" 2>/dev/null)
+    done_c=$(ansi_for "$(tmux show -gv @theme-done 2>/dev/null)" 2>/dev/null)
+    [ -n "$wait$busy$done_c" ] && reset=$'\033[0m' || reset=""
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        state=${line#*$'\t'}; state=${state#*$'\t'}; state=${state%% *}
+        case "$state" in
+            WAIT) printf '%s%s%s\n' "$wait" "$line" "$reset" ;;
+            WORK) printf '%s%s%s\n' "$busy" "$line" "$reset" ;;
+            *)    printf '%s\n' "$line" ;;
+        esac
+    done
+}
+
+doctor() {
+    printf 'tmux-agents doctor\n\n'
+    printf '  status file    %s\n' "$STATUS"
+    printf '  readable       %s\n' "$([ -r "$STATUS" ] && echo yes || echo NO)"
+    printf '  node           %s\n' "$(command -v node || echo MISSING)"
+    printf '  lib dir        %s\n' "$DIR/lib"
+    printf '  ansi_for       %s\n' "$(type -t ansi_for 2>/dev/null || echo MISSING)"
+    if [ -r "$STATUS" ] && command -v python3 >/dev/null 2>&1; then
+        python3 - "$STATUS" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+s = d.get("sessions", {})
+stale = sum(1 for x in s.values() if x.get("staleReason") or x.get("endedAt"))
+print("  sessions       %d total, %d live-flagged, %d stale/ended" % (len(s), len(s) - stale, stale))
+PY
+    fi
+    printf '  rows emitted   %s\n' "$("$ROWS_BIN" 2>/dev/null | grep -c .)"
+}
+
+main() {
+    TMUX_AGENTS_MAIN_RAN=1
+    if ! command -v node >/dev/null 2>&1; then
+        printf '\ntmux-agents: node is not installed, and the row emitter needs it.\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
+    if [ ! -r "$STATUS" ]; then
+        printf '\ntmux-agents: no scout status file at\n  %s\n\n' "$STATUS"
+        printf '  tmux-scout writes it; install it with prefix + I\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
+    local rows choice pane rc
+    rows="$("$ROWS_BIN")"; rc=$?
+    if [ "$rc" = 3 ]; then
+        printf '\ntmux-agents: the scout status file could not be parsed.\n  %s\n\n' "$STATUS"
+        printf '  It exists but is not valid JSON -- scout may have been interrupted mid-write.\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
+    if [ -z "$rows" ]; then
+        printf '\ntmux-agents: no live agents.\n\n'
+        printf '  %s parsed fine; every session in it is stale, ended, or has no pane.\n\n' "$STATUS"
+        printf 'Press ENTER to close'; read -r _; exit 0
+    fi
+    # --tiebreak=index so equal-scoring matches keep the duration order above;
+    # fzf's default of `length` would re-sort them by row width.
+    # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    choice=$(printf '%s\n' "$rows" | colourise | fzf --ansi --tiebreak=index $(fzf_theme_opts) \
+        --delimiter=$'\t' --with-nth=3.. \
+        --prompt='agent > ' --height=100% --reverse --no-multi) || exit 0
+    pane=${choice%%$'\t'*}
+    [ -n "$pane" ] || exit 0
+    # A pane id may live in another session, so switch-client first: a bare
+    # select-pane only works within the current session and would silently do
+    # nothing from a different one. Same sequence bin/tmux-scout-next-wait uses.
+    local sess win
+    sess=$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null)
+    win=$(tmux display-message -p -t "$pane" '#{window_id}' 2>/dev/null)
+    [ -n "$sess" ] && tmux switch-client -t "$sess"
+    [ -n "$win" ] && tmux select-window -t "$win"
+    tmux select-pane -t "$pane"
+}
+
+case "${1:-}" in
+    --doctor) [ "${TMUX_AGENTS_LIB:-}" = "1" ] || { doctor; exit 0; } ;;
+esac
+
+[ "${TMUX_AGENTS_LIB:-}" = "1" ] || main "$@"

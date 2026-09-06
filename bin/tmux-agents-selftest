@@ -52,6 +52,25 @@ echo "empty state"
 assert_eq "no live agents yields no rows" "0" \
     "$(TMUX_AGENTS_PANES=" " "$DIR/tmux-agents-rows" | grep -c .)"
 
+echo "picker"
+assert_eq "picker is executable" "yes" "$([ -x "$DIR/tmux-agents" ] && echo yes || echo no)"
+# Enter must jump across sessions, not just within one.
+assert_contains "jump switches client before selecting" "switch-client" "$(cat "$DIR/tmux-agents")"
+assert_contains "jump selects the window too" "select-window" "$(cat "$DIR/tmux-agents")"
+# Navigation only: no acting on agents from this tool.
+assert_eq "no kill in the picker"    "0" "$(grep -c 'kill-pane\|kill-window\|kill-session' "$DIR/tmux-agents")"
+assert_eq "ctrl-v is not bound"      "0" "$(grep -c 'expect=ctrl-v' "$DIR/tmux-agents")"
+assert_contains "tiebreak=index is set" "--tiebreak=index" "$(cat "$DIR/tmux-agents")"
+# Empty states must explain rather than open an empty picker.
+assert_contains "absent status file is explained" "no scout status file" \
+    "$(TMUX_AGENTS_STATUS=/definitely/absent bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+# A corrupt file and an empty one are different answers; saying "no live agents"
+# for a truncated write would send you looking in the wrong place entirely.
+printf 'not json' > "$DIR/fixtures/.corrupt.json"
+assert_contains "corrupt status file is explained" "could not be parsed" \
+    "$(TMUX_AGENTS_STATUS="$DIR/fixtures/.corrupt.json" bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
+rm -f "$DIR/fixtures/.corrupt.json"
+
 printf '\n'
 [ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
 printf 'FAILURES\n'; exit 1
