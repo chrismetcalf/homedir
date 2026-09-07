@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { summarise, thresholdFor, THRESHOLDS } = require('../segments.d/quota')
+const { summarise, fiveHour, thresholdFor, THRESHOLDS } = require('../segments.d/quota')
+const usage = require('../segments.d/usage')
 
 const NOW = 1_800_000_000_000
 
@@ -112,4 +113,49 @@ test('an object override can set one bucket or a default', () => {
 test('the threshold table names only what differs from the default', () => {
   // Keeps the intent readable: anything absent is the ordinary 80.
   assert.deepStrictEqual(Object.keys(THRESHOLDS), ['five_hour'])
+})
+
+// --- the always-on five-hour number (segments.d/usage.js) -------------------
+//
+// This is the slot that is NOT threshold-gated. Its whole job is to render when
+// summarise() would not, so every assertion here pairs the two: a case where the
+// warning is silent and the number is present is the only thing that proves they
+// are independent.
+
+test('usage: shows a number exactly where the warning stays silent', () => {
+  const r = rec({ five_hour: { utilization: 12 } })
+  assert.strictEqual(summarise(r, 80, NOW), null, 'warning must stay silent')
+  assert.strictEqual(fiveHour(r, NOW), '5h 12%')
+})
+
+test('usage: pinned to five_hour, not to the worst bucket', () => {
+  // The warning picks the worst bucket; this deliberately does not. A weekly
+  // reading at 90% must not displace the five-hour number, or the always-on slot
+  // would change which limit it describes depending on the day.
+  const r = rec({ five_hour: { utilization: 12 }, seven_day: { utilization: 90 } })
+  assert.strictEqual(summarise(r, 80, NOW), 'week 90%', 'warning still takes the worst')
+  assert.strictEqual(fiveHour(r, NOW), '5h 12%', 'number stays on five_hour')
+})
+
+test('usage: a stale reading renders nothing, same rule as the warning', () => {
+  // 45 minutes is the cutoff; an hour-old number presented as current is worse
+  // than no number, and that has to hold for the informational slot too.
+  const r = rec({ five_hour: { utilization: 12 } }, { fetched_at: NOW - 46 * 60 * 1000 })
+  assert.strictEqual(fiveHour(r, NOW), null)
+})
+
+test('usage: nothing to say when the five-hour bucket is absent or broken', () => {
+  assert.strictEqual(fiveHour(rec({ seven_day: { utilization: 40 } }), NOW), null)
+  assert.strictEqual(fiveHour(rec({ five_hour: { utilization: 'lots' } }), NOW), null)
+  assert.strictEqual(fiveHour(rec({}), NOW), null)
+  assert.strictEqual(fiveHour(null, NOW), null)
+  assert.strictEqual(fiveHour({ ok: false, buckets: {} }, NOW), null)
+})
+
+test('usage: is a segment named "usage", so the tick writes @bar-usage', () => {
+  // tmarchy-tick keys the option off segment.name -- @bar-<name>. bar.conf reads
+  // @bar-usage by that exact spelling, so a rename here silently empties the slot.
+  assert.strictEqual(usage.name, 'usage')
+  assert.strictEqual(typeof usage.render, 'function')
+  assert.strictEqual(typeof usage.enabled, 'function')
 })

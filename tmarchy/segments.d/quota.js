@@ -4,7 +4,14 @@
 // something to react to": summarise() returns a short string or null, and
 // bar.conf wraps the slot in #{?#{@bar-quota},...,} so an unset option renders
 // nothing at all -- no label, no gap. Below the threshold this segment is
-// invisible, which is the point. A number that is always there is furniture.
+// invisible, which is the point: THIS segment is the warning, and a warning
+// that is always on screen stops being one.
+//
+// The always-on number lives in segments.d/usage.js instead, and only on a
+// wide client. Keeping them as two segments rather than one option that
+// changes meaning is what lets @bar-quota keep its guarantee -- by
+// construction nothing reaches that slot unless it wants attention, which is
+// why bar.conf can paint it @theme-wait without checking anything.
 //
 // Urgency lives in the WORDS, not the colour, exactly as "1 waiting" does. That
 // is deliberate: @theme-busy means "an agent is working" and @theme-wait means
@@ -90,6 +97,24 @@ function summarise(record, thresholds, now = Date.now()) {
   return `${label} ${Math.round(worst.utilization)}%`
 }
 
+// The five-hour reading with NO threshold gate, for the always-on slot.
+//
+// Pinned to five_hour rather than "worst bucket" on purpose: as an informational
+// number it answers "how much of this session's budget is left", and that is the
+// window that interrupts work already in progress. The weekly windows are
+// planning numbers -- useful when they are close to the line, which is what the
+// warning above is for, and noise otherwise.
+//
+// Staleness is enforced identically to summarise(): a reading presented as
+// current when it is 45 minutes old is worse than no reading.
+function fiveHour(record, now = Date.now()) {
+  if (!record || !record.ok || !record.buckets) return null
+  if (record.fetched_at && now - record.fetched_at > STALE_MS) return null
+  const bucket = record.buckets.five_hour
+  if (!bucket || typeof bucket.utilization !== 'number') return null
+  return `${LABELS.five_hour} ${Math.round(bucket.utilization)}%`
+}
+
 function readCache() {
   try {
     return JSON.parse(fs.readFileSync(CACHE, 'utf8'))
@@ -129,6 +154,8 @@ function maybeRefresh(record, now = Date.now()) {
 module.exports = {
   name: 'quota',
   summarise,
+  fiveHour,
+  readCache,
   thresholdFor,
   THRESHOLDS,
   maybeRefresh,

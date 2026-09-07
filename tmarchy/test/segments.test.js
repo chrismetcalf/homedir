@@ -60,3 +60,44 @@ test('context is passed through to render', () => {
   const segs = [{ name: 'ctx', render: (c) => c.panePath }]
   assert.deepStrictEqual(renderSegments(segs, { panePath: '/tmp' }), { ctx: '/tmp' })
 })
+
+// --- the tick's option list must cover segments.d/ --------------------------
+//
+// loadSegments finds and renders every segments.d/*.js, but tmarchy-tick writes
+// options from an EXPLICIT list. A segment missing from that list is loaded,
+// rendered, and then silently dropped -- the bar slot stays empty with nothing
+// anywhere to explain why. That is exactly what happened when usage.js was
+// added, and it cost a live debugging round to find.
+//
+// 'remote' is excluded on purpose: the ssh host renames the window instead of
+// sitting in status-left. The assertion pins that exclusion too, so the list
+// cannot quietly grow a second silent omission.
+
+test('every segment is written by the tick, except the documented exclusion', () => {
+  const fs = require('node:fs')
+  const path = require('node:path')
+
+  const dir = path.join(__dirname, '..', 'segments.d')
+  const onDisk = fs.readdirSync(dir)
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => require(path.join(dir, f)).name)
+    .filter(Boolean)
+    .sort()
+
+  const tick = fs.readFileSync(path.join(__dirname, '..', 'bin', 'tmarchy-tick'), 'utf8')
+  const m = tick.match(/for \(const name of \[([^\]]+)\]\)/)
+  assert.ok(m, 'could not find the tick\'s option list -- did its shape change?')
+  const written = m[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')).sort()
+
+  const EXCLUDED = ['remote']
+  const missing = onDisk.filter((n) => !written.includes(n) && !EXCLUDED.includes(n))
+  assert.deepStrictEqual(missing, [],
+    `segment(s) on disk but never written by the tick: ${missing.join(', ')}`)
+
+  const stale = written.filter((n) => !onDisk.includes(n))
+  assert.deepStrictEqual(stale, [],
+    `tick writes @bar-* for segment(s) that no longer exist: ${stale.join(', ')}`)
+
+  assert.deepStrictEqual(onDisk.filter((n) => !written.includes(n)), EXCLUDED,
+    'the set of deliberately-unwritten segments changed')
+})

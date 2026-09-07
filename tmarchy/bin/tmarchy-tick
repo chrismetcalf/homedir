@@ -88,7 +88,13 @@ function main() {
     // 'remote' is gone: the host now names the window instead of sitting in
     // status-left, where one pane's ssh session read as a property of the
     // whole session. The per-tab glyph still comes from @remote-host above.
-    for (const name of ['quota', 'load', 'agents', 'branch', 'battery']) {
+    // This list is EXPLICIT, and dropping a file into segments.d/ is not enough
+    // on its own: loadSegments finds and renders it, but a name missing here is
+    // simply never written, so the slot stays empty with nothing to explain why.
+    // 'usage' was added when the always-on five-hour number landed. 'remote' is
+    // absent deliberately, per the note above. tmarchy/test/segments.test.js
+    // asserts this list matches segments.d/ so the next one cannot go missing.
+    for (const name of ['quota', 'usage', 'load', 'agents', 'branch', 'battery']) {
       // Same reasoning as the tints above, and it has to match them: if scout
       // was unreadable this tick, blanking the summary while the tabs keep
       // their colours would make the bar contradict itself.
