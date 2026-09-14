@@ -30,6 +30,8 @@ const STATE = path.join(os.homedir(), '.local', 'state', 'tmarchy')
 const MODE = (process.argv[2] || 'geo').replace(/^--/, '')
 let geo = null
 try { geo = require(path.join(__dirname, 'tmarchy-geo.js')) } catch { /* rain still works */ }
+let panel = null
+try { panel = require(path.join(__dirname, 'tmarchy-panel.js')) } catch { /* panel is optional */ }
 const FPS = 20
 const TICK = Math.round(1000 / FPS)
 // Real data changes on human timescales; re-reading it every frame would spend
@@ -156,6 +158,10 @@ function main() {
 
   let theme = loadTheme()
   let data = readData()
+  // Panel stats are RATES (cpu jiffies, net bytes), so they are sampled on the
+  // data tick rather than per frame -- per frame the deltas would be noise
+  // divided by 50ms.
+  let stats = panel ? panel.read() : {}
   let cols = out.columns || 80
   let rows = out.rows || 24
   let columns = Array.from({ length: cols }, () => makeColumn(rows))
@@ -188,19 +194,30 @@ function main() {
     if (frame % Math.round(DATA_EVERY / TICK) === 0) {
       data = readData()
       theme = loadTheme()                       // switch theme and the rain follows
+      if (panel) stats = panel.read()
     }
 
     const buf = []
 
     const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
 
+    // The telemetry panel owns the right-hand columns; everything else is
+    // centred in what is LEFT, not in the whole pane. Computed before drawing
+    // so the solid and the rain can both avoid it.
+    const right = (panel && cols >= panel.MIN_COLS && rows >= 14) ? panel.WIDTH : 0
+    const mainW = cols - right
+
     // --- solid geometry ---------------------------------------------------
     if (MODE !== 'rain' && geo) {
-      geo.render({ grid, rows, cols, frame, theme, fg, dim })
+      // Spin tracks load per core, so the thing visibly works harder when the
+      // box does. That is the readout, not decoration.
+      const spin = geo.spinFactor(os.loadavg()[0], (stats && stats.cores) || os.cpus().length)
+      geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right })
     }
 
     // --- rain ---------------------------------------------------------------
     if (MODE === 'rain' || !geo) columns.forEach((col, x) => {
+      if (x >= mainW) return                    // leave the panel's columns alone
       col.y += col.speed
       if (col.y - col.len > rows) Object.assign(col, makeColumn(rows), { y: -col.len })
       const head = Math.floor(col.y)
@@ -233,7 +250,7 @@ function main() {
         return { text: ` ${glyph} ${a.label.slice(0, 14)} `, state: a.state }
       })
       const width = cells.reduce((n, c) => n + c.text.length, 0)
-      let x = Math.max(0, Math.floor((cols - width) / 2))
+      let x = Math.max(0, Math.floor((mainW - width) / 2))
       for (const cell of cells) {
         const base = stateColour(cell.state)
         // Only a waiting agent pulses. Everything pulsing is everything shouting.
@@ -260,7 +277,7 @@ function main() {
     hud.forEach((line, i) => {
       const y = hudRow + i
       if (y >= rows) return
-      let x = Math.max(0, Math.floor((cols - line.length) / 2))
+      let x = Math.max(0, Math.floor((mainW - line.length) / 2))
       // The waiting count is the one number worth colouring: if any agent is
       // blocked on you, the HUD says so in the same red the tab is wearing.
       const colour = i === 1 && data.wait > 0 ? fg(theme.wait)
@@ -270,6 +287,12 @@ function main() {
         x++
       }
     })
+
+    // --- telemetry panel ---------------------------------------------------
+    if (right) {
+      panel.render({ grid, rows, cols, frame, theme, fg, dim,
+        stats, agents: data.agents, quota: data.quota })
+    }
 
     // Address each row explicitly rather than ending lines with a newline.
     // Writing into the LAST column auto-wraps the cursor, so a trailing newline
