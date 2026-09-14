@@ -58,6 +58,19 @@ test('the toast names the agents and says how to reach them', () => {
   assert.strictEqual(a.formatToast([]), null, 'nothing to say is null, not an empty toast')
 })
 
+// TWO spaces after the warning sign. tmux counts bare U+26A0 as one column
+// (measured), but terminals draw the glyph wider than that cell, so with a
+// single space the text sits on top of it. Pinned because it reads as a typo
+// and is the kind of thing a later edit tidies away. Sabotage: in formatToast
+// and bannerTitle collapse the double space to one -- this fails.
+test('the warning sign is followed by two spaces, not one', () => {
+  assert.ok(a.formatToast(['otto']).startsWith('\u26a0  '),
+    `toast should have two spaces after the sign: ${JSON.stringify(a.formatToast(['otto']))}`)
+  const title = a.bannerTitle([{ key: '%1', label: 'otto', since: 0, active: true }])
+  assert.ok(title.startsWith('\u26a0  '),
+    `banner title should have two spaces after the sign: ${JSON.stringify(title)}`)
+})
+
 // --- what the ticker decides ------------------------------------------------
 
 // THE rule: scout unreadable means we learned nothing, and the only correct

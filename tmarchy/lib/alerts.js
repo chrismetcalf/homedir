@@ -42,11 +42,16 @@ function decodeState(raw) { return (raw || '').trim().split(/\s+/).filter(Boolea
 // Names the agents and says how to reach them. A notification that tells you
 // something needs attention without telling you how to get there makes you go
 // looking, which is the work it was supposed to save.
+// TWO spaces after the warning sign, not one. tmux counts bare U+26A0 as a
+// single column (measured: cursor_x=1; it is U+26A0+VS16 that takes two), so
+// the box arithmetic is right either way -- but terminals draw the glyph wider
+// than that cell, and with a single space the text sits on top of it. This is
+// cosmetic and deliberate; it is not a stray space.
 function formatToast(names) {
   const list = (names || []).filter(Boolean)
   if (!list.length) return null
   const head = list.length === 1 ? 'agent needs you' : `${list.length} agents need you`
-  return `⚠ ${head}: ${list.join(', ')}  —  prefix + ~`
+  return `⚠  ${head}: ${list.join(', ')}  —  prefix + ~`
 }
 
 // The whole decision the ticker makes, as a pure function: what to remember,
@@ -97,7 +102,7 @@ function ago(ms) {
 function bannerTitle(sticky) {
   const n = (sticky || []).length
   if (!n) return null
-  return n === 1 ? '⚠ AN AGENT NEEDED YOU' : `⚠ ${n} AGENTS NEEDED YOU`
+  return n === 1 ? '⚠  AN AGENT NEEDED YOU' : `⚠  ${n} AGENTS NEEDED YOU`
 }
 
 // Newest first: on a screen you glance at, the thing that just happened is the
