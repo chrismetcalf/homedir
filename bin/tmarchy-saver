@@ -324,6 +324,18 @@ function main() {
   // enabling this is precisely what flips #{mouse_any_flag} to 1 and makes tmux
   // forward them to us instead (verified against a scratch server: a plain cat
   // reports 0, a process that has sent 1000h reports 1).
+  // A true-black ground, painted by the saver rather than inherited from the
+  // terminal. The alt screen otherwise shows through to whatever the emulator's
+  // background is, which differs between Rio, Tabby and ShellFish -- so the same
+  // session looked like three different screensavers depending on what was
+  // attached. Black also buys the most contrast for a renderer whose whole
+  // effect is a ramp from '.' to '@'.
+  //
+  // Re-emitted at the START of every row, because each row ends with a full SGR
+  // reset (which the foreground colours need) and that clears the background
+  // too. Cheap: one escape per row, not per cell -- the per-cell escapes only
+  // ever set a foreground, so the row's background survives them.
+  const BG = '\x1b[48;2;0;0;0m'
   const MOUSE_ON = '\x1b[?1000h\x1b[?1006h'
   const MOUSE_OFF = '\x1b[?1006l\x1b[?1000l'
 
@@ -378,7 +390,10 @@ function main() {
     process.exit(0)
   }
 
-  out.write('\x1b[?1049h\x1b[?25l\x1b[2J' + MOUSE_ON)  // alt screen, hide cursor, clear
+  // Background BEFORE the clear: ESC[2J erases using the current SGR background,
+  // so setting it afterwards would leave the first frame on the terminal's own
+  // colour until every cell had been painted over.
+  out.write('\x1b[?1049h\x1b[?25l' + BG + '\x1b[2J' + MOUSE_ON)
   process.stdin.setRawMode(true)
   process.stdin.resume()
   process.stdin.on('data', onInput)             // ANY key leaves, as a lock should
@@ -388,7 +403,7 @@ function main() {
     cols = out.columns || 80
     rows = out.rows || 24
     columns = Array.from({ length: cols }, () => makeColumn(rows))
-    out.write('\x1b[2J')
+    out.write(BG + '\x1b[2J')
   })
 
   const stateColour = (s) =>
@@ -506,7 +521,7 @@ function main() {
     // line blank and shoves the HUD sideways. Cursor addressing makes the wrap
     // harmless because the next row starts from a known position regardless.
     for (let y = 0; y < rows; y++) {
-      buf.push(`\x1b[${y + 1};1H`)
+      buf.push(`\x1b[${y + 1};1H` + BG)
       for (let x = 0; x < cols; x++) buf.push(grid[y][x] === null ? ' ' : grid[y][x])
       buf.push('\x1b[0m')
     }
