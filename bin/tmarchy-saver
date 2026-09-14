@@ -40,6 +40,7 @@ const TICK = Math.round(1000 / FPS)
 // Real data changes on human timescales; re-reading it every frame would spend
 // the whole budget on syscalls for numbers that move once a minute.
 const DATA_EVERY = 2000
+const PANEL_SSH_ROWS = 5
 // CPU is the exception: it is the graph's time axis, so it is sampled every
 // second. At one sample per data tick a 120-column graph would take eight
 // minutes to fill; at 1s it reads as live within a minute or two.
@@ -442,8 +443,10 @@ function main() {
     const points = !reach ? [] : [...(reach.net || []), ...(reach.ssh || [])]
       .map((e) => ({
         label: e.ip || e.label,
-        colour: e.state === 'fast' ? theme.done : e.state === 'ok' ? theme.info
-          : e.state === 'slow' ? theme.busy : theme.dim,
+        // The same continuous scale the PING and SSH rows use, from the same
+        // function -- a host's dot on the solid and its row in the panel are
+        // the same colour because they are literally the same computation.
+        colour: (ping && ping.latencyHex && ping.latencyHex(theme, e.ms, e.state)) || theme.dim,
       }))
 
     // --- solid geometry ---------------------------------------------------
@@ -489,7 +492,11 @@ function main() {
     // --- telemetry panel ---------------------------------------------------
     if (right) {
       panel.render({ grid, rows, cols, frame, theme, fg, dim,
-        stats, agents: data.agents, claude: data.claude, ping: reach,
+        stats, agents: data.agents, claude: data.claude,
+        // The panel gets a SHORT ssh list: its rows are a display budget, while
+        // the globe above pins every tracked host. Without this the panel would
+        // grow to thirteen ssh rows on a tall pane and crowd out everything else.
+        ping: reach && { net: reach.net, ssh: (reach.ssh || []).slice(0, PANEL_SSH_ROWS) },
         meta: { theme: theme.name, host: data.host, uptimeHours: data.up } })
     }
 

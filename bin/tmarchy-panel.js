@@ -16,6 +16,12 @@
 const fs = require('node:fs')
 const os = require('node:os')
 
+// Optional: the panel still renders without it, falling back to the four
+// discrete bands, so a checkout missing the ping module is plainer rather than
+// broken.
+let latencyHex = null
+try { ({ latencyHex } = require('./tmarchy-ping.js')) } catch { /* bands it is */ }
+
 const WIDTH = 30                  // panel columns, border included
 const MIN_COLS = 74               // below this the pane belongs to the solid
 
@@ -273,7 +279,7 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
   }))
   const reach = (list) => (list || []).map((e) => ({
     text: ` ${pingLamp(e.state)} ${e.label.slice(0, 16).padEnd(16)} ${formatRtt(e).padStart(7)} `,
-    colour: pingColour(theme, fg, dim, e.state),
+    colour: pingColour(theme, fg, dim, e.state, e.ms),
   }))
 
   const pg = ping || {}
@@ -306,7 +312,19 @@ function pingLamp(state) {
     : state === 'slow' ? '\u25cd' : state === 'down' ? '\u25cb' : '\u25cc'
 }
 
-function pingColour(theme, fg, dim, state) {
+// The row's colour is now CONTINUOUS in the round-trip time rather than picked
+// from the four bands -- see latencyHex in tmarchy-ping.js. The bands still
+// choose the lamp glyph, which has to stay scannable at a glance; the colour
+// carries the detail underneath it. The two cannot contradict each other
+// because they read the same number.
+//
+// This does mean latency can now reach @theme-wait, which the panel otherwise
+// reserves for heat. That is a deliberate relaxation: the top of the spectrum
+// is several hundred milliseconds, which is worth noticing, and the gradient
+// makes it obvious that the red end is one end of a scale rather than an alarm.
+function pingColour(theme, fg, dim, state, ms) {
+  const hex = latencyHex ? latencyHex(theme, ms, state) : null
+  if (hex) return fg(hex)
   return state === 'fast' ? fg(theme.done) : state === 'ok' ? fg(theme.info)
     : state === 'slow' ? fg(theme.busy) : fg(theme.dim)
 }

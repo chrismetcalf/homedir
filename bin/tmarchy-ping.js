@@ -37,7 +37,11 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 
 const SITE = 'chrismetcalf.net'    // the one fixed target
-const SSH_LIMIT = 5
+// How many ssh hosts to TRACK. The panel shows far fewer -- that is a row
+// budget, not a data limit -- but the screensaver pins every target to the
+// solid, and a globe wants more than a handful of cities. 40 unique hosts are
+// available from the history, so this invents nothing.
+const SSH_LIMIT = 13
 const INTERVAL = 15000             // ms between rounds
 const PER_PING_TIMEOUT = 3000      // < INTERVAL, so rounds cannot overlap
 const TAIL_BYTES = 65536           // per history file; history appends, so the
@@ -171,6 +175,61 @@ function pingArgs(platform, host) {
   return platform === 'darwin'
     ? ['-n', '-c', '1', '-t', '2', host]
     : ['-n', '-c', '1', '-W', '2', host]
+}
+
+// A CONTINUOUS colour for a round-trip time, as opposed to latencyState's four
+// discrete bands. The bands still drive the lamp glyph, which has to stay
+// scannable; the colour carries the detail, so two hosts that are both "fast"
+// no longer look identical when one is a hundred times closer than the other.
+//
+// LOG scale, because latency is: the interesting range runs from 0.15ms on the
+// LAN to 150ms across the Atlantic, and a linear ramp would paint everything
+// under 50ms the same green. The stops land at roughly 2ms and 46ms, so a LAN
+// host is green, a nearby server teal, a busy resolver amber and anything past
+// a few hundred milliseconds red.
+//
+// Returns a HEX STRING rather than an escape sequence so both consumers can use
+// it: the panel turns it into a foreground colour, and the screensaver's globe
+// points hand it to dim() to fade with the terminator.
+const LATENCY_LO = 0.1
+const LATENCY_HI = 1000
+
+function hexRgb(v) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v || '')
+  return m ? [1, 2, 3].map((i) => parseInt(m[i], 16)) : null
+}
+
+function mixHex(a, b, t) {
+  const ca = hexRgb(a)
+  const cb = hexRgb(b)
+  // 256-colour themes (jewel) have no arithmetic between palette indices, so
+  // they fall back to the nearer stop -- the bands they had before, rather than
+  // a broken colour.
+  if (!ca || !cb) return t < 0.5 ? a : b
+  const c = [0, 1, 2].map((i) => Math.round(ca[i] + (cb[i] - ca[i]) * t))
+  return '#' + c.map((n) => n.toString(16).padStart(2, '0')).join('')
+}
+
+// Where a round-trip time sits on the scale, 0 (fastest) to 1 (slowest).
+// Separated out because it is the only part with a testable ORDER: "slower is
+// further along" is a property of this number, not of any colour channel. The
+// palette runs green -> teal -> amber -> red, and green to teal LOWERS the red
+// channel, so no single channel is monotone across the gradient -- an assertion
+// on one of them looked obvious and was simply false.
+function latencyPosition(ms) {
+  if (ms === null || ms === undefined) return null
+  const span = Math.log10(LATENCY_HI / LATENCY_LO)
+  return Math.max(0, Math.min(1, Math.log10(Math.max(ms, LATENCY_LO) / LATENCY_LO) / span))
+}
+
+function latencyHex(theme, ms, state) {
+  if (!theme) return null
+  if (state === 'pending' || state === 'down' || ms === null || ms === undefined) return theme.dim
+  const stops = [theme.done, theme.info, theme.busy, theme.wait]
+  const t = latencyPosition(ms)
+  const seg = t * (stops.length - 1)
+  const i = Math.min(stops.length - 2, Math.floor(seg))
+  return mixHex(stops[i], stops[i + 1], seg - i)
 }
 
 function latencyState(ms) {
@@ -338,5 +397,5 @@ module.exports = {
   isSafeHost, parseRtt, parseIp, dnsFromResolvConf, dnsFromResolvectl, isLoopback,
   chooseResolvers,
   sshHostFromCommand, sshHostsFromHistory, sshHostsFromFrecency, mergeSshHosts,
-  pingArgs, latencyState, SITE, SSH_LIMIT,
+  pingArgs, latencyState, latencyHex, latencyPosition, mixHex, SITE, SSH_LIMIT,
 }

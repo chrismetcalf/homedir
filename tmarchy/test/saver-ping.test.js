@@ -72,11 +72,23 @@ test('a host in both sources is dated by the more recent one', () => {
   assert.deepStrictEqual(ping.mergeSshHosts([stale, fresh]), ['shared', 'other'])
 })
 
-// The limit is a limit. Sabotage: replace `.slice(0, limit)` with `.slice(0)`
-// -- all six come back and this fails.
-test('only the five most recent hosts survive', () => {
-  const m = new Map([['a', 6], ['b', 5], ['c', 4], ['d', 3], ['e', 2], ['f', 1]])
-  assert.deepStrictEqual(ping.mergeSshHosts([m]), ['a', 'b', 'c', 'd', 'e'])
+// The limit is a limit -- asserted against SSH_LIMIT rather than a hardcoded
+// five, since that number is a tuning decision (it went 5 -> 13 when the
+// screensaver started pinning every tracked host to the solid) and a test that
+// pins the value would fail for the wrong reason next time it moves. What must
+// hold is that the cap applies and keeps the NEWEST. Sabotage: replace
+// `.slice(0, limit)` with `.slice(0)` -- this fails.
+test('only the most recent hosts survive, up to the limit', () => {
+  const n = ping.SSH_LIMIT
+  const m = new Map()
+  for (let i = 0; i < n + 3; i++) m.set(`h${i}`, 1000 - i)   // h0 newest
+  const got = ping.mergeSshHosts([m])
+  assert.strictEqual(got.length, n, `expected ${n} hosts, got ${got.length}`)
+  assert.strictEqual(got[0], 'h0', 'newest first')
+  assert.strictEqual(got[n - 1], `h${n - 1}`, 'and cut at the limit')
+  assert.ok(!got.includes(`h${n}`), 'the one past the limit is gone')
+  // An explicit limit still overrides, which is what the panel's row budget uses.
+  assert.deepStrictEqual(ping.mergeSshHosts([m], 2), ['h0', 'h1'])
 })
 
 // --- resolvers --------------------------------------------------------------
@@ -401,4 +413,68 @@ test('a transient resolvectl failure does not silence it forever', async () => {
     for (let i = 0; i < 3; i++) { mod.start(); mod.stop(); await drain() }
     assert.strictEqual(asked, 3, `a transient failure should be retried, asked ${asked}`)
   } finally { restore() }
+})
+
+// --- the latency spectrum ---------------------------------------------------
+
+// Continuous, not banded: two hosts that are both "fast" must not look
+// identical when one is a hundred times closer. Sabotage: in latencyHex return
+// `stops[i]` instead of `mixHex(stops[i], stops[i + 1], seg - i)` -- the scale
+// collapses back to four discrete colours and this fails.
+test('latency colour varies continuously, not in four steps', () => {
+  const theme = { done: '#9ece6a', info: '#73daca', busy: '#e0af68', wait: '#f7768e', dim: '#565f89' }
+  const seen = new Set()
+  for (const ms of [0.15, 0.5, 2, 5.8, 15, 30, 60, 149, 400]) {
+    seen.add(ping.latencyHex(theme, ms, 'fast'))
+  }
+  assert.ok(seen.size >= 8,
+    `nine distinct latencies should give ~nine colours, got ${seen.size}`)
+})
+
+// Slower is further along the scale. Asserted on latencyPosition, NOT on a
+// colour channel: the palette goes green -> teal -> amber -> red, and green to
+// teal lowers the red channel, so no channel is monotone across the gradient.
+// The first version of this test asserted one anyway and failed against correct
+// code. Sabotage: in latencyPosition drop the Math.log10 wrapper and use the
+// raw ratio -- everything under a hundred milliseconds collapses to ~0 and the
+// strict increases fail.
+test('slower latency sits further along the scale', () => {
+  const ladder = [0.15, 1, 5, 20, 80, 300, 1500].map((ms) => ping.latencyPosition(ms))
+  for (let i = 1; i < ladder.length; i++) {
+    assert.ok(ladder[i] > ladder[i - 1],
+      `position must strictly increase: ${ladder.map((n) => n.toFixed(3)).join(' ')}`)
+  }
+  assert.strictEqual(ping.latencyPosition(0.001), 0, 'clamped at the fast end')
+  assert.strictEqual(ping.latencyPosition(99999), 1, 'clamped at the slow end')
+})
+
+// The ends of the gradient are the palette's own colours, not something mixed.
+// Sabotage: in latencyHex replace `stops[i + 1]` with `stops[i]` -- the top of
+// the scale never reaches wait and this fails.
+test('the scale ends on the theme colours it claims to', () => {
+  const theme = { done: '#9ece6a', info: '#73daca', busy: '#e0af68', wait: '#f7768e', dim: '#565f89' }
+  assert.strictEqual(ping.latencyHex(theme, 5000, 'slow'), theme.wait, 'the top is wait')
+  assert.strictEqual(ping.latencyHex(theme, 0.01, 'fast'), theme.done, 'the bottom is done')
+})
+
+// Unreachable is NOT the slow end of the scale -- it is off the scale, and
+// painting it red would make a switched-off laptop look like a network
+// emergency. Sabotage: in latencyHex delete the `state === 'down'` clause --
+// a down host takes the fast colour (ms is null, clamped to the floor) and
+// this fails.
+test('down and pending are dim, not part of the spectrum', () => {
+  const theme = { done: '#9ece6a', info: '#73daca', busy: '#e0af68', wait: '#f7768e', dim: '#565f89' }
+  assert.strictEqual(ping.latencyHex(theme, null, 'down'), theme.dim)
+  assert.strictEqual(ping.latencyHex(theme, null, 'pending'), theme.dim)
+})
+
+// jewel is 256-colour and has no arithmetic between palette indices. Sabotage:
+// in mixHex remove the `if (!ca || !cb)` guard -- it returns '#NaNNaNNaN' and
+// this fails.
+test('a 256-colour theme degrades to the nearest stop, not a broken colour', () => {
+  const jewel = { done: 'colour34', info: 'colour37', busy: 'colour214', wait: 'colour160', dim: 'colour240' }
+  for (const ms of [0.2, 5, 50, 500]) {
+    const c = ping.latencyHex(jewel, ms, 'fast')
+    assert.match(c, /^colour\d+$/, `expected a palette index, got ${c}`)
+  }
 })
