@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert')
-const { summarise, fiveHour, thresholdFor, THRESHOLDS } = require('../segments.d/quota')
+const { summarise, fiveHour, thresholdFor, THRESHOLDS, bucketRows, untilReset } =
+  require('../segments.d/quota')
 const usage = require('../segments.d/usage')
 
 const NOW = 1_800_000_000_000
@@ -158,4 +159,77 @@ test('usage: is a segment named "usage", so the tick writes @bar-usage', () => {
   assert.strictEqual(usage.name, 'usage')
   assert.strictEqual(typeof usage.render, 'function')
   assert.strictEqual(typeof usage.enabled, 'function')
+})
+
+// --- bucketRows: the screensaver's CLAUDE section ---------------------------
+//
+// summarise() answers "is there something to interrupt you about". bucketRows()
+// answers "where does every limit stand", which is a different question and the
+// reason it is a separate function rather than a flag on the first one.
+
+// Sabotage: in bucketRows drop the `...Object.keys(record.buckets).filter(...)`
+// half of `names` -- a bucket the endpoint grows that we have no label for
+// silently disappears and this fails.
+test('every bucket the endpoint returned gets a row, known or not', () => {
+  const rows = bucketRows(rec({
+    five_hour: { utilization: 45 },
+    seven_day: { utilization: 65 },
+    some_future_window: { utilization: 12 },
+  }), undefined, NOW)
+  assert.deepStrictEqual(rows.map((r) => r.name),
+    ['five_hour', 'seven_day', 'some_future_window'])
+  // An unlabelled bucket falls back to its raw name rather than being dropped.
+  assert.strictEqual(rows[2].label, 'some_future_window')
+})
+
+// Order is fixed, not the object's insertion order, so the rows do not
+// reshuffle between reads. Sabotage: in bucketRows replace `const known =
+// Object.keys(LABELS)` with `const known = []` -- the rows then come back in
+// whatever order the JSON happened to carry and this fails.
+test('known buckets keep a stable order regardless of the response', () => {
+  const rows = bucketRows(rec({
+    seven_day: { utilization: 65 },
+    five_hour: { utilization: 45 },
+  }), undefined, NOW)
+  assert.deepStrictEqual(rows.map((r) => r.label), ['5h', 'week'])
+})
+
+// The same thresholds the bar warns on, so the panel cannot paint a row red
+// that the bar calls fine. Sabotage: in bucketRows replace
+// `over: b.utilization >= thresholdFor(name, thresholds)` with `over: false` --
+// this fails.
+test('over-limit follows the same per-bucket thresholds as the bar', () => {
+  // five_hour warns at 60, everything else at 80.
+  const rows = bucketRows(rec({
+    five_hour: { utilization: 65 },
+    seven_day: { utilization: 65 },
+  }), undefined, NOW)
+  assert.strictEqual(rows[0].over, true, 'five_hour at 65 is past its 60 threshold')
+  assert.strictEqual(rows[1].over, false, 'seven_day at 65 is below its 80 threshold')
+  assert.strictEqual(THRESHOLDS.five_hour, 60, 'the five-hour threshold is the bar\'s')
+})
+
+// A stale reading must not be presented as current -- the same rule summarise()
+// enforces, and the reason this is not simply a map over record.buckets at the
+// call site. Sabotage: in bucketRows delete the `if (record.fetched_at && now -
+// record.fetched_at > STALE_MS) return []` line -- this fails.
+test('a stale record yields no rows at all', () => {
+  const old = rec({ five_hour: { utilization: 45 } }, { fetched_at: NOW - 46 * 60 * 1000 })
+  assert.deepStrictEqual(bucketRows(old, undefined, NOW), [])
+  assert.deepStrictEqual(bucketRows(null, undefined, NOW), [])
+  assert.deepStrictEqual(bucketRows({ ok: false, buckets: {} }, undefined, NOW), [])
+})
+
+// Three characters, and the unit that matches the scale. Sabotage: in
+// untilReset replace `if (hours < 48)` with `if (hours < 0)` -- a two-hour
+// window reports as "0d" and this fails.
+test('the reset countdown picks a unit that fits three characters', () => {
+  const at = (ms) => new Date(NOW + ms).toISOString()
+  assert.strictEqual(untilReset(at(25 * 60 * 1000), NOW), '25m')
+  assert.strictEqual(untilReset(at(2 * 3600 * 1000), NOW), '2h')
+  assert.strictEqual(untilReset(at(47 * 3600 * 1000), NOW), '47h')
+  assert.strictEqual(untilReset(at(3 * 86400 * 1000), NOW), '3d')
+  assert.strictEqual(untilReset(at(-60 * 1000), NOW), 'now')
+  assert.strictEqual(untilReset(null, NOW), null)
+  assert.strictEqual(untilReset('not a date', NOW), null)
 })

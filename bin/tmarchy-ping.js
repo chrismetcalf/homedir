@@ -206,23 +206,32 @@ function chooseResolvers(conf, upstreams) {
 // targets were re-read -- the exact thing this file's header forbids, and the
 // shape it was in when first written.
 let upstreams = null
-let retargetPending = false
+let upstreamsInFlight = false
 
-function refreshUpstreams() {
+function refreshUpstreams(onChange) {
+  if (upstreamsInFlight) return
+  upstreamsInFlight = true
   execFile('resolvectl', ['dns'], { timeout: 2000, encoding: 'utf8' }, (err, stdout) => {
+    upstreamsInFlight = false
     const found = err ? [] : dnsFromResolvectl(stdout)
     const changed = !upstreams || upstreams.join() !== found.join()
     upstreams = found
-    // Targets are otherwise only re-read every few minutes, so without this the
-    // panel would ping the loopback stub for that whole first window.
-    if (changed && found.length) retargetPending = true
+    if (changed && found.length && onChange) onChange()
   })
 }
 
+function confNameservers() {
+  return dnsFromResolvConf(readAll('/etc/resolv.conf'))
+}
+
+// Deliberately SIDE-EFFECT FREE. An earlier version kicked off the resolvectl
+// fetch from in here, which meant resolveTargets() -> resolvers() -> refresh ->
+// resolveTargets() was a live cycle: not infinite (the call is async and the
+// second answer matches the first), but a resolvectl spawn on every read of the
+// target list for no gain. Deciding when to ask belongs to round(), which is
+// the thing that has a clock.
 function resolvers() {
-  const conf = dnsFromResolvConf(readAll('/etc/resolv.conf'))
-  if (!conf.filter((ip) => !isLoopback(ip)).length) refreshUpstreams()
-  return chooseResolvers(conf, upstreams)
+  return chooseResolvers(confNameservers(), upstreams)
 }
 
 function recentSshHosts() {
@@ -235,9 +244,13 @@ function recentSshHosts() {
   return mergeSshHosts(maps)
 }
 
+// The site leads, then the resolvers. Not just a reading order: the panel trims
+// this section row by row when space is short, so whatever sits first is what
+// survives -- and of the three, "can I reach my own site" is the one row worth
+// keeping when only one fits. The resolvers answer a narrower question.
 function resolveTargets() {
-  const net = resolvers().map((ip) => ({ label: ip, host: ip }))
-  net.push({ label: SITE, host: SITE })
+  const net = [{ label: SITE, host: SITE }]
+  for (const ip of resolvers()) net.push({ label: ip, host: ip })
   return { net, ssh: recentSshHosts().map((h) => ({ label: h, host: h })) }
 }
 
@@ -261,11 +274,20 @@ function pingOnce(host) {
 }
 
 function round() {
-  if (rounds % RETARGET_EVERY === 0 || retargetPending) {
-    retargetPending = false
-    targets = resolveTargets()
-  }
+  if (rounds % RETARGET_EVERY === 0) targets = resolveTargets()
   rounds++
+
+  // Ask systemd-resolved only when resolv.conf has nothing real to offer, and
+  // act on the answer the moment it lands rather than at the next retarget:
+  // otherwise the first fifteen seconds of every session show a resolver row
+  // reading 0.03ms, which is the loopback stub and looks like a working number.
+  if (!confNameservers().filter((ip) => !isLoopback(ip)).length) {
+    refreshUpstreams(() => {
+      targets = resolveTargets()
+      for (const t of targets.net) pingOnce(t.host)
+    })
+  }
+
   for (const t of [...targets.net, ...targets.ssh]) pingOnce(t.host)
 }
 

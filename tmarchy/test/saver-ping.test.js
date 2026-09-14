@@ -185,7 +185,7 @@ function textOf(grid) {
   return grid.map((r) => r.map((c) => (c === null ? ' ' : [...c].pop())).join('')).join('\n')
 }
 
-function drawPanel(rows, pingData, agents = AGENTS) {
+function drawPanel(rows, pingData, agents = AGENTS, claude = CLAUDE) {
   const cols = 100
   const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
   panel.render({
@@ -195,7 +195,7 @@ function drawPanel(rows, pingData, agents = AGENTS) {
     fg: () => '', dim: () => '',
     stats: { cpu: 9, mem: { pct: 20 }, disk: 62, net: { rx: 1, tx: 1 }, temp: 28,
       cores: 20, load: ['1.00', '1.00', '1.00'] },
-    agents, quota: 43, meta: { theme: 'tokyo-night', host: 'h', uptimeHours: 5 },
+    agents, claude, meta: { theme: 'tokyo-night', host: 'h', uptimeHours: 5 },
     ping: pingData,
   })
   return textOf(grid)
@@ -204,6 +204,11 @@ function drawPanel(rows, pingData, agents = AGENTS) {
 // Five agents, because that is the panel's real shape: the agent list is capped
 // at five and a host running agents is the case where space is actually tight.
 const AGENTS = ['one', 'two', 'three', 'four', 'five'].map((l) => ({ label: l, state: 'idle' }))
+
+const CLAUDE = [
+  { label: '5h', utilization: 45, resets: '2h', over: false },
+  { label: 'week', utilization: 65, resets: '3d', over: false },
+]
 
 const FULL = {
   net: [
@@ -214,29 +219,77 @@ const FULL = {
   ssh: ['a', 'b', 'c', 'd', 'e'].map((l) => ({ label: l, ms: 1, state: 'fast' })),
 }
 
-// Sabotage: in render replace `if (!list || !list.length || budget < 2) return`
-// with `if (!list || !list.length) return` -- on the short pane the eight extra
-// rows push the closing border past the bottom, the quota gauge with it, and
-// this fails.
-test('the ping section is trimmed to fit rather than clipped off the bottom', () => {
+// Sabotage: in render replace `if (!entries || !entries.length || budget < 2)
+// return` with `if (!entries || !entries.length) return` -- on the short pane
+// the extra rows push the closing border past the bottom and this fails.
+test('the variable sections are trimmed to fit rather than clipped off', () => {
   const tall = drawPanel(40, FULL)
-  assert.ok(tall.includes('PING'), 'a tall pane should show the PING section')
-  assert.ok(tall.includes('SSH'), 'a tall pane should show the SSH section')
-  assert.ok(tall.includes('QUOTA'), 'a tall pane should still show the quota gauge')
+  for (const s of ['CLAUDE', 'PING', 'SSH', 'LINK']) {
+    assert.ok(tall.includes(s), `a tall pane should show the ${s} section`)
+  }
+  assert.ok(tall.includes('\u2514'), 'a tall pane should still close its border')
 
-  // Enough room for PING but not for SSH: the whole SSH section goes, header
-  // included, rather than leaving a rule with nothing under it.
+  // Enough room for CLAUDE and PING but not for SSH: the whole SSH section
+  // goes, header included, rather than leaving a rule with nothing under it.
   const short = drawPanel(24, FULL)
-  assert.ok(short.includes('PING'), 'PING survives the trim')
+  assert.ok(short.includes('CLAUDE'), 'CLAUDE has the highest priority')
+  assert.ok(short.includes('PING'), 'PING outranks SSH')
   assert.ok(!short.includes('SSH'), 'SSH is trimmed first')
-  assert.ok(short.includes('QUOTA'), 'the quota gauge must never be pushed off')
+  assert.ok(short.includes('\u2514'), 'the closing border must never be pushed off')
 
+  // Squeezed harder: CLAUDE alone survives, and the border still closes.
+  const tiny = drawPanel(20, FULL)
+  assert.ok(tiny.includes('CLAUDE'), 'CLAUDE is the last section standing')
+  assert.ok(!tiny.includes('PING'), 'PING goes before CLAUDE does')
+  assert.ok(tiny.includes('\u2514'), 'the closing border must never be pushed off')
+})
+
+// Sabotage: in render replace `entries.slice(0, budget)` with `entries` -- the
+// section stops respecting the budget it was given and this fails.
+test('a section that half fits shows the rows that fit', () => {
   // Room for SSH, but not for all five of it: the section appears with as many
   // rows as fit, which is what proves the budget is per-row and not per-section.
-  const between = drawPanel(28, FULL)
-  const sshRows = between.split('\n').filter((l) => /\u2502 [\u25cf\u25c9\u25cd\u25cb\u25cc] [a-e] /.test(l))
-  assert.strictEqual(sshRows.length, 4, 'four of the five ssh rows should fit')
-  assert.ok(between.includes('QUOTA'), 'the quota gauge must never be pushed off')
+  const between = drawPanel(29, FULL)
+  const sshRows = between.split('\n')
+    .filter((l) => /\u2502 [\u25cf\u25c9\u25cd\u25cb\u25cc] [a-e] /.test(l))
+  assert.ok(sshRows.length > 0 && sshRows.length < 5,
+    `expected a partial ssh list, got ${sshRows.length} rows`)
+  assert.ok(between.includes('\u2514'), 'the closing border must never be pushed off')
+})
+
+// The CLAUDE section carries every bucket, its own reset countdown, and turns
+// @theme-wait only for a bucket past its threshold. Sabotage: in render replace
+// `colour: b.over ? fg(theme.wait) : dimC` with `colour: dimC` -- the over-limit
+// row stops being distinguishable and this fails.
+test('every quota bucket gets a row, and only an over-limit one is coloured', () => {
+  const marks = []
+  const text = (() => {
+    const cols = 100, rows = 40
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    panel.render({
+      grid, rows, cols, frame: 0,
+      theme: { dim: '#565f89', accent: '#7aa2f7', fg: '#c0caf5', done: '#9ece6a',
+        busy: '#e0af68', wait: '#f7768e', info: '#73daca' },
+      fg: (c) => { marks.push(c); return c === '#f7768e' ? '!' : '' }, dim: () => '',
+      stats: {}, agents: [], ping: { net: [], ssh: [] },
+      meta: { theme: 't', host: 'h', uptimeHours: 1 },
+      claude: [
+        { label: '5h', utilization: 45, resets: '2h', over: false },
+        { label: 'week', utilization: 65, resets: '3d', over: false },
+        { label: 'opus', utilization: 91, resets: '3d', over: true },
+      ],
+    })
+    return textOf(grid)
+  })()
+
+  const lines = text.split('\n')
+  assert.ok(lines.some((l) => l.includes('5h') && l.includes('45%') && l.includes('2h')),
+    'the five-hour row should carry its percentage and its reset')
+  assert.ok(lines.some((l) => l.includes('week') && l.includes('65%')), 'week row missing')
+  assert.ok(lines.some((l) => l.includes('opus') && l.includes('91%')), 'opus row missing')
+  // Only the over-limit row asked for the alarm colour.
+  assert.strictEqual(marks.filter((c) => c === '#f7768e').length, 1,
+    'exactly one row should paint in @theme-wait')
 })
 
 // Unmeasured and unreachable are DIFFERENT, and neither is a number. Sabotage:

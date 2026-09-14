@@ -115,6 +115,66 @@ function fiveHour(record, now = Date.now()) {
   return `${LABELS.five_hour} ${Math.round(bucket.utilization)}%`
 }
 
+// Panel-width labels. The bar's LABELS above disambiguate in a status line
+// where a percentage stands alone; inside a section already headed CLAUDE, with
+// a `week` row directly above it, `opus` is unambiguous -- and six characters is
+// what the panel's row actually has, so `sonnet wk` would truncate to nonsense.
+const SHORT = {
+  five_hour: '5h',
+  seven_day: 'week',
+  seven_day_opus: 'opus',
+  seven_day_sonnet: 'sonnet',
+}
+
+// ISO timestamp -> a three-character countdown. Minutes below the hour, hours
+// below two days, days above -- the resolution you would actually act on at
+// each scale, and never more characters than the column has.
+function untilReset(resetsAt, now = Date.now()) {
+  if (!resetsAt) return null
+  const at = Date.parse(resetsAt)
+  if (!Number.isFinite(at)) return null
+  const mins = Math.round((at - now) / 60000)
+  if (mins <= 0) return 'now'
+  if (mins < 60) return `${mins}m`
+  const hours = Math.round(mins / 60)
+  if (hours < 48) return `${hours}h`
+  return `${Math.round(hours / 24)}d`
+}
+
+// EVERY bucket the endpoint returned, as structured rows -- the screensaver's
+// CLAUDE section, where summarise() gives the bar its one worst-and-only-if-
+// urgent line. Known buckets come first in a fixed order so the rows do not
+// reshuffle between reads, and an unrecognised one is appended rather than
+// dropped: the account currently reports two, the API has four names for them,
+// and a section that silently omits a limit you are about to hit is worse than
+// one with a row you have to look up.
+//
+// Staleness is enforced exactly as summarise() does it. The panel would
+// otherwise present a 45-minute-old reading as current, which is the failure
+// this whole segment exists to avoid.
+function bucketRows(record, thresholds, now = Date.now()) {
+  if (!record || !record.ok || !record.buckets) return []
+  if (record.fetched_at && now - record.fetched_at > STALE_MS) return []
+
+  const known = Object.keys(LABELS)
+  const names = [...known.filter((n) => n in record.buckets),
+    ...Object.keys(record.buckets).filter((n) => !known.includes(n))]
+
+  const out = []
+  for (const name of names) {
+    const b = record.buckets[name]
+    if (!b || typeof b.utilization !== 'number') continue
+    out.push({
+      name,
+      label: SHORT[name] || name,
+      utilization: Math.round(b.utilization),
+      resets: untilReset(b.resets_at, now),
+      over: b.utilization >= thresholdFor(name, thresholds),
+    })
+  }
+  return out
+}
+
 function readCache() {
   try {
     return JSON.parse(fs.readFileSync(CACHE, 'utf8'))
@@ -155,6 +215,11 @@ module.exports = {
   name: 'quota',
   summarise,
   fiveHour,
+  bucketRows,
+  untilReset,
+  SHORT,
+  LABELS,
+  STALE_MS,
   readCache,
   thresholdFor,
   THRESHOLDS,

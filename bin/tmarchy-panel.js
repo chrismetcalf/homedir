@@ -145,7 +145,7 @@ function lamp(active, frame, phase) {
   return (Math.floor(frame / 4) + phase) % 3 === 0 ? '◉' : '●'
 }
 
-function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota, meta, ping }) {
+function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude, meta, ping }) {
   if (cols < MIN_COLS || rows < 14) return 0
 
   const x0 = cols - WIDTH
@@ -207,28 +207,48 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota,
     row(` ${g} ${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}`, c)
   }
 
-  // --- reachability ---------------------------------------------------------
-  // Added LAST of the variable-height sections, and only into the rows actually
-  // left over, because the panel is vertically centred and anything past the
-  // bottom is silently clipped -- on a 24-row pane eight ping rows would push
-  // the quota gauge off the screen with nothing to say it had gone. SSH is
-  // trimmed before PING: the resolvers and the site are the same three rows on
-  // every host, while the ssh list is however long your week was.
-  const TAIL_LINES = 4                        // LINK rule, strip, quota, border
+  // --- the variable-height sections ------------------------------------------
+  // Added LAST, and only into the rows actually left over, because the panel is
+  // vertically centred and anything past the bottom is silently clipped -- on a
+  // 24-row pane these would push the closing border off screen with nothing to
+  // say it had gone. They are added in priority order and each one that cannot
+  // fit is dropped WHOLE, header included: a rule with no rows under it is a
+  // section that looks broken rather than one that looks absent.
+  //
+  // CLAUDE first because it is the only one of the three you might act on in
+  // the next five minutes; SSH last because the resolvers are the same three
+  // rows on every host while the ssh list is however long your week was.
+  const TAIL_LINES = 3                        // LINK rule, strip row, border
   let budget = rows - lines.length - TAIL_LINES
-  const pingSection = (label, list) => {
-    if (!list || !list.length || budget < 2) return
+  const section = (label, entries) => {
+    if (!entries || !entries.length || budget < 2) return
     rule(label, '\u251c', '\u2524')
     budget--
-    for (const e of list.slice(0, budget)) {
-      row(` ${pingLamp(e.state)} ${e.label.slice(0, 16).padEnd(16)} ${formatRtt(e).padStart(7)} `,
-        pingColour(theme, fg, dim, e.state))
+    for (const e of entries.slice(0, budget)) {
+      row(e.text, e.colour)
       budget--
     }
   }
+
+  // Every bucket the endpoint returned, not just the worst one: the bar's job
+  // is to interrupt you about the limit that matters, this panel's job is to
+  // show you where all of them stand. A bucket past its OWN threshold is the
+  // only thing here that turns @theme-wait -- same thresholds the bar warns on,
+  // read from the same module, so the two cannot drift.
+  const claudeRows = (claude || []).map((b) => ({
+    text: ` ${b.label.slice(0, 6).padEnd(6)} ${bar(b.utilization, 10)} ` +
+      `${(b.utilization + '%').padStart(4)} ${(b.resets || '--').padStart(3)} `,
+    colour: b.over ? fg(theme.wait) : dimC,
+  }))
+  const reach = (list) => (list || []).map((e) => ({
+    text: ` ${pingLamp(e.state)} ${e.label.slice(0, 16).padEnd(16)} ${formatRtt(e).padStart(7)} `,
+    colour: pingColour(theme, fg, dim, e.state),
+  }))
+
   const pg = ping || {}
-  pingSection(' PING ', pg.net)
-  pingSection(' SSH ', pg.ssh)
+  section(' CLAUDE ', claudeRows)
+  section(' PING ', reach(pg.net))
+  section(' SSH ', reach(pg.ssh))
 
   rule(' LINK ', '\u251c', '\u2524')
   // Seeded by the frame rather than Math.random, so every client attached to
@@ -237,9 +257,6 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota,
     ((frame * 7 + i * 31) % 11) < 4 ? '\u25aa' : '\u25ab').join('')
   const hex = ((frame * 2654435761) >>> 0).toString(16).toUpperCase().padStart(8, '0').slice(0, 6)
   row(` ${strip}  0x${hex}`, fg(theme.info))
-  const q = quota === null || quota === undefined ? '--' : quota + '%'
-  row(` QUOTA ${bar(quota, 10)} ${q.padStart(4)}`,
-    quota !== null && quota !== undefined && quota >= 60 ? fg(theme.wait) : dimC)
   lines.push({ t: '\u2514' + '\u2500'.repeat(inner) + '\u2518', c: dimC })
 
   const y0 = Math.max(0, Math.floor((rows - lines.length) / 2))
