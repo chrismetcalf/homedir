@@ -32,6 +32,8 @@ let geo = null
 try { geo = require(path.join(__dirname, 'tmarchy-geo.js')) } catch { /* rain still works */ }
 let panel = null
 try { panel = require(path.join(__dirname, 'tmarchy-panel.js')) } catch { /* panel is optional */ }
+let ping = null
+try { ping = require(path.join(__dirname, 'tmarchy-ping.js')) } catch { /* reachability is optional */ }
 const FPS = 20
 const TICK = Math.round(1000 / FPS)
 // Real data changes on human timescales; re-reading it every frame would spend
@@ -166,6 +168,11 @@ function main() {
   // data tick rather than per frame -- per frame the deltas would be noise
   // divided by 50ms.
   let stats = panel ? panel.read() : {}
+  // Pings are async children on their own 15s timer; the frame loop only ever
+  // reads the cache they fill. Started here rather than at require time so a
+  // module that is merely loaded (by a test, say) never spawns anything.
+  if (ping) ping.start()
+  let reach = ping ? ping.read() : null
   let cols = out.columns || 80
   let rows = out.rows || 24
   let columns = Array.from({ length: cols }, () => makeColumn(rows))
@@ -199,6 +206,7 @@ function main() {
       data = readData()
       theme = loadTheme()                       // switch theme and the rain follows
       if (panel) stats = panel.read()
+      if (ping) reach = ping.read()
     }
     if (panel && frame % Math.round(CPU_EVERY / TICK) === 0) {
       // The gauge shows the sampler's newest reading rather than waiting for the
@@ -219,7 +227,10 @@ function main() {
     // The CPU graph owns the bottom band, full width -- it runs UNDER the panel
     // too, which is deliberate: a timeline that stopped at the panel's edge
     // would read as clipped rather than as a backdrop.
-    const graphH = (panel && rows >= 18) ? Math.max(4, Math.min(7, Math.floor(rows * 0.22))) : 0
+    // Shorter than the filled version was. A sparse trace only ever occupies one
+    // cell per column, so a tall band on an idle box is empty pane rather than
+    // a fuller-looking graph -- the height buys resolution, not presence.
+    const graphH = (panel && rows >= 18) ? Math.max(4, Math.min(6, Math.floor(rows * 0.18))) : 0
 
     // --- solid geometry ---------------------------------------------------
     if (MODE !== 'rain' && geo) {
@@ -262,7 +273,7 @@ function main() {
     // --- telemetry panel ---------------------------------------------------
     if (right) {
       panel.render({ grid, rows, cols, frame, theme, fg, dim,
-        stats, agents: data.agents, quota: data.quota,
+        stats, agents: data.agents, quota: data.quota, ping: reach,
         meta: { theme: theme.name, host: data.host, uptimeHours: data.up } })
     }
 

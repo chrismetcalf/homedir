@@ -145,7 +145,7 @@ function lamp(active, frame, phase) {
   return (Math.floor(frame / 4) + phase) % 3 === 0 ? '◉' : '●'
 }
 
-function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota, meta }) {
+function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota, meta, ping }) {
   if (cols < MIN_COLS || rows < 14) return 0
 
   const x0 = cols - WIDTH
@@ -207,6 +207,29 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota,
     row(` ${g} ${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}`, c)
   }
 
+  // --- reachability ---------------------------------------------------------
+  // Added LAST of the variable-height sections, and only into the rows actually
+  // left over, because the panel is vertically centred and anything past the
+  // bottom is silently clipped -- on a 24-row pane eight ping rows would push
+  // the quota gauge off the screen with nothing to say it had gone. SSH is
+  // trimmed before PING: the resolvers and the site are the same three rows on
+  // every host, while the ssh list is however long your week was.
+  const TAIL_LINES = 4                        // LINK rule, strip, quota, border
+  let budget = rows - lines.length - TAIL_LINES
+  const pingSection = (label, list) => {
+    if (!list || !list.length || budget < 2) return
+    rule(label, '\u251c', '\u2524')
+    budget--
+    for (const e of list.slice(0, budget)) {
+      row(` ${pingLamp(e.state)} ${e.label.slice(0, 16).padEnd(16)} ${formatRtt(e).padStart(7)} `,
+        pingColour(theme, fg, dim, e.state))
+      budget--
+    }
+  }
+  const pg = ping || {}
+  pingSection(' PING ', pg.net)
+  pingSection(' SSH ', pg.ssh)
+
   rule(' LINK ', '\u251c', '\u2524')
   // Seeded by the frame rather than Math.random, so every client attached to
   // the same session flickers in step instead of each shimmering separately.
@@ -224,59 +247,82 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota,
   return WIDTH
 }
 
+
+// --- reachability formatting ------------------------------------------------
+// Latency has a natural direction, but it deliberately does NOT reach red: this
+// panel keeps exactly one alarm colour (heat), and a host that is simply switched
+// off is not an alarm. Unreachable and unmeasured go DIM, which is also what
+// stops five rows going red the moment you close the laptop you last ssh'd to.
+function pingLamp(state) {
+  return state === 'fast' ? '\u25cf' : state === 'ok' ? '\u25c9'
+    : state === 'slow' ? '\u25cd' : state === 'down' ? '\u25cb' : '\u25cc'
+}
+
+function pingColour(theme, fg, dim, state) {
+  return state === 'fast' ? fg(theme.done) : state === 'ok' ? fg(theme.info)
+    : state === 'slow' ? fg(theme.busy) : fg(theme.dim)
+}
+
+// Three significant figures in a seven-column field: 0.18ms reads differently
+// from 180ms, and rounding both to "0ms"/"180ms" would throw away the only
+// distinction a LAN row ever shows.
+function formatRtt(e) {
+  if (e.state === 'pending') return '\u00b7'
+  if (e.ms === null || e.ms === undefined) return '\u00d7'
+  if (e.ms >= 100) return `${Math.round(e.ms)}ms`
+  if (e.ms >= 10) return `${e.ms.toFixed(1)}ms`
+  return `${e.ms.toFixed(2)}ms`
+}
+
 // --- the CPU graph ----------------------------------------------------------
 // Full width, time on X (newest at the right, the direction a timeline is read)
-// and CPU on Y. Deliberately SUBTLE: it is a backdrop the solid sits above, not
-// a second focal point, so it is drawn in @theme-dim with only the crest in the
-// accent -- enough to read the shape at a glance without competing.
+// and CPU on Y. Deliberately SPARSE: it is a backdrop the solid sits above, not
+// a second focal point, so it plots ONE mark per column rather than filling the
+// area beneath it. A filled bar chart at this width reads as a solid block of
+// texture competing with the shape above it; a scatter of marks reads as an
+// instrument trace.
 //
-// Eighth-blocks give eight sub-rows of resolution per character cell, so a
-// six-row graph resolves ~48 levels rather than 6. Without them a busy machine
-// and an idle one look like the same flat band.
-const EIGHTHS = ['\u2581', '\u2582', '\u2583', '\u2584', '\u2585', '\u2586', '\u2587', '\u2588']
+// The marks are braille. A braille cell is a 2x4 dot matrix, so lighting both
+// dots of one row gives a short horizontal segment at one of FOUR heights
+// within a single character cell -- four sub-rows of resolution for free, which
+// is what stops a six-row graph from quantising an idle machine and a busy one
+// onto the same row. Bottom to top: dots 7+8, 3+6, 2+5, 1+4.
+const LEVELS = ['\u28c0', '\u2824', '\u2812', '\u2809']   // bottom -> top
+const AXIS_EVERY = 4               // columns between axis ticks
 
 function renderGraph({ grid, rows, cols, theme, fg, dim, history, height }) {
   if (!history || history.length < 2 || height < 2) return 0
 
   const top = rows - height
-  const body = dim(theme.dim, 0.85)
-  const crest = fg(theme.accent)
+  const SUB = LEVELS.length
+  const trace = dim(theme.accent, 0.5)
+  const head = fg(theme.accent)
+  const axis = dim(theme.dim, 0.3)
+
+  // A DOTTED axis, not a rule. A continuous line across the bottom of the pane
+  // reads as a border -- something the screensaver is framed by rather than
+  // something it is measuring against.
+  for (let x = 0; x < cols; x += AXIS_EVERY) grid[rows - 1][x] = axis + '\u2840'
 
   // Newest sample at the right edge. A shorter history simply starts further
   // in rather than being stretched, so the time axis keeps a constant scale.
   const shown = history.slice(-cols)
   const x0 = cols - shown.length
+  const steps = height * SUB - 1
 
   for (let i = 0; i < shown.length; i++) {
     const x = x0 + i
     if (x < 0 || x >= cols) continue
     const pct = Math.max(0, Math.min(100, shown[i]))
-    const units = Math.round((pct / 100) * height * 8)
-    if (units <= 0) continue
-
-    const full = Math.floor(units / 8)
-    const part = units % 8
-
-    for (let r = 0; r < full; r++) {
-      const y = rows - 1 - r
-      if (y >= top && y < rows) grid[y][x] = body + '\u2588'
-    }
-    if (part > 0) {
-      const y = rows - 1 - full
-      if (y >= top && y < rows) grid[y][x] = body + EIGHTHS[part - 1]
-    }
-    // The crest: the single cell at the top of each column, in the accent, which
-    // is what makes the profile legible against its own fill.
-    const cy = rows - 1 - (part > 0 ? full : Math.max(0, full - 1))
-    if (cy >= top && cy < rows && grid[cy][x] !== null) {
-      grid[cy][x] = crest + (part > 0 ? EIGHTHS[part - 1] : '\u2588')
-    }
+    const level = Math.round((pct / 100) * steps)     // sub-rows above the floor
+    const y = rows - 1 - Math.floor(level / SUB)
+    if (y < top || y >= rows) continue
+    // The newest column is the bright one, the way the rain's head is: it says
+    // which end of the trace is now without needing an axis label.
+    const newest = i === shown.length - 1
+    grid[y][x] = (newest ? head : trace) + LEVELS[level % SUB]
   }
 
-  // A baseline, so an idle machine still shows an axis rather than nothing.
-  for (let x = 0; x < cols; x++) {
-    if (grid[rows - 1][x] === null) grid[rows - 1][x] = dim(theme.dim, 0.35) + '\u2581'
-  }
   return height
 }
 
