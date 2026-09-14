@@ -22,6 +22,14 @@ const os = require('node:os')
 const path = require('node:path')
 
 const STATE = path.join(os.homedir(), '.local', 'state', 'tmarchy')
+
+// Two renderers, one frame loop. Both paint into the same character grid, so
+// the agent nodes and the HUD are written once and neither renderer knows they
+// exist. `geo` is the default because it is the one worth staring at; `rain` is
+// the first one and still the better backdrop if you want the HUD legible.
+const MODE = (process.argv[2] || 'geo').replace(/^--/, '')
+let geo = null
+try { geo = require(path.join(__dirname, 'tmarchy-geo.js')) } catch { /* rain still works */ }
 const FPS = 20
 const TICK = Math.round(1000 / FPS)
 // Real data changes on human timescales; re-reading it every frame would spend
@@ -184,9 +192,15 @@ function main() {
 
     const buf = []
 
-    // --- rain -------------------------------------------------------------
     const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
-    columns.forEach((col, x) => {
+
+    // --- solid geometry ---------------------------------------------------
+    if (MODE !== 'rain' && geo) {
+      geo.render({ grid, rows, cols, frame, theme, fg, dim })
+    }
+
+    // --- rain ---------------------------------------------------------------
+    if (MODE === 'rain' || !geo) columns.forEach((col, x) => {
       col.y += col.speed
       if (col.y - col.len > rows) Object.assign(col, makeColumn(rows), { y: -col.len })
       const head = Math.floor(col.y)
@@ -207,7 +221,11 @@ function main() {
     // --- agent nodes ------------------------------------------------------
     // Placed on one line, centred, each a pulsing dot plus its directory. These
     // sit ON TOP of the rain, which is what makes them read as signal.
-    const nodeRow = Math.max(1, Math.floor(rows / 2) - 2)
+    // Nodes hug the TOP edge and the HUD the bottom, leaving the middle clear.
+    // With the rain that hardly mattered -- rain is a backdrop. With a solid in
+    // the centre, text through the middle punches a hole in the object and the
+    // whole illusion of depth goes with it.
+    const nodeRow = 1
     if (data.agents.length) {
       const pulse = 0.55 + 0.45 * Math.sin(frame / 5)
       const cells = data.agents.map((a) => {
@@ -238,7 +256,7 @@ function main() {
       `load ${data.load}   agents ${data.agents.length}   waiting ${data.wait}   busy ${data.busy}`,
       `5h quota ${bar(data.quota)} ${data.quota === null ? '--' : data.quota + '%'}`,
     ]
-    const hudRow = Math.floor(rows / 2) + 1
+    const hudRow = Math.max(nodeRow + 2, rows - hud.length - 1)
     hud.forEach((line, i) => {
       const y = hudRow + i
       if (y >= rows) return
