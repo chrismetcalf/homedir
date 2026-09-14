@@ -24,8 +24,20 @@ function readFile(p) {
   try { return fs.readFileSync(p, 'utf8') } catch { return '' }
 }
 
+// CPU is sampled on its OWN cadence, faster than the panel's data tick, because
+// it feeds the timeline graph as well as the gauge: at one sample per data tick
+// a 120-column graph would take eight minutes to fill. One sampler serves both,
+// so the gauge and the right-hand end of the graph cannot disagree -- two
+// samplers sharing /proc/stat would each steal the other's delta.
 let prevCpu = null
-function cpuPercent() {
+let lastCpu = null
+// Long enough for the widest pane; the graph takes the newest `cols` samples,
+// so a narrow pane shows less history rather than a squashed version of all of
+// it.
+const HISTORY_MAX = 400
+const history = []
+
+function sampleCpu() {
   const line = readFile('/proc/stat').split('\n')[0]
   const n = line.trim().split(/\s+/).slice(1).map(Number)
   if (n.length < 4) return null
@@ -36,7 +48,11 @@ function cpuPercent() {
   if (!prev) return null
   const dt = total - prev.total
   if (dt <= 0) return null
-  return Math.max(0, Math.min(100, Math.round(100 * (1 - (idle - prev.idle) / dt))))
+  const pct = Math.max(0, Math.min(100, Math.round(100 * (1 - (idle - prev.idle) / dt))))
+  lastCpu = pct
+  history.push(pct)
+  if (history.length > HISTORY_MAX) history.shift()
+  return pct
 }
 
 function memPercent() {
@@ -91,9 +107,13 @@ function temperature() {
   return Number.isFinite(t) ? Math.round(t / 1000) : null
 }
 
+// The panel's slower tick. CPU is deliberately NOT read here -- sampleCpu owns
+// it on its own cadence and read() simply reports what that sampler last saw,
+// so the gauge always matches the newest column of the graph.
 function read() {
   return {
-    cpu: cpuPercent(),
+    cpuHistory: history,
+    cpu: lastCpu,
     mem: memPercent(),
     net: netRate(),
     disk: diskPercent(),
@@ -125,7 +145,7 @@ function lamp(active, frame, phase) {
   return (Math.floor(frame / 4) + phase) % 3 === 0 ? '◉' : '●'
 }
 
-function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota }) {
+function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota, meta }) {
   if (cols < MIN_COLS || rows < 14) return 0
 
   const x0 = cols - WIDTH
@@ -165,7 +185,12 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota 
     lines.push({ t: left + '\u2500' + label + '\u2500'.repeat(dashes) + right_, c: dimC })
   }
 
-  rule(' SYS ', '\u250c', '\u2510')
+  const m = meta || {}
+  rule(` ${(m.theme || 'tmarchy').toUpperCase()} `, '\u250c', '\u2510')
+  const up = m.uptimeHours === undefined ? '--'
+    : m.uptimeHours >= 48 ? `${Math.floor(m.uptimeHours / 24)}d` : `${m.uptimeHours}h`
+  row(` ${(m.host || '?').slice(0, 16).padEnd(16)} up ${up.padStart(5)}`, fgC)
+  rule(' SYS ', '\u251c', '\u2524')
   row(` ${lamp(true, frame, 0)} CPU ${bar(s.cpu, 10)} ${String(s.cpu ?? '--').padStart(3)}%`, accC)
   row(` ${lamp(true, frame, 1)} MEM ${bar(s.mem && s.mem.pct, 10)} ${String((s.mem && s.mem.pct) ?? '--').padStart(3)}%`, accC)
   row(` ${lamp(true, frame, 2)} DSK ${bar(s.disk, 10)} ${String(s.disk ?? '--').padStart(3)}%`, accC)
@@ -199,4 +224,60 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, quota 
   return WIDTH
 }
 
-module.exports = { read, render, WIDTH, MIN_COLS }
+// --- the CPU graph ----------------------------------------------------------
+// Full width, time on X (newest at the right, the direction a timeline is read)
+// and CPU on Y. Deliberately SUBTLE: it is a backdrop the solid sits above, not
+// a second focal point, so it is drawn in @theme-dim with only the crest in the
+// accent -- enough to read the shape at a glance without competing.
+//
+// Eighth-blocks give eight sub-rows of resolution per character cell, so a
+// six-row graph resolves ~48 levels rather than 6. Without them a busy machine
+// and an idle one look like the same flat band.
+const EIGHTHS = ['\u2581', '\u2582', '\u2583', '\u2584', '\u2585', '\u2586', '\u2587', '\u2588']
+
+function renderGraph({ grid, rows, cols, theme, fg, dim, history, height }) {
+  if (!history || history.length < 2 || height < 2) return 0
+
+  const top = rows - height
+  const body = dim(theme.dim, 0.85)
+  const crest = fg(theme.accent)
+
+  // Newest sample at the right edge. A shorter history simply starts further
+  // in rather than being stretched, so the time axis keeps a constant scale.
+  const shown = history.slice(-cols)
+  const x0 = cols - shown.length
+
+  for (let i = 0; i < shown.length; i++) {
+    const x = x0 + i
+    if (x < 0 || x >= cols) continue
+    const pct = Math.max(0, Math.min(100, shown[i]))
+    const units = Math.round((pct / 100) * height * 8)
+    if (units <= 0) continue
+
+    const full = Math.floor(units / 8)
+    const part = units % 8
+
+    for (let r = 0; r < full; r++) {
+      const y = rows - 1 - r
+      if (y >= top && y < rows) grid[y][x] = body + '\u2588'
+    }
+    if (part > 0) {
+      const y = rows - 1 - full
+      if (y >= top && y < rows) grid[y][x] = body + EIGHTHS[part - 1]
+    }
+    // The crest: the single cell at the top of each column, in the accent, which
+    // is what makes the profile legible against its own fill.
+    const cy = rows - 1 - (part > 0 ? full : Math.max(0, full - 1))
+    if (cy >= top && cy < rows && grid[cy][x] !== null) {
+      grid[cy][x] = crest + (part > 0 ? EIGHTHS[part - 1] : '\u2588')
+    }
+  }
+
+  // A baseline, so an idle machine still shows an axis rather than nothing.
+  for (let x = 0; x < cols; x++) {
+    if (grid[rows - 1][x] === null) grid[rows - 1][x] = dim(theme.dim, 0.35) + '\u2581'
+  }
+  return height
+}
+
+module.exports = { read, sampleCpu, render, renderGraph, WIDTH, MIN_COLS }

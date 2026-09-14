@@ -152,7 +152,7 @@ function spinFactor(load1, cores) {
 const HOLD = 240                   // frames resting on a shape
 const BLEND = 140                  // frames morphing to the next
 
-function render({ grid, rows, cols, frame, theme, dim, spin = 1, right = 0 }) {
+function render({ grid, rows, cols, frame, theme, dim, spin = 1, right = 0, bottom = 0 }) {
   const cycle = HOLD + BLEND
   const idx = Math.floor(frame / cycle) % SHAPES.length
   const nxt = (idx + 1) % SHAPES.length
@@ -169,11 +169,14 @@ function render({ grid, rows, cols, frame, theme, dim, spin = 1, right = 0 }) {
   render.a[2] += spin * 0.006
   const [rx, ry, rz] = render.a
 
+  // The solid centres in what is LEFT of the pane: the panel takes the right
+  // columns and the CPU graph the bottom band. With the floating HUD gone there
+  // is no longer a reason to keep clearance at the top.
   const usableW = Math.max(10, cols - right)
-  const top = 2
-  const bottom = rows - 5
-  const usable = Math.max(6, bottom - top)
-  const scale = Math.min(usable * 0.40, (usableW / ASPECT) * 0.40)
+  const top = 1
+  const floor = rows - bottom - 1
+  const usable = Math.max(6, floor - top)
+  const scale = Math.min(usable * 0.52, (usableW / ASPECT) * 0.46)
   const cx = usableW / 2
   const cy = top + usable / 2
   const DIST = 4.2
@@ -211,7 +214,7 @@ function render({ grid, rows, cols, frame, theme, dim, spin = 1, right = 0 }) {
     const minX = Math.max(0, Math.floor(Math.min(p0[0], p1[0], p2[0])))
     const maxX = Math.min(usableW - 1, Math.ceil(Math.max(p0[0], p1[0], p2[0])))
     const minY = Math.max(0, Math.floor(Math.min(p0[1], p1[1], p2[1])))
-    const maxY = Math.min(rows - 1, Math.ceil(Math.max(p0[1], p1[1], p2[1])))
+    const maxY = Math.min(floor, Math.ceil(Math.max(p0[1], p1[1], p2[1])))
 
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {

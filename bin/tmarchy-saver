@@ -37,6 +37,10 @@ const TICK = Math.round(1000 / FPS)
 // Real data changes on human timescales; re-reading it every frame would spend
 // the whole budget on syscalls for numbers that move once a minute.
 const DATA_EVERY = 2000
+// CPU is the exception: it is the graph's time axis, so it is sampled every
+// second. At one sample per data tick a 120-column graph would take eight
+// minutes to fill; at 1s it reads as live within a minute or two.
+const CPU_EVERY = 1000
 
 // ---------------------------------------------------------------- colour ----
 // The same two spellings bin/lib/tmux-theme.sh handles: eight themes are
@@ -196,6 +200,12 @@ function main() {
       theme = loadTheme()                       // switch theme and the rain follows
       if (panel) stats = panel.read()
     }
+    if (panel && frame % Math.round(CPU_EVERY / TICK) === 0) {
+      // The gauge shows the sampler's newest reading rather than waiting for the
+      // next data tick, so the CPU number and the graph's right edge agree.
+      const c = panel.sampleCpu()
+      if (c !== null && stats) stats.cpu = c
+    }
 
     const buf = []
 
@@ -206,13 +216,17 @@ function main() {
     // so the solid and the rain can both avoid it.
     const right = (panel && cols >= panel.MIN_COLS && rows >= 14) ? panel.WIDTH : 0
     const mainW = cols - right
+    // The CPU graph owns the bottom band, full width -- it runs UNDER the panel
+    // too, which is deliberate: a timeline that stopped at the panel's edge
+    // would read as clipped rather than as a backdrop.
+    const graphH = (panel && rows >= 18) ? Math.max(4, Math.min(7, Math.floor(rows * 0.22))) : 0
 
     // --- solid geometry ---------------------------------------------------
     if (MODE !== 'rain' && geo) {
       // Spin tracks load per core, so the thing visibly works harder when the
       // box does. That is the readout, not decoration.
       const spin = geo.spinFactor(os.loadavg()[0], (stats && stats.cores) || os.cpus().length)
-      geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right })
+      geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right, bottom: graphH })
     }
 
     // --- rain ---------------------------------------------------------------
@@ -235,63 +249,21 @@ function main() {
       }
     })
 
-    // --- agent nodes ------------------------------------------------------
-    // Placed on one line, centred, each a pulsing dot plus its directory. These
-    // sit ON TOP of the rain, which is what makes them read as signal.
-    // Nodes hug the TOP edge and the HUD the bottom, leaving the middle clear.
-    // With the rain that hardly mattered -- rain is a backdrop. With a solid in
-    // the centre, text through the middle punches a hole in the object and the
-    // whole illusion of depth goes with it.
-    const nodeRow = 1
-    if (data.agents.length) {
-      const pulse = 0.55 + 0.45 * Math.sin(frame / 5)
-      const cells = data.agents.map((a) => {
-        const glyph = a.state === 'wait' ? '◉' : a.state === 'busy' ? '◍' : '◎'
-        return { text: ` ${glyph} ${a.label.slice(0, 14)} `, state: a.state }
-      })
-      const width = cells.reduce((n, c) => n + c.text.length, 0)
-      let x = Math.max(0, Math.floor((mainW - width) / 2))
-      for (const cell of cells) {
-        const base = stateColour(cell.state)
-        // Only a waiting agent pulses. Everything pulsing is everything shouting.
-        const colour = cell.state === 'wait' ? dim(base, pulse) : fg(base)
-        for (const ch of cell.text) {
-          if (x >= 0 && x < cols) grid[nodeRow][x] = colour + ch
-          x++
-        }
-      }
-    }
+    // Agent nodes and the HUD used to float over the middle of the pane. They
+    // live in the telemetry panel now: the same information, in a column that
+    // does not cut through the solid or fight the graph for the bottom rows.
 
-    // --- HUD --------------------------------------------------------------
-    const bar = (pct) => {
-      if (pct === null) return '····'
-      const filled = Math.round((pct / 100) * 10)
-      return '█'.repeat(filled) + '░'.repeat(10 - filled)
+    // --- CPU over time -----------------------------------------------------
+    if (graphH && stats && stats.cpuHistory) {
+      panel.renderGraph({ grid, rows, cols, theme, fg, dim,
+        history: stats.cpuHistory, height: graphH })
     }
-    const hud = [
-      `${theme.name.toUpperCase()}  ::  ${data.host}  ::  up ${data.up}h`,
-      `load ${data.load}   agents ${data.agents.length}   waiting ${data.wait}   busy ${data.busy}`,
-      `5h quota ${bar(data.quota)} ${data.quota === null ? '--' : data.quota + '%'}`,
-    ]
-    const hudRow = Math.max(nodeRow + 2, rows - hud.length - 1)
-    hud.forEach((line, i) => {
-      const y = hudRow + i
-      if (y >= rows) return
-      let x = Math.max(0, Math.floor((mainW - line.length) / 2))
-      // The waiting count is the one number worth colouring: if any agent is
-      // blocked on you, the HUD says so in the same red the tab is wearing.
-      const colour = i === 1 && data.wait > 0 ? fg(theme.wait)
-        : i === 0 ? fg(theme.accent) : fg(theme.fg)
-      for (const ch of line) {
-        if (x >= 0 && x < cols) grid[y][x] = colour + ch
-        x++
-      }
-    })
 
     // --- telemetry panel ---------------------------------------------------
     if (right) {
       panel.render({ grid, rows, cols, frame, theme, fg, dim,
-        stats, agents: data.agents, quota: data.quota })
+        stats, agents: data.agents, quota: data.quota,
+        meta: { theme: theme.name, host: data.host, uptimeHours: data.up } })
     }
 
     // Address each row explicitly rather than ending lines with a newline.
