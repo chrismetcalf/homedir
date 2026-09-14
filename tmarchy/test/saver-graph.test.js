@@ -116,3 +116,85 @@ test('read() reports the sampler\'s latest CPU value', () => {
   assert.strictEqual(r.cpuHistory[r.cpuHistory.length - 1], sampled,
     'the newest history entry should be the sampler\'s value')
 })
+
+// --- portable fallbacks -----------------------------------------------------
+//
+// This repo deploys to macOS as well as Linux, where /proc and /sys do not
+// exist at all. The suite only ever runs on Linux, so the only way to hold that
+// promise is to take /proc away and look.
+
+// Loads a FRESH copy of the panel with /proc and /sys unreadable, so its
+// sampler state starts clean rather than carrying this process's real readings.
+function panelWithoutProc() {
+  const fs = require('node:fs')
+  const spec = require.resolve(path.join(__dirname, '..', '..', 'bin', 'tmarchy-panel.js'))
+  const real = fs.readFileSync
+  fs.readFileSync = (p, ...rest) => {
+    if (typeof p === 'string' && (p.startsWith('/proc') || p.startsWith('/sys'))) {
+      const e = new Error('ENOENT: simulated non-Linux host')
+      e.code = 'ENOENT'
+      throw e
+    }
+    return real(p, ...rest)
+  }
+  delete require.cache[spec]
+  const mod = require(spec)
+  return {
+    mod,
+    restore() { fs.readFileSync = real; delete require.cache[spec] },
+  }
+}
+
+// Sabotage: in cpuTicks replace the os.cpus() loop with the old
+// `readFile('/proc/stat')` parse -- CPU goes null on a host without /proc and
+// this fails, while every Linux assertion in the suite still passes.
+test('CPU still reads on a host with no /proc', () => {
+  const { mod, restore } = panelWithoutProc()
+  try {
+    assert.strictEqual(mod.sampleCpu(), null, 'the first sample has no previous to diff')
+    const spin = Date.now(); while (Date.now() - spin < 150) { /* accrue ticks */ }
+    const pct = mod.sampleCpu()
+    assert.strictEqual(typeof pct, 'number', 'a second sample should still yield a number')
+    assert.ok(pct >= 0 && pct <= 100, `cpu out of range: ${pct}`)
+    // And the graph therefore has something to draw, which is the point: with
+    // the /proc parse it stayed empty forever and the band never appeared.
+    assert.ok(mod.read().cpuHistory.length > 0, 'the timeline should still fill')
+  } finally { restore() }
+})
+
+// Sabotage: in memPercent delete the os.totalmem()/os.freemem() fallback (make
+// the function return null when /proc/meminfo is unreadable) -- this fails.
+test('memory falls back to the portable reading with no /proc', () => {
+  const { mod, restore } = panelWithoutProc()
+  try {
+    const mem = mod.memPercent()
+    assert.ok(mem && typeof mem.pct === 'number', 'memory should still report')
+    assert.ok(mem.pct >= 0 && mem.pct <= 100, `mem out of range: ${mem.pct}`)
+  } finally { restore() }
+})
+
+// The rows that genuinely have no portable source say so rather than lying.
+// Sabotage: in render replace `String(s.temp ?? '--')` with `String(s.temp ?? 0)`
+// -- a host with no thermal zone claims to be at 0 degrees and this fails.
+test('a reading with no portable source renders as --, not as zero', () => {
+  const { mod, restore } = panelWithoutProc()
+  try {
+    const s = mod.read()
+    assert.strictEqual(s.temp, null, 'no /sys means no temperature')
+    assert.strictEqual(s.net, null, 'no /proc/net/dev means no network rate')
+
+    const rows = 30, cols = 100
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    mod.render({
+      grid, rows, cols, frame: 0,
+      theme: { dim: '#565f89', accent: '#7aa2f7', fg: '#c0caf5', done: '#9ece6a',
+        busy: '#e0af68', wait: '#f7768e', info: '#73daca' },
+      fg: () => '', dim: () => '', stats: s, agents: [], claude: [],
+      ping: { net: [], ssh: [] }, meta: { theme: 't', host: 'mac', uptimeHours: 5 },
+    })
+    const text = grid.map((r) => r.map((c) => (c === null ? ' ' : [...c].pop())).join('')).join('\n')
+    const tmp = text.split('\n').find((l) => l.includes('TMP'))
+    assert.ok(tmp.includes('--'), `temperature should read --, got: ${tmp.trim()}`)
+    assert.ok(!/TMP\s+0\u00b0C/.test(tmp), 'temperature must not claim to be zero')
+  } finally { restore() }
+})

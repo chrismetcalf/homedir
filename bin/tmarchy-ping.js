@@ -207,12 +207,20 @@ function chooseResolvers(conf, upstreams) {
 // shape it was in when first written.
 let upstreams = null
 let upstreamsInFlight = false
+let upstreamsUnavailable = false
 
 function refreshUpstreams(onChange) {
-  if (upstreamsInFlight) return
+  if (upstreamsInFlight || upstreamsUnavailable) return
   upstreamsInFlight = true
   execFile('resolvectl', ['dns'], { timeout: 2000, encoding: 'utf8' }, (err, stdout) => {
     upstreamsInFlight = false
+    // ENOENT means there is no resolvectl on this box at all -- a machine
+    // running dnsmasq on 127.0.0.1, or any non-systemd host -- and round()
+    // would otherwise keep asking every fifteen seconds for the life of the
+    // process. Give up permanently, the same way a missing `ping` does. Only
+    // ENOENT: a non-zero exit is resolvectl saying something, and might not
+    // say it next time.
+    if (err && err.code === 'ENOENT') { upstreamsUnavailable = true; return }
     const found = err ? [] : dnsFromResolvectl(stdout)
     const changed = !upstreams || upstreams.join() !== found.join()
     upstreams = found

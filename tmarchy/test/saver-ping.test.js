@@ -321,3 +321,84 @@ test('sub-millisecond and three-digit times both survive the format', () => {
   assert.ok(text.includes('0.18ms'), 'a sub-millisecond time keeps two decimals')
   assert.ok(text.includes('149ms'), 'a three-digit time drops them')
 })
+
+// --- a host without resolvectl ----------------------------------------------
+
+// The stubbed callbacks land on nextTick, so a round's result is not visible
+// until the queue drains. Every assertion about "how many rounds asked" has to
+// wait here or it measures the in-flight guard instead.
+const drain = () => new Promise((resolve) => setImmediate(resolve))
+
+// Loads a FRESH copy of the sampler with child_process stubbed, so nothing is
+// ever spawned and the module's own module-level flags start clean. It has to
+// be patched BEFORE the require: tmarchy-ping destructures execFile at load
+// time, so patching afterwards would be a no-op that silently let the real
+// binaries run.
+function pingWithStubbedExec(handler) {
+  const cp = require('node:child_process')
+  const fsMod = require('node:fs')
+  const spec = require.resolve(path.join(__dirname, '..', '..', 'bin', 'tmarchy-ping.js'))
+  const realExec = cp.execFile
+  const realRead = fsMod.readFileSync
+  cp.execFile = (file, args, opts, cb) => {
+    process.nextTick(() => handler(file, cb))
+    return {}
+  }
+  // A loopback-only resolv.conf is what makes round() reach for resolvectl.
+  fsMod.readFileSync = (f, ...rest) =>
+    (f === '/etc/resolv.conf' ? 'nameserver 127.0.0.1\n' : realRead(f, ...rest))
+  delete require.cache[spec]
+  const mod = require(spec)
+  return {
+    mod,
+    restore() {
+      cp.execFile = realExec
+      fsMod.readFileSync = realRead
+      delete require.cache[spec]
+    },
+  }
+}
+
+// Sabotage: in refreshUpstreams remove `upstreamsUnavailable` (both the guard in
+// the first line and the assignment in the ENOENT branch) -- every round reaches
+// for a binary that is not there and this fails. Nothing else in the suite
+// notices, because this host HAS resolvectl.
+test('a host with no resolvectl is asked once, not every round', async () => {
+  let asked = 0
+  const { mod, restore } = pingWithStubbedExec((file, cb) => {
+    if (file === 'resolvectl') {
+      asked++
+      const e = new Error('ENOENT'); e.code = 'ENOENT'
+      return cb(e, '', '')
+    }
+    return cb(null, '', '')            // a stubbed ping that answers nothing
+  })
+  try {
+    // DRAIN between rounds. Without this the in-flight guard alone holds the
+    // count at 1 and the assertion passes whether the give-up flag exists or
+    // not -- which is how this test was first written, and its sibling below is
+    // what exposed it.
+    for (let i = 0; i < 6; i++) { mod.start(); mod.stop(); await drain() }
+    assert.strictEqual(asked, 1, `resolvectl should be asked once, was asked ${asked}`)
+  } finally { restore() }
+})
+
+// A non-zero EXIT is different from a missing binary: resolvectl said something,
+// and might not say it next time. Sabotage: in refreshUpstreams widen the
+// give-up branch to `if (err)` -- one transient failure silences the lookup for
+// the life of the process and this fails.
+test('a transient resolvectl failure does not silence it forever', async () => {
+  let asked = 0
+  const { mod, restore } = pingWithStubbedExec((file, cb) => {
+    if (file === 'resolvectl') {
+      asked++
+      const e = new Error('exit 1'); e.code = 1     // ran, and failed
+      return cb(e, '', '')
+    }
+    return cb(null, '', '')
+  })
+  try {
+    for (let i = 0; i < 3; i++) { mod.start(); mod.stop(); await drain() }
+    assert.strictEqual(asked, 3, `a transient failure should be retried, asked ${asked}`)
+  } finally { restore() }
+})
