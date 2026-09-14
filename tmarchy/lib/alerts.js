@@ -110,31 +110,39 @@ function bannerTitle(sticky) {
 function bannerEntries(sticky, now = Date.now()) {
   return [...(sticky || [])]
     .sort((a, b) => b.since - a.since)
-    .map((e) => ({ text: `${e.label} ${ago(now - e.since)}`, active: e.active }))
+    .map((e) => ({ key: e.key, text: `${e.label} ${ago(now - e.since)}`, active: e.active }))
 }
 
 // Fit as many entries as the width allows, OLDEST dropped first, and say how
 // many went. A silently truncated list is worse than a short one: the count in
 // the title would not match what you can see, and you would have no way to tell
 // that the agent you were looking for was one of the ones cut off.
-function bannerLine(entries, inner) {
+// Where each entry ended up on the line, so a click can be resolved back to the
+// agent it landed on. The layout and the hit regions have to come from the SAME
+// pass -- recomputing offsets by scanning the finished string would be a second
+// implementation of the separator rules, and the two would drift the first time
+// one of them changed.
+function bannerLayout(entries, inner) {
   const list = entries || []
   const room = inner - 2
 
   const fit = (limit) => {
     let text = ''
+    const segments = []
     let shown = 0
     for (const e of list) {
-      const next = shown === 0 ? e.text : `${text} \u00b7 ${e.text}`
+      const sep = shown === 0 ? '' : ' \u00b7 '
+      const next = text + sep + e.text
       if (next.length > limit) break
+      segments.push({ key: e.key, start: text.length + sep.length, length: e.text.length })
       text = next
       shown++
     }
-    return { text, shown }
+    return { text, segments, shown }
   }
 
   const all = fit(room)
-  if (all.shown === list.length) return all.text
+  if (all.shown === list.length) return { text: all.text, segments: all.segments }
 
   // The marker has to be BUDGETED for, not appended: adding " · +2" to a line
   // that already filled its width is what pushed the text through the right
@@ -147,14 +155,18 @@ function bannerLine(entries, inner) {
     const marker = ` \u00b7 +${hidden}`
     const r = fit(room - marker.length)
     const next = list.length - r.shown
-    if (!r.shown) return `+${list.length}`.slice(0, room)
-    if (next === hidden) return r.text + marker
+    if (!r.shown) return { text: `+${list.length}`.slice(0, room), segments: [] }
+    if (next === hidden) return { text: r.text + marker, segments: r.segments }
     hidden = next
   }
-  return `+${list.length}`.slice(0, room)
+  return { text: `+${list.length}`.slice(0, room), segments: [] }
+}
+
+function bannerLine(entries, inner) {
+  return bannerLayout(entries, inner).text
 }
 
 module.exports = {
   newlyWaiting, encodeState, decodeState, formatToast, announcePlan,
-  stickyUpdate, bannerTitle, bannerEntries, bannerLine, ago,
+  stickyUpdate, bannerTitle, bannerEntries, bannerLine, bannerLayout, ago,
 }

@@ -148,11 +148,44 @@ function spinFactor(load1, cores) {
   return Math.max(0.35, Math.min(3.2, 0.35 + ratio * 3.4))
 }
 
+// --- surface points ----------------------------------------------------------
+// Hosts pinned to the solid like cities on a globe: they sit ON the surface, so
+// they ride the rotation and vanish round the back rather than floating in
+// front of it.
+//
+// The direction is HASHED FROM THE LABEL rather than drawn from Math.random, so
+// a host keeps its spot for the life of the process and across restarts. A
+// random position re-rolled per frame would shimmer; re-rolled per run would
+// mean the thing you learned to look for moves every time you glance at it.
+//
+// The radius is recomputed per point per frame instead of coming from the
+// precomputed RADII table, because that table only covers the mesh's own 162
+// vertices and a point may sit anywhere between them. Eight points against 320
+// faces is nothing.
+function hashDirection(label) {
+  // FNV-1a, then two independent draws from it for a uniform sphere point.
+  // Uniform matters: the naive (random angle, random z) picks cluster at the
+  // poles, and a globe with everything at the top reads as a bug.
+  let h = 2166136261
+  for (let i = 0; i < label.length; i++) {
+    h ^= label.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  const a = ((h >>> 0) % 100000) / 100000
+  h = Math.imul(h ^ (h >>> 13), 16777619)
+  const b = ((h >>> 0) % 100000) / 100000
+  const z = 2 * a - 1
+  const r = Math.sqrt(Math.max(0, 1 - z * z))
+  const theta = 2 * Math.PI * b
+  return [r * Math.cos(theta), r * Math.sin(theta), z]
+}
+
 // --- renderer ---------------------------------------------------------------
 const HOLD = 240                   // frames resting on a shape
 const BLEND = 140                  // frames morphing to the next
 
-function render({ grid, rows, cols, frame, theme, dim, spin = 1, right = 0, bottom = 0, top: reserved = 0 }) {
+function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, bottom = 0,
+  top: reserved = 0, points = [] }) {
   const cycle = HOLD + BLEND
   const idx = Math.floor(frame / cycle) % SHAPES.length
   const nxt = (idx + 1) % SHAPES.length
@@ -239,7 +272,55 @@ function render({ grid, rows, cols, frame, theme, dim, spin = 1, right = 0, bott
     }
   }
 
+  // --- the surface points, after the faces so they sit on top of the shading --
+  //
+  // Visibility is decided by the point's own outward direction, not by the
+  // depth buffer: on a convex solid a surface point faces the camera exactly
+  // when its normal does, and that gives the clean terminator a globe needs.
+  // A z-buffer test would flicker points along the silhouette, where the point
+  // and the face it sits on round to the same depth.
+  for (const pt of points) {
+    if (!pt || !pt.label) continue
+    const d = pt.dir || (pt.dir = hashDirection(pt.label))
+    const r = radiusOf(SHAPES[idx], d) * (1 - t) + radiusOf(SHAPES[nxt], d) * t
+    const [x, y, z] = rotate([d[0] * r, d[1] * r, d[2] * r], rx, ry, rz)
+    const n = rotate(d, rx, ry, rz)
+    if (n[2] <= 0.12) continue                    // round the back, or edge-on
+
+    const f = 1 / (DIST - z)
+    const px = Math.round(cx + x * scale * ASPECT * f * DIST)
+    const py = Math.round(cy - y * scale * f * DIST)
+    if (py < top || py > floor || px < 0 || px >= usableW) continue
+
+    // Fade with the terminator so points do not pop in and out at the edge.
+    const near = Math.max(0.35, Math.min(1, n[2]))
+    const colour = pt.colour ? dim(pt.colour, near) : dim(theme.fg, near)
+    grid[py][px] = colour + '\u25c9'
+
+    // Label only the points that are well round the front. Near the terminator
+    // a label is half off the shape and reads as noise, and with eight hosts
+    // there would be a ring of text round the silhouette at all times -- so
+    // those keep their dot and lose their name, the way a globe does.
+    if (n[2] < 0.45) continue
+
+    // The label trails to the right. Truncated rather than wrapped: a label on
+    // the next row would not be next to its point any more, which is the only
+    // thing making it a label.
+    const room = usableW - px - 3
+    const label = pt.label.slice(0, Math.max(0, Math.min(pt.label.length, room)))
+    if (label.length < 3) continue
+
+    // A blank between the marker and the name, so the solid's own texture does
+    // not run into the first digit and read as part of the address.
+    grid[py][px + 1] = ' '
+    const ink = dim(pt.colour || theme.fg, near * 0.85)
+    for (let i = 0; i < label.length; i++) {
+      const gx = px + 2 + i
+      if (gx >= 0 && gx < usableW) grid[py][gx] = ink + label[i]
+    }
+  }
+
   return t > 0 ? `${SHAPES[idx].name}->${SHAPES[nxt].name}` : SHAPES[idx].name
 }
 
-module.exports = { render, SHAPES, MESH, RAMP, spinFactor, radiusOf }
+module.exports = { render, SHAPES, MESH, RAMP, spinFactor, radiusOf, hashDirection }

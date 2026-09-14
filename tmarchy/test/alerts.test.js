@@ -211,3 +211,58 @@ test('elapsed time picks a unit that fits the column', () => {
   assert.strictEqual(a.ago(3 * 3600 * 1000), '3h')
   assert.strictEqual(a.ago(-5), '0s')
 })
+
+// --- clickable regions ------------------------------------------------------
+//
+// The banner's names are click targets, so the layout has to report WHERE each
+// one landed. Offsets come from the same pass that builds the line: recomputing
+// them by scanning the finished string would be a second implementation of the
+// separator rules, and the two would drift the first time either changed.
+
+// Sabotage: in bannerLayout's fit() replace
+// `start: text.length + sep.length` with `start: text.length` -- every region
+// after the first points three columns to the left, so a click on one name
+// jumps to the one before it, and this fails.
+test('each entry reports the span it actually occupies', () => {
+  const entries = [
+    { key: '%1', text: 'otto 2s', active: true },
+    { key: '%2', text: 'config 5m', active: false },
+    { key: '%3', text: 'dd 9m', active: false },
+  ]
+  const { text, segments } = a.bannerLayout(entries, 60)
+  assert.strictEqual(segments.length, 3, 'every visible entry needs a region')
+  for (const seg of segments) {
+    const under = text.slice(seg.start, seg.start + seg.length)
+    const expected = entries.find((e) => e.key === seg.key).text
+    assert.strictEqual(under, expected,
+      `region for ${seg.key} covers "${under}", expected "${expected}"`)
+  }
+})
+
+// A name that was trimmed off has no region, or a click on the "+2" marker
+// would jump to whichever agent happened to be next in the array. Sabotage: in
+// bannerLayout return `all.segments` instead of `r.segments` in the truncating
+// branch -- regions survive for entries that are no longer on screen, and this
+// fails.
+test('a trimmed entry has no clickable region', () => {
+  const entries = ['alpha 1m', 'bravo 2m', 'charlie 3m', 'delta 4m']
+    .map((text, i) => ({ key: `%${i}`, text, active: false }))
+  // SWEPT, not spot-checked. At inner=26 the two branches happen to produce
+  // identical segments, so a single width let the sabotage through -- the same
+  // way the overflow test above needed a sweep. The widths that matter are the
+  // ones where reserving the marker drops an entry that had otherwise fit.
+  let sawTrim = false
+  for (let inner = 12; inner <= 60; inner++) {
+    const { text, segments } = a.bannerLayout(entries, inner)
+    if (segments.length < entries.length) sawTrim = true
+    for (const seg of segments) {
+      assert.ok(seg.start + seg.length <= text.length,
+        `inner=${inner}: region for ${seg.key} runs past the line it indexes ` +
+        `(${seg.start}+${seg.length} > ${text.length}) in "${text}"`)
+      const under = text.slice(seg.start, seg.start + seg.length)
+      assert.strictEqual(under, entries.find((e) => e.key === seg.key).text,
+        `inner=${inner}: region for ${seg.key} covers "${under}"`)
+    }
+  }
+  assert.ok(sawTrim, 'the sweep must include widths that actually trim')
+})

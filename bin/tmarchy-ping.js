@@ -61,6 +61,15 @@ function parseRtt(stdout) {
   return Number.isFinite(ms) ? ms : null
 }
 
+// `PING chrismetcalf.net (185.199.108.153) 56(84) bytes of data.` -- the
+// address the name actually resolved to. Worth keeping: a hostname tells you
+// what you asked for, the address tells you what answered, and on a screen
+// showing network topology the second is the interesting one.
+function parseIp(stdout) {
+  const m = /^PING\s+\S+\s+\(([0-9a-fA-F.:]+)\)/m.exec(stdout || '')
+  return m && isSafeHost(m[1]) ? m[1] : null
+}
+
 function isLoopback(ip) {
   return /^127\./.test(ip) || ip === '::1'
 }
@@ -277,7 +286,10 @@ function pingOnce(host) {
       // every fifteen seconds and the rows still say nothing, so stop instead.
       if (err && err.code === 'ENOENT') { available = false; return }
       const ms = parseRtt(stdout)
-      results.set(host, { ms, state: latencyState(ms) })
+      // Keep the last address we saw: a failed round should not blank out the
+      // one the name resolved to when it last answered.
+      const prev = results.get(host)
+      results.set(host, { ms, state: latencyState(ms), ip: parseIp(stdout) || (prev && prev.ip) || null })
     })
 }
 
@@ -315,14 +327,15 @@ function stop() { if (timer) { clearInterval(timer); timer = null } }
 function read() {
   const decorate = (list) => list.map((t) => {
     const r = results.get(t.host)
-    return { label: t.label, ms: r ? r.ms : null, state: r ? r.state : 'pending' }
+    return { label: t.label, ms: r ? r.ms : null, state: r ? r.state : 'pending',
+      ip: (r && r.ip) || null }
   })
   return { net: decorate(targets.net), ssh: decorate(targets.ssh), available }
 }
 
 module.exports = {
   start, stop, read, resolveTargets, recentSshHosts, resolvers,
-  isSafeHost, parseRtt, dnsFromResolvConf, dnsFromResolvectl, isLoopback,
+  isSafeHost, parseRtt, parseIp, dnsFromResolvConf, dnsFromResolvectl, isLoopback,
   chooseResolvers,
   sshHostFromCommand, sshHostsFromHistory, sshHostsFromFrecency, mergeSshHosts,
   pingArgs, latencyState, SITE, SSH_LIMIT,

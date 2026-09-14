@@ -66,6 +66,27 @@ function dim(value, factor) {
   return `\x1b[38;2;${c[0]};${c[1]};${c[2]}m`
 }
 
+// Blend two theme colours. dim() fades toward BLACK, which is right for a rain
+// tail but wrong for a pulse: fading red toward black reads as red-to-grey, and
+// grey is the colour this panel uses for "nothing to see". Cycling between two
+// real palette colours keeps the alert saturated at both ends of the beat.
+//
+// 256-colour themes (jewel) cannot be interpolated -- there is no arithmetic
+// between palette indices that means anything -- so they alternate between the
+// two colours instead. A hard switch rather than no pulse at all.
+function rgbOf(value) {
+  const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value || '')
+  return hex ? [1, 2, 3].map((i) => parseInt(hex[i], 16)) : null
+}
+
+function mix(a, b, t) {
+  const ca = rgbOf(a)
+  const cb = rgbOf(b)
+  if (!ca || !cb) return fg(t < 0.5 ? a : b)
+  const c = [0, 1, 2].map((i) => Math.round(ca[i] + (cb[i] - ca[i]) * t))
+  return `\x1b[38;2;${c[0]};${c[1]};${c[2]}m`
+}
+
 function loadTheme() {
   const t = {}
   try {
@@ -205,6 +226,11 @@ function makeColumn(rows) {
 // dim side column is not an alert. The solid is told to start below it.
 const BANNER_MAX = 64
 
+// Clickable regions for the banner's names, rebuilt each frame by drawBanner
+// and read by the input handler. Module-level because the two are on opposite
+// sides of the frame loop.
+const hits = []
+
 function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now) {
   if (!alerts || !sticky || !sticky.length) return 0
 
@@ -220,11 +246,16 @@ function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now) {
   // Pulse only while something is STILL waiting. A list of agents that have
   // all since given up is a record, not an emergency, and a box that throbs
   // forever is one you learn to stop seeing.
-  const beat = live ? 0.55 + 0.45 * Math.sin(frame / 5) : 0.55
-  const hot = dim(theme.wait, Math.max(0.3, Math.min(1, beat)))
+  //
+  // The beat runs between the theme's BUSY and WAIT colours -- amber to red --
+  // rather than dimming red toward black, which read as red-to-grey and made
+  // the low half of every pulse look like the panel's "nothing here" colour.
+  const beat = (Math.sin(frame / 5) + 1) / 2
+  const hot = live ? mix(theme.busy, theme.wait, beat) : dim(theme.wait, 0.45)
   const cold = dim(theme.wait, 0.35)
 
-  const text = alerts.bannerLine(entries, inner)
+  const layout = alerts.bannerLayout(entries, inner)
+  const text = layout.text
 
   const head = ` ${title} `.slice(0, inner)
   const put = (y, str, colour) => {
@@ -236,6 +267,16 @@ function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now) {
   put(0, '\u256d' + head + '\u2500'.repeat(Math.max(0, inner - head.length)) + '\u256e', hot)
   put(1, '\u2502 ' + text.padEnd(inner - 1) + '\u2502', live ? hot : cold)
   put(2, '\u2570' + '\u2500'.repeat(inner) + '\u256f', hot)
+
+  // Where each name ended up, so a click can be resolved to the agent under it.
+  // Recomputed every frame rather than cached: the widths move as the elapsed
+  // times tick over from "9s" to "10s", and a stale region would send you to
+  // the agent next door.
+  hits.length = 0
+  const textX = x0 + 2                       // past the border and its space
+  for (const seg of layout.segments) {
+    hits.push({ y: 1, x0: textX + seg.start, x1: textX + seg.start + seg.length - 1, key: seg.key })
+  }
   return 3
 }
 
@@ -285,6 +326,48 @@ function main() {
   const MOUSE_ON = '\x1b[?1000h\x1b[?1006h'
   const MOUSE_OFF = '\x1b[?1006l\x1b[?1000l'
 
+  // Jump to the agent whose name was clicked. Same sequence as bin/tmux-agents
+  // and tmux-scout-next-wait: a pane id may live in another SESSION, and a bare
+  // select-pane only acts within the current one -- it would silently do
+  // nothing, which looks like a dead click rather than a missing switch.
+  //
+  // Three separate tmux calls rather than one batched command list, deliberately:
+  // tmux rejects an entire list if any command in it is invalid, so a pane that
+  // vanished between the render and the click would lose the switch as well as
+  // the select. This runs once, on the way out, so the extra forks cost nothing.
+  const jumpTo = (pane) => {
+    const run = (args) => {
+      try {
+        return require('node:child_process').execFileSync('tmux', args,
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).trim()
+      } catch { return '' }
+    }
+    const sess = run(['display-message', '-p', '-t', pane, '#{session_name}'])
+    const win = run(['display-message', '-p', '-t', pane, '#{window_id}'])
+    if (!sess && !win) return false            // the pane is gone; just exit
+    if (sess) run(['switch-client', '-t', sess])
+    if (win) run(['select-window', '-t', win])
+    run(['select-pane', '-t', pane])
+    return true
+  }
+
+  // SGR mouse press: ESC[<button;col;rowM. Only button 0 (left) and only a
+  // press -- the matching release arrives as 'm' and must not count as a second
+  // click. Coordinates are 1-based.
+  const SGR_PRESS = /\x1b\[<(\d+);(\d+);(\d+)M/
+  const onInput = (buf) => {
+    const m = SGR_PRESS.exec(String(buf))
+    if (m && m[1] === '0') {
+      const x = Number(m[2]) - 1
+      const y = Number(m[3]) - 1
+      const hit = hits.find((h) => h.y === y && x >= h.x0 && x <= h.x1)
+      // A click on a name goes to that agent; a click anywhere else just
+      // dismisses, which is what every other key already does.
+      if (hit) jumpTo(hit.key)
+    }
+    cleanup()
+  }
+
   const cleanup = () => {
     // Mouse mode off FIRST and unconditionally. Leaving it on would have the
     // terminal spraying escape sequences at whatever shell comes back -- a
@@ -297,7 +380,7 @@ function main() {
   out.write('\x1b[?1049h\x1b[?25l\x1b[2J' + MOUSE_ON)  // alt screen, hide cursor, clear
   process.stdin.setRawMode(true)
   process.stdin.resume()
-  process.stdin.on('data', cleanup)             // ANY key leaves, as a lock should
+  process.stdin.on('data', onInput)             // ANY key leaves, as a lock should
   process.on('SIGINT', cleanup)
   process.on('SIGTERM', cleanup)
   out.on('resize', () => {
@@ -351,13 +434,25 @@ function main() {
     // drawn over afterwards and leaving a hole in the shape.
     const bannerH = drawBanner(grid, rows, cols, mainW, frame, theme, sticky, Date.now())
 
+    // Hosts pinned to the solid like cities on a globe. REAL addresses, not
+    // invented ones: these are the machines this box actually talks to, carrying
+    // the address the name resolved to and coloured by whether it answered.
+    // Everything else on this screen is real, and a solid studded with
+    // plausible-looking fiction would be the one thing you could not trust.
+    const points = !reach ? [] : [...(reach.net || []), ...(reach.ssh || [])]
+      .map((e) => ({
+        label: e.ip || e.label,
+        colour: e.state === 'fast' ? theme.done : e.state === 'ok' ? theme.info
+          : e.state === 'slow' ? theme.busy : theme.dim,
+      }))
+
     // --- solid geometry ---------------------------------------------------
     if (MODE !== 'rain' && geo) {
       // Spin tracks load per core, so the thing visibly works harder when the
       // box does. That is the readout, not decoration.
       const spin = geo.spinFactor(os.loadavg()[0], (stats && stats.cores) || os.cpus().length)
       geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right,
-        bottom: graphH, top: bannerH })
+        bottom: graphH, top: bannerH, points })
     }
 
     // --- rain ---------------------------------------------------------------

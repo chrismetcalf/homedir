@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# tmarchy-saver-selftest — the parts of the screensaver that only a real tmux
+# server can answer. Everything pure is covered by tmarchy/test/*.test.js; this
+# is here for the one behaviour that spans a process, a terminal and a client.
+#
+# Runs entirely on a throwaway socket with a fake HOME, so it never reads or
+# writes the real scout state. That isolation is not optional: an earlier
+# version of this check pointed a tick at a scratch socket WITHOUT overriding
+# HOME, and scout wrote "pane %N no longer exists" into the live status.json
+# about the pane the session was running in.
+#
+# Three measurement traps this had to get past, all of which produced confident
+# wrong answers first:
+#   - `display-message -p -t <session>` does NOT resolve to that session's
+#     active window. Ask `list-windows -f '#{window_active}'`.
+#   - `select-window` is a no-op with no client attached, so the test needs a
+#     real one (via `script`), not just a detached session.
+#   - counting text in a captured pty stream counts REDRAWS, not events.
+set -uo pipefail
+
+SOCK=tmarchy-saver-selftest-$$
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+TMPDIR_SELF=$(mktemp -d)
+FAIL=0
+
+cleanup() {
+    tmux -L "$SOCK" kill-server 2>/dev/null
+    rm -rf "$TMPDIR_SELF"
+}
+trap cleanup EXIT
+
+ok()   { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL + 1)); }
+
+command -v tmux >/dev/null || { echo "tmux not installed; nothing to check"; exit 0; }
+
+mkdir -p "$TMPDIR_SELF/.tmux-scout" "$TMPDIR_SELF/.local/state/tmarchy"
+cp "$HOME/.local/state/tmarchy/current.sh" "$TMPDIR_SELF/.local/state/tmarchy/" 2>/dev/null
+
+echo "tmarchy-saver-selftest"
+
+tmux -L "$SOCK" new-session -d -s t -x 100 -y 30 \
+    "HOME=$TMPDIR_SELF $ROOT/bin/tmarchy-saver; sleep 120"
+SAVERWIN=$(tmux -L "$SOCK" display-message -p -t t '#{window_id}')
+SAVER=$(tmux -L "$SOCK" list-panes -t "$SAVERWIN" -F '#{pane_id}')
+tmux -L "$SOCK" new-window -t t -n target 'sleep 300'
+TARGETWIN=$(tmux -L "$SOCK" display-message -p -t t:target '#{window_id}')
+TARGET=$(tmux -L "$SOCK" list-panes -t "$TARGETWIN" -F '#{pane_id}')
+
+script -qfc "tmux -L $SOCK attach -t t" /dev/null >/dev/null 2>&1 &
+sleep 2
+tmux -L "$SOCK" select-window -t "$SAVERWIN"
+
+printf '{"sessions":{"s1":{"tmuxPane":"%s","workingDirectory":"/tmp/agent-under-test","phase":"waitingForApproval"}}}\n' \
+    "$TARGET" > "$TMPDIR_SELF/.tmux-scout/status.json"
+sleep 4
+
+ROW=$(tmux -L "$SOCK" capture-pane -p -t "$SAVER" | sed -n '2p')
+case "$ROW" in
+    *agent-under-test*) ok "a waiting agent raises the sticky banner" ;;
+    *) fail "no banner for a waiting agent (row 2: '$ROW')"; echo "$FAIL failed"; exit 1 ;;
+esac
+
+BEFORE=$(tmux -L "$SOCK" list-windows -t t -f '#{window_active}' -F '#{window_name}')
+if [ "$BEFORE" = "target" ]; then
+    fail "setup: already on the target window, the click test would be vacuous"
+else
+    COL=$(awk -v r="$ROW" 'BEGIN{ print index(r, "agent-under-test") }')
+    tmux -L "$SOCK" send-keys -t "$SAVER" -l "$(printf '\033[<0;%d;2M' "$COL")"
+    sleep 2
+    AFTER=$(tmux -L "$SOCK" list-windows -t t -f '#{window_active}' -F '#{window_name}')
+    # Scope the pane query to the TARGET WINDOW. `list-panes -t <session>`
+    # reported the target's pane even when nothing had navigated, which would
+    # have made half this assertion decorative.
+    PANE=$(tmux -L "$SOCK" list-panes -t "$TARGETWIN" -f '#{pane_active}' -F '#{pane_id}')
+    if [ "$AFTER" = "target" ] && [ "$PANE" = "$TARGET" ]; then
+        ok "clicking a banner name switches to that agent's pane"
+    else
+        fail "click did not navigate (window '$BEFORE' -> '$AFTER', pane '$PANE', wanted $TARGET)"
+    fi
+fi
+
+if [ "$FAIL" -eq 0 ]; then echo "all passed"; else echo "$FAIL failed"; fi
+exit $((FAIL > 0))
