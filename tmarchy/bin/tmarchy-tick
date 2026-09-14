@@ -15,6 +15,41 @@ const { currentContext, allWindows, allPanes, hasContext } = require('../lib/con
 const { sshHostUnder } = require('../segments.d/remote')
 const { renamePlan, planToOps } = require('../lib/ssh-name')
 const { scoutStates } = require('../lib/scout')
+const { tmux } = require('../lib/tmux')
+const { decodeState, announcePlan } = require('../lib/alerts')
+
+// How long the toast sits in the status line. Long enough to read across the
+// room, short enough not to hide the bar you were looking at.
+const TOAST_MS = 6000
+
+// Flash the status line of EVERY attached client when an agent starts waiting.
+//
+// Deliberately NOT part of the batched setOptions call, and this is not a
+// style preference: tmux parses a command list up front and rejects the whole
+// thing if any command in it is invalid -- verified, and an option set BEFORE
+// the bad command does not land either. `display-message -d` needs tmux 3.2,
+// so folding it into the batch would mean that on an older host the entire
+// tick fails and the bar goes blank, rather than just losing the toast.
+//
+// The client query only runs when there is something to say, so the ordinary
+// tick still costs exactly the forks it always did.
+// The state write rides in the tick's own batch (a plain set-option, supported
+// by every tmux there has ever been). Only the display-message is isolated, and
+// only because `-d` needs 3.2.
+function announcePlan_(states, windowNames) {
+  return announcePlan(states,
+    decodeState(tmux(['show-option', '-gqv', '@alert-waiting'])), windowNames)
+}
+
+function announce(text) {
+  const ttys = tmux(['list-clients', '-F', '#{client_tty}']).trim().split('\n').filter(Boolean)
+  const argv = []
+  for (const tty of ttys) {
+    if (argv.length) argv.push(';')
+    argv.push('display-message', '-c', tty, '-d', String(TOAST_MS), text)
+  }
+  if (argv.length) tmux(argv)
+}
 
 function main() {
   const ops = []
@@ -44,7 +79,9 @@ function main() {
   }
 
   const states = scoutStates()
+  const windowNames = new Map()
   for (const win of allWindows()) {
+    windowNames.set(win.id, win.name || win.id)
     if (states) {
       ops.push({
         scope: 'window',
@@ -103,7 +140,18 @@ function main() {
     }
   }
 
+  // Computed before the flush so the remembered set rides in the same batch:
+  // a toast that fails to render must not be re-fired on every later tick, so
+  // the record has to land whether the message does or not.
+  const plan = announcePlan_(states, windowNames)
+  if (plan) ops.push({ scope: 'global', name: '@alert-waiting', value: plan.nextState })
+
   setOptions(ops)
+
+  // AFTER the options land: the bar tinting a tab red is the thing the toast is
+  // pointing at, and a toast that arrived first would name a window that still
+  // looked idle.
+  if (plan && plan.text) announce(plan.text)
 }
 
 try {

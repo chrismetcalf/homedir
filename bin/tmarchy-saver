@@ -107,7 +107,10 @@ function readAgents() {
       if (!s.tmuxPane || s.staleReason || s.endedAt) continue
       const state = sessionState(s)
       if (!state) continue
-      out.push({ label: path.basename(s.workingDirectory || '') || '?', state })
+      // Keyed by pane, not by label: two worktrees of the same repo share a
+      // basename, and a sticky list that merged them would silently report one
+      // agent where two had asked.
+      out.push({ key: s.tmuxPane, label: path.basename(s.workingDirectory || '') || '?', state })
     }
     return out.sort((a, b) => a.label.localeCompare(b.label)).slice(0, 12)
   } catch { return [] }
@@ -120,6 +123,10 @@ function readAgents() {
 // matters here in a way it does not on the bar: a locked session stops
 // redrawing its status line, so without this a screensaver left up for an hour
 // would quietly show hour-old numbers.
+let alerts = null
+try { alerts = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'alerts')) }
+catch { /* tmarchy absent: no banner, everything else still draws */ }
+
 let quotaSeg = null
 try {
   quotaSeg = require(path.join(__dirname, '..', 'tmarchy', 'segments.d', 'quota.js'))
@@ -166,6 +173,50 @@ function makeColumn(rows) {
   }
 }
 
+// ---------------------------------------------------------------- banner ----
+// The one thing allowed to sit over the middle of the pane.
+//
+// Everything else in this file is arranged to keep text out of the solid's way
+// -- the readouts live in a column, the graph in a band -- because text through
+// the centre punches a hole in the shape. An alert is the deliberate exception:
+// interrupting the picture IS the job, and something you have to hunt for in a
+// dim side column is not an alert. The solid is told to start below it.
+const BANNER_MAX = 64
+
+function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now) {
+  if (!alerts || !sticky || !sticky.length) return 0
+
+  const title = alerts.bannerTitle(sticky)
+  const entries = alerts.bannerEntries(sticky, now)
+  const live = entries.some((e) => e.active)
+
+  const width = Math.max(24, Math.min(BANNER_MAX, mainW - 4))
+  const inner = width - 2
+  const x0 = Math.max(0, Math.floor((mainW - width) / 2))
+  if (width > mainW || rows < 8) return 0
+
+  // Pulse only while something is STILL waiting. A list of agents that have
+  // all since given up is a record, not an emergency, and a box that throbs
+  // forever is one you learn to stop seeing.
+  const beat = live ? 0.55 + 0.45 * Math.sin(frame / 5) : 0.55
+  const hot = dim(theme.wait, Math.max(0.3, Math.min(1, beat)))
+  const cold = dim(theme.wait, 0.35)
+
+  const text = alerts.bannerLine(entries, inner)
+
+  const head = ` ${title} `.slice(0, inner)
+  const put = (y, str, colour) => {
+    for (let i = 0; i < str.length; i++) {
+      const x = x0 + i
+      if (x >= 0 && x < cols && y >= 0 && y < rows) grid[y][x] = colour + str[i]
+    }
+  }
+  put(0, '\u256d' + head + '\u2500'.repeat(Math.max(0, inner - head.length)) + '\u256e', hot)
+  put(1, '\u2502 ' + text.padEnd(inner - 1) + '\u2502', live ? hot : cold)
+  put(2, '\u2570' + '\u2500'.repeat(inner) + '\u256f', hot)
+  return 3
+}
+
 // ------------------------------------------------------------------ main ----
 function main() {
   const out = process.stdout
@@ -185,6 +236,9 @@ function main() {
   // module that is merely loaded (by a test, say) never spawns anything.
   if (ping) ping.start()
   let reach = ping ? ping.read() : null
+  // The sticky alert list, held in memory for the life of the saver. Dismissing
+  // the saver is what acknowledges it, so there is deliberately nothing on disk.
+  let sticky = []
   let cols = out.columns || 80
   let rows = out.rows || 24
   let columns = Array.from({ length: cols }, () => makeColumn(rows))
@@ -241,6 +295,10 @@ function main() {
       theme = loadTheme()                       // switch theme and the rain follows
       if (panel) stats = panel.read()
       if (ping) reach = ping.read()
+      if (alerts) {
+        sticky = alerts.stickyUpdate(sticky,
+          data.agents.filter((a) => a.state === 'wait' && a.key), Date.now())
+      }
     }
     if (panel && frame % Math.round(CPU_EVERY / TICK) === 0) {
       // The gauge shows the sampler's newest reading rather than waiting for the
@@ -266,23 +324,30 @@ function main() {
     // a fuller-looking graph -- the height buys resolution, not presence.
     const graphH = (panel && rows >= 18) ? Math.max(4, Math.min(6, Math.floor(rows * 0.18))) : 0
 
+    // --- the alert banner ---------------------------------------------------
+    // Drawn FIRST so the solid can be told to start below it, rather than being
+    // drawn over afterwards and leaving a hole in the shape.
+    const bannerH = drawBanner(grid, rows, cols, mainW, frame, theme, sticky, Date.now())
+
     // --- solid geometry ---------------------------------------------------
     if (MODE !== 'rain' && geo) {
       // Spin tracks load per core, so the thing visibly works harder when the
       // box does. That is the readout, not decoration.
       const spin = geo.spinFactor(os.loadavg()[0], (stats && stats.cores) || os.cpus().length)
-      geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right, bottom: graphH })
+      geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right,
+        bottom: graphH, top: bannerH })
     }
 
     // --- rain ---------------------------------------------------------------
     if (MODE === 'rain' || !geo) columns.forEach((col, x) => {
       if (x >= mainW) return                    // leave the panel's columns alone
+      const bannerFloor = bannerH
       col.y += col.speed
       if (col.y - col.len > rows) Object.assign(col, makeColumn(rows), { y: -col.len })
       const head = Math.floor(col.y)
       for (let i = 0; i < col.len; i++) {
         const y = head - i
-        if (y < 0 || y >= rows) continue
+        if (y < bannerFloor || y >= rows) continue
         const ch = col.word && i < col.word.length
           ? col.word[col.word.length - 1 - i]
           : GLYPHS[(x * 31 + y * 17 + Math.floor(frame / 3)) % GLYPHS.length]
