@@ -76,11 +76,14 @@
       "Read(//**/.envrc)",
       "Read(//opt/otto/.env)",
       "Read(//opt/otto/.env.*)",
-      "Read(//home/krezel/.claude/settings.json)",
+      "Read(~/.claude/settings.json)",
       "Edit(//opt/otto/scripts/**)",
       "Edit(//opt/otto/CLAUDE.md)",
       "Bash(cat /opt/otto/.env:*)",
       "Bash(cat /home/krezel/:*)",
+      "Bash(cat /Users/chris.metcalf/:*)",
+      "Bash(cat ~/:*)",
+      "Bash(cat $HOME/:*)",
       "Bash(curl file://:*)",
       "Bash(curl *file://:*)",
       "Bash(source /opt/otto/.env:*)",
@@ -106,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -116,7 +119,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/krezel/.claude/hooks/deletion-circuit-breaker.sh",
+            "command": "$HOME/.homedir/.claude/hooks/deletion-circuit-breaker.sh",
             "timeout": 10
           }
         ]
@@ -128,7 +131,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -138,7 +141,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/krezel/.claude/hooks/deletion-circuit-breaker.sh --post",
+            "command": "$HOME/.homedir/.claude/hooks/deletion-circuit-breaker.sh --post",
             "timeout": 10
           }
         ]
@@ -150,7 +153,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -160,7 +163,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.claude/shellfish-notify.sh ] && /home/krezel/.claude/shellfish-notify.sh claude || true"
+            "command": "[ -f $HOME/.homedir/.claude/shellfish-notify.sh ] && $HOME/.homedir/.claude/shellfish-notify.sh claude || true"
           }
         ]
       }
@@ -171,7 +174,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -183,7 +186,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -195,7 +198,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -207,7 +210,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.claude/shellfish-notify.sh ] && /home/krezel/.claude/shellfish-notify.sh claude || true"
+            "command": "[ -f $HOME/.homedir/.claude/shellfish-notify.sh ] && $HOME/.homedir/.claude/shellfish-notify.sh claude || true"
           }
         ]
       }
@@ -218,7 +221,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node /home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
             "timeout": 5
           }
         ]
@@ -227,7 +230,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/krezel/.claude/statusline-command.sh"
+    "command": "bash $HOME/.homedir/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,

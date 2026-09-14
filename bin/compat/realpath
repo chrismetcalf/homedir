@@ -1,0 +1,68 @@
+#!/bin/sh
+# realpath(1) shim — GNU flags on a BSD userland.
+#
+# macOS ships BSD realpath, which knows only `-q` and a list of paths. Anything
+# spelled `--long-flag` is rejected outright:
+#
+#     realpath: illegal option -- -
+#
+# tmux-which-key's plugin.sh.tmux needs GNU's `--relative-to` when XDG mode is
+# on, and it runs under `set -e`, so that one error aborted the whole plugin
+# before it could define the `show-wk-menu-root` command-alias. The visible
+# symptom was `prefix + ?` falling back to tmux's raw `list-keys -N` and
+# `prefix + m` staying on the default `select-pane -m` — a broken keybinding,
+# with nothing on screen naming realpath as the cause.
+#
+# This delegates to GNU realpath ONLY when a GNU-only flag is actually present,
+# so it is a transparent passthrough for every ordinary call. It lives in its
+# own directory rather than in ~/bin so that it can be put on the tmux server's
+# PATH by itself: shadowing a system tool is worth doing for one binary that
+# needs it, not for the whole coreutils gnubin, which would quietly swap out
+# ls/date/sed for every pane as a side effect.
+#
+# Deliberately NOT on the interactive shell's PATH — see .tmux.conf.
+
+# Every candidate is an absolute path: resolving by name would find this script
+# again and recurse until the process table complains.
+gnu_realpath() {
+    for candidate in \
+        /opt/homebrew/opt/coreutils/libexec/gnubin/realpath \
+        /usr/local/opt/coreutils/libexec/gnubin/realpath \
+        /opt/homebrew/bin/grealpath \
+        /usr/local/bin/grealpath \
+        /usr/bin/grealpath
+    do
+        [ -x "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
+    done
+    return 1
+}
+
+system_realpath() {
+    for candidate in /bin/realpath /usr/bin/realpath /usr/local/bin/realpath; do
+        [ -x "$candidate" ] && { printf '%s\n' "$candidate"; return 0; }
+    done
+    return 1
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --) break ;;
+        --*)
+            if gnu=$(gnu_realpath); then
+                exec "$gnu" "$@"
+            fi
+            # No GNU realpath to fall back on. Say so, rather than handing the
+            # caller a BSD "illegal option" that names the wrong culprit.
+            echo "realpath: '$arg' needs GNU coreutils (brew install coreutils)" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if sys=$(system_realpath); then
+    exec "$sys" "$@"
+fi
+
+# No realpath at all. `readlink -f` is the closest portable stand-in, and is
+# what the plugin's own bootstrap uses a line earlier.
+exec readlink -f "$@"
