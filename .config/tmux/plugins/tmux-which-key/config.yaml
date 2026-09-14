@@ -250,6 +250,9 @@ items:
         # The custom-only view: list-keys shows ~314 bindings here and ~262 of
         # them are tmux's own, so the diff is what makes it readable.
         command: 'display-popup -E -w 85% -h 75% "~/bin/tmux-keys"'
+      - name: Screensaver
+        key: z
+        command: 'display-popup -E -w 100% -h 100% "~/bin/tmarchy-saver"'
 
   - name: +Move
     key: m
