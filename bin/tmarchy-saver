@@ -94,17 +94,33 @@ function loadTheme() {
 // prefix + ~ and the triage picker all call it. Borrowing it here means the
 // nodes cannot disagree with the tab colours they are sitting under.
 let sessionState = null
+let isStale = null
 try {
-  ({ sessionState } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout')))
+  ({ sessionState, isStale } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout')))
 } catch { /* tmarchy absent: nodes simply do not appear */ }
+
+// The live pane list, which is AUTHORITATIVE for whether a session still
+// exists -- scout's stale flag is not (see isStale in lib/scout.js). One tmux
+// call per two-second data tick, not per frame. A failure yields null, which
+// means "nothing to refute the flag with" rather than "no panes".
+function livePanes() {
+  try {
+    const out = require('node:child_process').execFileSync(
+      'tmux', ['list-panes', '-a', '-F', '#{pane_id}'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 })
+    const ids = out.trim().split('\n').filter(Boolean)
+    return ids.length ? new Set(ids) : null
+  } catch { return null }
+}
 
 function readAgents() {
   if (!sessionState) return []
   try {
     const doc = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.tmux-scout', 'status.json'), 'utf8'))
+    const live = livePanes()
     const out = []
     for (const s of Object.values(doc.sessions || {})) {
-      if (!s.tmuxPane || s.staleReason || s.endedAt) continue
+      if (isStale ? isStale(s, live) : (!s.tmuxPane || s.staleReason || s.endedAt)) continue
       const state = sessionState(s)
       if (!state) continue
       // Keyed by pane, not by label: two worktrees of the same repo share a
@@ -112,7 +128,13 @@ function readAgents() {
       // agent where two had asked.
       out.push({ key: s.tmuxPane, label: path.basename(s.workingDirectory || '') || '?', state })
     }
-    return out.sort((a, b) => a.label.localeCompare(b.label)).slice(0, 12)
+    // Sorted for the panel's list, but WAITING agents are pulled to the front
+    // before the cap: the panel shows twelve, and an agent that needs you
+    // sorting thirteenth alphabetically must not be the one that falls off.
+    return out
+      .sort((a, b) => (a.state === 'wait' ? 0 : 1) - (b.state === 'wait' ? 0 : 1) ||
+        a.label.localeCompare(b.label))
+      .slice(0, 12)
   } catch { return [] }
 }
 

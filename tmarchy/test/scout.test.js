@@ -124,3 +124,62 @@ test('next-wait does not carry its own copy of the predicate', () => {
   assert.equal(/needsAttention\s*\|\|/.test(src), false,
     'bin/tmux-scout-next-wait inlines the wait predicate again; call sessionState() instead')
 })
+
+// --- isStale: the pane list beats the flag ----------------------------------
+//
+// scout says a session is gone by setting staleReason, and that flag can be
+// wrong in BOTH directions. It lags (36 dead entries once accumulated in a 587K
+// file), and it also declares live sessions dead when scout asks a tmux server
+// that does not have the pane -- observed for real when this repo's own e2e
+// test pointed a tick at a throwaway socket without isolating HOME, and scout
+// wrote "pane %2 no longer exists" about the pane the session was running in.
+// One of eight flags was wrong, and it was the only session doing anything.
+const { isStale } = require('../lib/scout')
+
+// Sabotage: in isStale delete the `claimsPaneGone(...) && livePanes.has(...)`
+// clause -- a live session that scout has wrongly flagged stays hidden from the
+// screensaver's banner and the triage picker, and this fails.
+test('a live pane refutes a paneGone flag', () => {
+  const live = new Set(['%2'])
+  assert.strictEqual(
+    isStale({ tmuxPane: '%2', staleReason: 'pane %2 no longer exists', terminalKind: 'paneGone' }, live),
+    false, 'the pane is right there; the flag is wrong')
+  // Older scout builds set no terminalKind, so the reason text has to carry it.
+  assert.strictEqual(
+    isStale({ tmuxPane: '%2', staleReason: 'pane %2 no longer exists' }, live),
+    false, 'the reason text alone should be enough')
+})
+
+// The refutation is NARROW on purpose: only a claim about the pane existing can
+// be refuted by the pane existing. Sabotage: in isStale drop the
+// `claimsPaneGone(session) &&` guard so any staleReason is refuted -- a session
+// scout called stale for some other reason comes back to life, and this fails.
+test('a stale reason that is not about the pane still stands', () => {
+  const live = new Set(['%2'])
+  assert.strictEqual(
+    isStale({ tmuxPane: '%2', staleReason: 'no hooks for 30m', terminalKind: 'stale' }, live),
+    true, 'this flag is not a claim the pane list can refute')
+})
+
+// Sabotage: in isStale replace `if (session.endedAt) return true` with
+// `if (false) return true` -- a finished session reappears and this fails.
+test('a genuinely gone session stays gone', () => {
+  const live = new Set(['%2'])
+  assert.strictEqual(
+    isStale({ tmuxPane: '%9', staleReason: 'pane %9 no longer exists', terminalKind: 'paneGone' }, live),
+    true, 'the pane really is absent')
+  assert.strictEqual(isStale({ tmuxPane: '%2', endedAt: 123 }, live), true,
+    'endedAt is a different claim and the pane list cannot refute it')
+  assert.strictEqual(isStale({ staleReason: null }, live), true, 'no pane at all')
+})
+
+// No pane list means nothing to refute the flag WITH, so the flag is believed.
+// Sabotage: in isStale change the clause to `if (claimsPaneGone(session))
+// return false` (dropping the livePanes check) -- every flagged session is
+// resurrected on a host where the tmux query failed, and this fails.
+test('with no pane list the flag is believed', () => {
+  const s = { tmuxPane: '%2', staleReason: 'pane %2 no longer exists', terminalKind: 'paneGone' }
+  assert.strictEqual(isStale(s, null), true, 'nothing to refute it with')
+  assert.strictEqual(isStale(s, undefined), true)
+  assert.strictEqual(isStale({ tmuxPane: '%2' }, null), false, 'unflagged is still live')
+})

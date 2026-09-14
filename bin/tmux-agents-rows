@@ -15,7 +15,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { execSync } = require('node:child_process')
-const { sessionState, paneIsPrompting } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout'))
+const { sessionState, paneIsPrompting, isStale } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout'))
 
 function tmux(args) {
   try {
@@ -104,9 +104,14 @@ const ORDER = { wait: 0, busy: 1, done: 2, idle: 3 }
 const rows = []
 for (const s of Object.values(doc.sessions || {})) {
   if (!s.tmuxPane || s.tmuxPane === current) continue
-  // Stale two ways: scout's own flag, AND the pane actually being gone. The
-  // flag lags -- that is how 36 dead entries accumulated in a 587K file.
-  if (s.staleReason || s.endedAt) continue
+  // Stale two ways, and the pane list WINS BOTH WAYS. It was already the
+  // stricter test -- scout's flag lags, which is how 36 dead entries
+  // accumulated in a 587K file -- but the flag can also be wrong in the other
+  // direction, declaring a live session dead because scout asked the wrong
+  // tmux server. That one is worse: it hides the agent that is asking you a
+  // question. isStale() in lib/scout.js is the single definition; both
+  // failures are covered by the same call.
+  if (isStale(s, livePanes)) continue
   if (!livePanes.has(s.tmuxPane)) continue
   let state = sessionState(s)
   // Pane-content fallback, same as paneStates(): sessionState() alone misses a

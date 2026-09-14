@@ -51,6 +51,38 @@ function sessionState(s) {
   return null
 }
 
+// Is this session gone? scout says so by setting staleReason, and that flag CAN
+// BE WRONG in the direction that hurts: it marks a pane gone whenever the
+// tmux server it happened to ask did not have that pane. Ask a different
+// server -- a scratch one from a test, a second socket -- and every live
+// session on the real one is declared dead. Observed for real: this repo's own
+// end-to-end test pointed a tick at a throwaway socket without isolating HOME,
+// and scout wrote `pane %2 no longer exists` about the pane the session was
+// actively running in. One of eight stale flags was wrong, and it was the only
+// session doing anything.
+//
+// The pane list is AUTHORITATIVE for existence, so a live pane refutes the
+// claim. Deliberately narrow: only a paneGone claim is refuted, because scout
+// has other reasons for calling a session stale and those are not about
+// whether a pane exists. `endedAt` is a different assertion -- the session
+// finished -- and stands regardless.
+//
+// livePanes may be null (no tmux, or the query failed), in which case there is
+// nothing to refute the flag with and it is believed, which is the old
+// behaviour and the right fallback.
+function claimsPaneGone(session) {
+  return session.terminalKind === 'paneGone' ||
+    /no longer exists/.test(String(session.staleReason || ''))
+}
+
+function isStale(session, livePanes) {
+  if (!session || !session.tmuxPane) return true
+  if (session.endedAt) return true
+  if (!session.staleReason) return false
+  if (claimsPaneGone(session) && livePanes && livePanes.has(session.tmuxPane)) return false
+  return true
+}
+
 function paneStates(active) {
   const paneState = new Map()
   for (const s of active) {
@@ -161,5 +193,7 @@ module.exports = {
   paneIsPrompting,
   paneStates,
   sessionState,
+  isStale,
+  claimsPaneGone,
   PRIO,
 }
