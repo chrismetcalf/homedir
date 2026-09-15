@@ -83,6 +83,35 @@ function isStale(session, livePanes) {
   return true
 }
 
+// How many subagents a session is actually running.
+//
+// scout records them in `activeSubagents`, and THAT ARRAY LEAKS. It never
+// clears entries when the parent finishes, so a session that ended yesterday
+// still lists its Task subagents as `phase: "running"` forever. Measured on
+// this host: 20 records claiming to be running, of which **19 belonged to
+// sessions that were already dead**. Counting the array as written would peg
+// every consumer at maximum permanently -- the screensaver's solid would
+// breathe flat out on an idle machine.
+//
+// Two filters, and both are needed. The caller must already have established
+// that the PARENT is live (isStale above), because a finished session's
+// subagents are finished by definition and that is where 19 of the 20 came
+// from. And each record must have reported activity recently: a subagent that
+// has not touched a tool in two minutes is either done or wedged, and either
+// way is not something to animate.
+const SUBAGENT_FRESH_MS = 2 * 60 * 1000
+
+function subagentCount(session, now = Date.now()) {
+  const subs = session && Array.isArray(session.activeSubagents) ? session.activeSubagents : []
+  let n = 0
+  for (const sub of subs) {
+    if (!sub || sub.phase !== 'running') continue
+    if (!sub.updatedAt || now - sub.updatedAt > SUBAGENT_FRESH_MS) continue
+    n++
+  }
+  return n
+}
+
 function paneStates(active) {
   const paneState = new Map()
   for (const s of active) {
@@ -144,7 +173,7 @@ function computeScoutStates() {
   const scoutDir = tmux(['show-env', '-g', 'SCOUT_DIR']).replace(/^SCOUT_DIR=/m, '').trim()
   // Scout absent, rather than unreadable: a genuine zero. Any tint still on a
   // window is left over from a scout that is no longer there, so clear it.
-  if (!scoutDir || !fs.existsSync(scoutDir)) return new Map()
+  if (!scoutDir || !fs.existsSync(scoutDir)) return { states: new Map(), subs: new Map() }
 
   let sync, render
   try {
@@ -163,8 +192,42 @@ function computeScoutStates() {
   }
   if (!cached || !cached.status) return null
 
-  const paneState = paneStates(render.getActiveSessions(cached.status, cached.panes))
-  return windowStates(tmux(['list-panes', '-a', '-F', '#{window_id} #{pane_id}']), paneState)
+  const active = render.getActiveSessions(cached.status, cached.panes)
+  const paneState = paneStates(active)
+
+  // Subagents per pane, rolled up from the same snapshot the tints come from.
+  // getActiveSessions has already dropped the sessions scout considers finished,
+  // which is the parent-liveness half of subagentCount's filter.
+  const paneSubs = new Map()
+  for (const s of active) {
+    if (!s.tmuxPane) continue
+    const n = subagentCount(s)
+    if (n) paneSubs.set(s.tmuxPane, (paneSubs.get(s.tmuxPane) || 0) + n)
+  }
+
+  // ONE list-panes for both rollups. Two calls would be two forks and, worse,
+  // two snapshots of a pane list another process is changing underneath us.
+  const panesRaw = tmux(['list-panes', '-a', '-F', '#{window_id} #{pane_id}'])
+  return {
+    states: windowStates(panesRaw, paneState),
+    subs: windowSums(panesRaw, paneSubs),
+  }
+}
+
+// Roll per-pane counts up to their windows by SUMMING -- unlike states, which
+// take the highest priority. A window with two agent panes running two
+// subagents each is running four, not two.
+function windowSums(panesRaw, paneCount) {
+  const raw = panesRaw.trim()
+  if (!raw) return new Map()
+  const out = new Map()
+  for (const line of raw.split('\n')) {
+    const [winId, paneId] = line.split(' ')
+    if (!winId) continue
+    const n = paneCount.get(paneId)
+    if (n) out.set(winId, (out.get(winId) || 0) + n)
+  }
+  return out
 }
 
 // Memoized for the life of the process. The ticker and the agents segment both
@@ -176,9 +239,23 @@ function computeScoutStates() {
 // bargain. There is no cross-tick cache: the process exits in a few hundred ms.
 let memo // undefined = not computed yet; null is a legitimate computed value
 
-function scoutStates() {
+function scoutAll() {
   if (memo === undefined) memo = computeScoutStates()
   return memo
+}
+
+// Kept returning a bare Map (or null) because every existing caller expects
+// one: the tick's tints, the agents segment, the pickers. The subagent counts
+// ride alongside in the same memoized snapshot rather than in a second read,
+// so the two can never describe different moments.
+function scoutStates() {
+  const all = scoutAll()
+  return all === null ? null : all.states
+}
+
+function scoutSubagents() {
+  const all = scoutAll()
+  return all === null ? null : all.subs
 }
 
 function resetScoutStates() {
@@ -187,6 +264,8 @@ function resetScoutStates() {
 
 module.exports = {
   scoutStates,
+  scoutSubagents,
+  windowSums,
   resetScoutStates,
   computeScoutStates,
   windowStates,
@@ -195,5 +274,7 @@ module.exports = {
   sessionState,
   isStale,
   claimsPaneGone,
+  subagentCount,
+  SUBAGENT_FRESH_MS,
   PRIO,
 }

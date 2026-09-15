@@ -512,3 +512,18 @@ test('when space runs out, agents are the last section standing', () => {
   assert.ok(!tiny.includes('PING'), 'PING should have gone too')
   assert.ok(tiny.includes('└'), 'the border must still close')
 })
+
+// A subagent count rides on its parent's row rather than getting a row of its
+// own: a Task subagent is not somewhere you can navigate to, and listing it as
+// a peer would imply it is. Sabotage: in render drop the
+// `${a.subagents ? ' +' + ... : ''}` suffix -- this fails.
+test('an agent running subagents says so on its own row', () => {
+  const text = drawPanel(40, FULL, [
+    { label: 'tmarchy', state: 'busy', subagents: 3 },
+    { label: 'otto', state: 'idle', subagents: 0 },
+  ])
+  const busy = text.split('\n').find((l) => l.includes('tmarchy'))
+  const idle = text.split('\n').find((l) => l.includes('otto'))
+  assert.ok(busy.includes('+3'), `expected a subagent count: ${busy.trim()}`)
+  assert.ok(!idle.includes('+'), `no subagents means no tag: ${idle.trim()}`)
+})

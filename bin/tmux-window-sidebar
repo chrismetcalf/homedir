@@ -46,10 +46,27 @@ draw() {
 	local lines=()
 	lines+=("${ESC}[1;38;5;67m WINDOWS${RESET}")
 	lines+=("")
-	while read -r active idx scout name; do
+	# `subs` is @scout-subagents, written per window by tmarchy-tick: how many
+	# Task subagents that window's agents have running. Rendered as a suffix on
+	# the row rather than as extra rows, because a subagent is not somewhere you
+	# can navigate to -- listing it like a window would imply it is.
+	#
+	# The name is read LAST because it is the only field that may contain
+	# spaces; `read -r active idx scout subs name` puts the rest of the line in
+	# `name`, so a window called "my long name" survives. Reordering these
+	# breaks that silently.
+	while read -r active idx scout subs name; do
 		col=$(color_for "$scout")
+		tag=""
+		[ "$subs" != "0" ] && [ -n "$subs" ] && tag="+${subs}"
+		# The suffix eats into the name's budget rather than overflowing the
+		# pane: at 24 columns there is no room for both in full.
+		local avail=$namew
+		[ -n "$tag" ] && avail=$((namew - ${#tag} - 1))
+		[ "$avail" -lt 3 ] && avail=3
 		nm="$name"
-		[ "${#nm}" -gt "$namew" ] && nm="${nm:0:$((namew - 1))}…"
+		[ "${#nm}" -gt "$avail" ] && nm="${nm:0:$((avail - 1))}…"
+		[ -n "$tag" ] && nm="${nm} ${tag}"
 		if [ "$active" = "1" ]; then
 			plain=">${idx} ${nm}"
 			pad=$((W - ${#plain}))
@@ -59,7 +76,7 @@ draw() {
 			lines+=(" ${ESC}[38;5;${col}m${idx}${RESET} ${ESC}[38;5;250m${nm}${RESET}")
 		fi
 	done < <(tmux list-windows -t "$PANE" \
-		-F '#{window_active} #{window_index} #{?@scout-state,#{@scout-state},none} #{window_name}' 2>/dev/null)
+		-F '#{window_active} #{window_index} #{?@scout-state,#{@scout-state},none} #{?@scout-subagents,#{@scout-subagents},0} #{window_name}' 2>/dev/null)
 
 	# On a width change (terminal resize) wipe the whole pane first, so
 	# reflowed/wrapped leftovers from the old width don't linger.

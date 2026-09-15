@@ -280,8 +280,12 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
   // screen to say so. It is a budgeted section now like the rest, so it shows
   // as many as the pane can hold and is the last thing trimmed.
   const agentRows = (agents || []).map((a) => ({
+    // A subagent count rides on the row rather than getting its own: a Task
+    // subagent is not a thing you can navigate to, so listing it as a peer
+    // would imply it is. "+3" says this agent has three of its own running.
     text: ` ${a.state === 'wait' ? '\u25c9' : a.state === 'busy' ? '\u25cd' : '\u25ce'} ` +
-      `${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}`,
+      `${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}` +
+      `${a.subagents ? ' +' + Math.min(a.subagents, 9) : ''}`,
     colour: a.state === 'wait' ? fg(theme.wait)
       : a.state === 'busy' ? fg(theme.busy) : fg(theme.done),
   }))

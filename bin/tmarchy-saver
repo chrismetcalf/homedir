@@ -117,8 +117,10 @@ function loadTheme() {
 // nodes cannot disagree with the tab colours they are sitting under.
 let sessionState = null
 let isStale = null
+let subagentCount = null
 try {
-  ({ sessionState, isStale } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout')))
+  ({ sessionState, isStale, subagentCount } =
+    require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout')))
 } catch { /* tmarchy absent: nodes simply do not appear */ }
 
 // The live pane list, which is AUTHORITATIVE for whether a session still
@@ -171,6 +173,9 @@ function readAgents() {
         key: s.tmuxPane,
         label: named || path.basename(s.workingDirectory || '') || '?',
         state,
+        // Only meaningful for a parent we have already established is live --
+        // see subagentCount's note on scout's leaked records.
+        subagents: subagentCount ? subagentCount(s) : 0,
       })
     }
     // Sorted for the panel's list, but WAITING agents are pulled to the front
@@ -214,7 +219,10 @@ function readData() {
   return {
     agents,
     wait: agents.filter((a) => a.state === 'wait').length,
-    busy: agents.filter((a) => a.state === 'busy').length,
+    // Subagents count as work in progress, because they are: a parent running
+    // three of them has four things going at once, and the solid should say so.
+    busy: agents.filter((a) => a.state === 'busy').length +
+      agents.reduce((n, a) => n + (a.subagents || 0), 0),
     load: os.loadavg()[0].toFixed(2),
     claude: readClaude(),
     host: os.hostname().split('.')[0],

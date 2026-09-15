@@ -183,3 +183,83 @@ test('with no pane list the flag is believed', () => {
   assert.strictEqual(isStale(s, undefined), true)
   assert.strictEqual(isStale({ tmuxPane: '%2' }, null), false, 'unflagged is still live')
 })
+
+// --- subagents --------------------------------------------------------------
+//
+// scout records Task subagents in `activeSubagents`, and THAT ARRAY LEAKS: it
+// never clears entries when the parent finishes. Measured on a real host, 20
+// records claimed `phase: "running"` and 19 of them belonged to sessions that
+// were already dead. Counting the array as written would peg every consumer at
+// maximum permanently.
+const { subagentCount, windowSums, SUBAGENT_FRESH_MS } = require('../lib/scout')
+
+const fresh = (over = {}) => ({ phase: 'running', updatedAt: Date.now(), ...over })
+
+// Sabotage: in subagentCount delete the
+// `if (!sub.updatedAt || now - sub.updatedAt > SUBAGENT_FRESH_MS) continue`
+// line -- yesterday's leaked records all count again and this fails.
+test('a subagent that has not reported recently is not running', () => {
+  const now = Date.now()
+  const s = {
+    activeSubagents: [
+      fresh(),
+      fresh({ updatedAt: now - 5000 }),
+      { phase: 'running', updatedAt: now - 24 * 3600 * 1000 },   // yesterday's leak
+      { phase: 'running', updatedAt: now - SUBAGENT_FRESH_MS - 1 },
+      { phase: 'running' },                                       // no timestamp at all
+    ],
+  }
+  assert.strictEqual(subagentCount(s, now), 2, 'only the two recent ones are running')
+})
+
+// Sabotage: in subagentCount replace `if (!sub || sub.phase !== 'running')`
+// with `if (!sub)` -- finished subagents are counted as working and this fails.
+test('only running subagents count', () => {
+  const now = Date.now()
+  const s = {
+    activeSubagents: [
+      fresh(),
+      fresh({ phase: 'completed' }),
+      fresh({ phase: 'failed' }),
+      fresh({ phase: undefined }),
+    ],
+  }
+  assert.strictEqual(subagentCount(s, now), 1)
+})
+
+// Sabotage: in subagentCount replace the `Array.isArray(...)` guard with
+// `session.activeSubagents || []` -- a session whose field is an object throws
+// and this fails.
+test('a session with no subagents, or nonsense in the field, counts zero', () => {
+  assert.strictEqual(subagentCount({}), 0)
+  assert.strictEqual(subagentCount(null), 0)
+  assert.strictEqual(subagentCount({ activeSubagents: null }), 0)
+  assert.strictEqual(subagentCount({ activeSubagents: {} }), 0)
+  assert.strictEqual(subagentCount({ activeSubagents: 'three' }), 0)
+  assert.strictEqual(subagentCount({ activeSubagents: [null, undefined] }), 0)
+})
+
+// Counts SUM across a window's panes, unlike states, which take the highest
+// priority. Two agent panes running two subagents each is four, not two.
+// Sabotage: in windowSums replace the accumulate with
+// `out.set(winId, n)` -- the second pane overwrites the first and this fails.
+test('subagent counts sum across a window rather than replacing', () => {
+  const panes = '@1 %1\n@1 %2\n@2 %3\n'
+  const perPane = new Map([['%1', 2], ['%2', 2], ['%3', 1]])
+  const sums = windowSums(panes, perPane)
+  assert.strictEqual(sums.get('@1'), 4, 'two panes with two each is four')
+  assert.strictEqual(sums.get('@2'), 1)
+})
+
+// A window with no subagents must have no entry at all, not an entry of zero:
+// the tick writes `subs.get(id) || null` and a null UNSETS the option, so a
+// zero entry and a missing one behave the same there -- but the sidebar reads
+// the option directly and would render a "+0" tag. Sabotage: in windowSums
+// replace `const n = paneCount.get(paneId); if (n)` with
+// `const n = paneCount.get(paneId) || 0; if (n !== undefined)` -- every window
+// gains a zero entry and this fails.
+test('windowSums reports nothing for panes with no subagents', () => {
+  assert.strictEqual(windowSums('', new Map()).size, 0)
+  const sums = windowSums('@1 %1\n@2 %2\n', new Map([['%1', 0]]))
+  assert.strictEqual(sums.size, 0, 'a zero count must not create a window entry')
+})

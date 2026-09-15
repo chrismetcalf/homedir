@@ -14,7 +14,7 @@ const { loadSegments, renderSegments } = require('../lib/segments')
 const { currentContext, allWindows, allPanes, hasContext } = require('../lib/context')
 const { sshHostUnder } = require('../segments.d/remote')
 const { renamePlan, planToOps } = require('../lib/ssh-name')
-const { scoutStates } = require('../lib/scout')
+const { scoutStates, scoutSubagents } = require('../lib/scout')
 const { tmux } = require('../lib/tmux')
 const { decodeState, announcePlan } = require('../lib/alerts')
 
@@ -79,6 +79,7 @@ function main() {
   }
 
   const states = scoutStates()
+  const subs = scoutSubagents()
   const windowNames = new Map()
   for (const win of allWindows()) {
     windowNames.set(win.id, win.name || win.id)
@@ -90,6 +91,18 @@ function main() {
         value: states.get(win.id) || null,
       })
     }
+    // How many Task subagents this window's agents are running. Same rule as
+    // the tint: only written when we actually learned something this tick, so
+    // a failed read leaves the previous count standing rather than blanking it.
+    if (subs) {
+      ops.push({
+        scope: 'window',
+        target: win.id,
+        name: '@scout-subagents',
+        value: subs.get(win.id) || null,
+      })
+    }
+
     // Resolve once: the /proc walk is the expensive part and both the tab
     // glyph and the window name want the same answer.
     const sshPane = sshPaneByWindow.get(win.id)
