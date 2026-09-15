@@ -224,6 +224,51 @@ function latencyState(ms) {
   return 'slow'
 }
 
+// --- ssh aliases -------------------------------------------------------------
+//
+// A name out of the shell history may be an ssh ALIAS rather than a hostname:
+// `Host pipad-lan / HostName 192.168.1.21` pings as a DNS failure and shows the
+// host as unreachable when it is perfectly fine. Four of thirteen tracked hosts
+// here were aliases, one of them with no DNS record at all.
+//
+// `ssh -G <host>` is asked rather than the config file parsed, because it is
+// the same resolution ssh itself will do -- Include, wildcard Host patterns and
+// Match blocks included. tmux-ssh parses the file directly and has the comments
+// to prove how much that costs; there is no reason to repeat it here.
+//
+// ASYNC, and cached. The lookup is ~10ms and there may be a dozen, which is a
+// visible hitch if it happens on the frame loop -- so an unresolved name is
+// pinged as-is for one round and corrected on the next, rather than holding
+// everything up. Numeric literals skip the lookup entirely: an address is
+// already the answer.
+const sshAlias = new Map()          // name -> what to actually ping
+const sshAliasPending = new Set()
+let targetsDirty = false
+
+function looksNumeric(host) {
+  return /^[0-9.]+$/.test(host) || host.includes(':')
+}
+
+// `ssh -G` echoes the full effective config; the line we want is `hostname X`.
+function hostnameFromSshConfig(stdout) {
+  const m = /^hostname\s+(\S+)\s*$/mi.exec(stdout || '')
+  return m && isSafeHost(m[1]) ? m[1] : null
+}
+
+function resolveSshAlias(host) {
+  if (looksNumeric(host) || sshAlias.has(host) || sshAliasPending.has(host)) return
+  if (!isSafeHost(host)) return
+  sshAliasPending.add(host)
+  execFile('ssh', ['-G', host], { timeout: 3000, encoding: 'utf8' }, (err, stdout) => {
+    sshAliasPending.delete(host)
+    // On any failure the name stands as its own answer -- caching that is what
+    // stops a box with no ssh binary re-forking one per host every round.
+    const real = (!err && hostnameFromSshConfig(stdout)) || host
+    sshAlias.set(host, real)
+    if (real !== host) targetsDirty = true
+  })
+}
+
 // --- target discovery -------------------------------------------------------
 function readTail(file, bytes) {
   let fd = null
@@ -312,7 +357,14 @@ function recentSshHosts() {
 function resolveTargets() {
   const net = [{ label: SITE, host: SITE }]
   for (const ip of resolvers()) net.push({ label: ip, host: ip })
-  return { net, ssh: recentSshHosts().map((h) => ({ label: h, host: h })) }
+  // The LABEL stays the name you know it by; only what gets pinged is
+  // rewritten. Seeing `pipad-lan` in the panel and `192.168.1.21` on the globe
+  // is right -- the alias is how you refer to it, the address is what answered.
+  const ssh = recentSshHosts().map((h) => {
+    resolveSshAlias(h)
+    return { label: h, host: sshAlias.get(h) || h }
+  })
+  return { net, ssh }
 }
 
 // --- the sampler ------------------------------------------------------------
@@ -338,7 +390,10 @@ function pingOnce(host) {
 }
 
 function round() {
-  if (rounds % RETARGET_EVERY === 0) targets = resolveTargets()
+  if (rounds % RETARGET_EVERY === 0 || targetsDirty) {
+    targetsDirty = false
+    targets = resolveTargets()
+  }
   rounds++
 
   // Ask systemd-resolved only when resolv.conf has nothing real to offer, and
@@ -379,7 +434,7 @@ function read() {
 
 module.exports = {
   start, stop, read, resolveTargets, recentSshHosts, resolvers,
-  isSafeHost, parseRtt, parseIp, dnsFromResolvConf, dnsFromResolvectl, isLoopback,
+  isSafeHost, parseRtt, parseIp, hostnameFromSshConfig, looksNumeric, dnsFromResolvConf, dnsFromResolvectl, isLoopback,
   chooseResolvers,
   sshHostFromCommand, sshHostsFromHistory, sshHostsFromFrecency, mergeSshHosts,
   pingArgs, latencyState, latencyHex, latencyPosition, mixHex, SITE, SSH_LIMIT,

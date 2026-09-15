@@ -527,3 +527,51 @@ test('an agent running subagents says so on its own row', () => {
   assert.ok(busy.includes('+3'), `expected a subagent count: ${busy.trim()}`)
   assert.ok(!idle.includes('+'), `no subagents means no tag: ${idle.trim()}`)
 })
+
+// --- ssh aliases ------------------------------------------------------------
+//
+// A name out of the shell history may be an ssh ALIAS, not a hostname:
+// `Host pipad-lan / HostName 192.168.1.21` has no DNS record, so pinging the
+// literal name failed and the panel showed a perfectly healthy host as
+// unreachable. Four of the thirteen hosts tracked here were aliases.
+
+// `ssh -G` echoes the whole effective config; the wanted line is `hostname X`,
+// and it is nowhere near the start. Sabotage: in hostnameFromSshConfig drop the
+// `m` flag from the regex -- it then only matches at the very start of the
+// output and this fails.
+test('the real hostname is pulled out of ssh -G output', () => {
+  const out = [
+    'user krezel',
+    'hostname 192.168.1.21',
+    'port 22',
+    'identityfile ~/.ssh/id_ed25519',
+  ].join('\n')
+  assert.strictEqual(ping.hostnameFromSshConfig(out), '192.168.1.21')
+  assert.strictEqual(
+    ping.hostnameFromSshConfig('hostname octoprint.pirate-sailfin.ts.net'),
+    'octoprint.pirate-sailfin.ts.net')
+})
+
+// No hostname line, or one that could be read as a flag, yields nothing -- the
+// caller then pings the name as given rather than something crafted. Sabotage:
+// in hostnameFromSshConfig drop the `isSafeHost(m[1])` guard -- the `-f` case
+// comes back and this fails.
+test('a missing or unsafe hostname yields nothing', () => {
+  assert.strictEqual(ping.hostnameFromSshConfig('user krezel\nport 22'), null)
+  assert.strictEqual(ping.hostnameFromSshConfig(''), null)
+  assert.strictEqual(ping.hostnameFromSshConfig('hostname -f'), null)
+  assert.strictEqual(ping.hostnameFromSshConfig('hostname a;rm -rf /'), null)
+})
+
+// An address is already the answer, so it must not cost an ssh -G -- with a
+// dozen hosts that is a dozen needless forks every time targets are re-read.
+// Sabotage: in looksNumeric drop the `|| host.includes(':')` -- an IPv6
+// literal starts getting looked up and this fails.
+test('addresses are not looked up, names are', () => {
+  for (const ip of ['192.168.1.21', '10.0.0.1', '100.105.221.98', 'fe80::1', '2606:50c0::153']) {
+    assert.strictEqual(ping.looksNumeric(ip), true, `${ip} should be treated as an address`)
+  }
+  for (const name of ['pipad-lan', 'octoprint', 'chrismetcalf.net', 'print-server']) {
+    assert.strictEqual(ping.looksNumeric(name), false, `${name} should be looked up`)
+  }
+})
