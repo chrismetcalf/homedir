@@ -10,6 +10,10 @@
 # bin/tmux-gen-selftest can test the pure parts without a popup or an API call.
 set -uo pipefail
 
+TMUX_GEN_LIBDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
+# shellcheck source=lib/tmux-theme.sh
+[ -r "$TMUX_GEN_LIBDIR/tmux-theme.sh" ] && . "$TMUX_GEN_LIBDIR/tmux-theme.sh"
+
 CLAUDE_BIN="${TMUX_GEN_CLAUDE:-$HOME/.local/bin/claude}"
 TIMEOUT="${TMUX_GEN_TIMEOUT:-30}"
 MODEL="${TMUX_GEN_MODEL:-sonnet}"
@@ -167,6 +171,42 @@ render_and_act() {
 # TMUX_GEN_MAIN_RAN is a sentinel for the selftest: it is the only observable
 # proof that the library-mode guard below actually skipped main. Keep it as
 # main's first statement when the real body lands in Task 5.
+# The wait used to be a static "thinking..." parked on screen for the five or
+# six seconds the query takes, which is long enough to wonder whether anything
+# is happening at all. This animates instead: a braille spinner, one of a set of
+# gerunds, and a running clock -- the same shape Claude Code's own indicator
+# uses, so the wait looks like the thing you are waiting for.
+#
+# ONE word per query, chosen at random, rather than a word that changes as it
+# spins. A word cycling every half second reads as noise and, worse, as progress
+# through stages that do not exist.
+GEN_GLYPHS='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+GEN_WORDS=(Pondering Rummaging Conjuring Divining Consulting Puzzling
+           Scheming Deliberating Incanting Mulling Contriving Ruminating)
+
+# Spins until $1 (the query's pid) exits, then erases itself completely -- the
+# result is drawn over the same line, so anything left behind would sit in the
+# middle of the answer.
+spin_while() {
+    local pid="$1" i=0 start=$SECONDS word accent reset
+    word=${GEN_WORDS[$((RANDOM % ${#GEN_WORDS[@]}))]}
+    # Themed if tmarchy is loaded and we are in tmux; plain otherwise. Both
+    # lookups are guarded because this has to work on a fresh checkout and
+    # outside tmux, where a missing colour must cost nothing.
+    if declare -f ansi_for >/dev/null 2>&1; then
+        accent=$(ansi_for "$(tmux show -gv @theme-accent 2>/dev/null)")
+        [ -n "$accent" ] && reset=$'\033[0m'
+    fi
+    while kill -0 "$pid" 2>/dev/null; do
+        local g=${GEN_GLYPHS:$((i % ${#GEN_GLYPHS})):1}
+        printf '\r  %s%s %s\u2026 (%ds)%s\033[K' \
+            "$accent" "$g" "$word" "$((SECONDS - start))" "$reset"
+        i=$((i + 1))
+        sleep 0.1
+    done
+    printf '\r\033[K'
+}
+
 main() {
     # Sentinel for the selftest's library-mode assertion — see Task 1. Without
     # it, "sourcing does not run main" has nothing observable to check and
@@ -186,10 +226,22 @@ main() {
     IFS= read -r -e -p '> ' question || exit 0
     [ -n "${question// /}" ] || exit 0
 
-    printf '\n  thinking...\r'
-    local raw
-    raw=$(query "$question")
-    local rc=$?
+    # The query runs in the BACKGROUND so the line above it can animate. `wait`
+    # is what preserves the exit status the check below depends on -- a command
+    # substitution would have blocked, and reading the status from anything
+    # other than wait would lose the 124 a timeout returns.
+    printf '\n'
+    local raw rc out
+    out=$(mktemp) || { printf '  cannot allocate a scratch file\n'; exit 1; }
+    query "$question" > "$out" 2>&1 &
+    local qpid=$!
+    # Only animate on a terminal: piped into a test or a log, the spinner would
+    # be thousands of carriage returns rather than anything readable.
+    if [ -t 1 ]; then spin_while "$qpid"; fi
+    wait "$qpid"
+    rc=$?
+    raw=$(cat "$out")
+    rm -f "$out"
 
     # ANY non-zero status is a failure, even with output. A timeout returns 124
     # having already emitted whatever partial text the model produced, and that

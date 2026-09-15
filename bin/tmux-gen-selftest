@@ -310,4 +310,70 @@ cleanup_safety
 trap - EXIT
 fi
 
+
+echo "waiting animation"
+
+# The indicator has to ERASE itself: the answer is drawn over the same line, so
+# a leftover frame would sit in the middle of the result. And the spinner must
+# not change what the caller learns -- the query now runs in the background so
+# the line can animate, and `wait` is the only thing preserving the exit status
+# that the timeout check depends on.
+GEN_STUB=$(mktemp -d)
+cat > "$GEN_STUB/slow" <<'STUB'
+#!/usr/bin/env bash
+cat > /dev/null
+sleep 30
+STUB
+chmod +x "$GEN_STUB/slow"
+
+if ! command -v script >/dev/null; then
+    echo "  skip script(1) not installed; the animation needs a pty"
+else
+    GEN_RAW="$GEN_STUB/out.raw"
+    printf 'q\n\n' | env -u TMUX_GEN_LIB TMUX_GEN_CLAUDE="$GEN_STUB/slow" TMUX_GEN_TIMEOUT=2 \
+        script -qfec "bash $DIR/tmux-gen" "$GEN_RAW" >/dev/null 2>&1
+    GEN_PLAIN=$(sed 's/\x1b\[[0-9;]*[A-Za-z]//g' "$GEN_RAW")
+
+    # Frames actually drawn, not just "the code path exists".
+    GEN_FRAMES=$(grep -ao '[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] [A-Za-z]*… ([0-9]*s)' "$GEN_RAW" | wc -l)
+    if [ "$GEN_FRAMES" -gt 1 ]; then
+        pass "the wait animates ($GEN_FRAMES frames)"
+    else
+        fail "the wait animates" "more than one frame" "$GEN_FRAMES"
+    fi
+
+    # A timeout returns 124 having already emitted partial text, and trusting
+    # that text would present a truncated reply as a complete one. Backgrounding
+    # the query is exactly the change that could have lost this status.
+    case "$GEN_PLAIN" in
+        *"query failed (exit 124)"*) pass "a timeout still reports exit 124" ;;
+        *) fail "a timeout still reports exit 124" "query failed (exit 124)" \
+             "$(printf '%s' "$GEN_PLAIN" | grep -v '^$' | tail -2)" ;;
+    esac
+
+    # Nothing of the spinner may survive onto the line the answer is drawn on.
+    #
+    # This has to ask what is VISIBLE, not what is in the file. The frames are
+    # separated by carriage returns, not newlines, so the whole animation and
+    # the result that follows it are ONE line -- and a naive `tail -3 | grep …`
+    # looks at lines far below it and passes whether the erase happens or not.
+    # That was the first version of this check, and removing the erase did not
+    # fail it. What is on screen is the text after the LAST carriage return of
+    # that line, which is the erase itself when it is working.
+    GEN_LINE=$(printf '%s\n' "$GEN_PLAIN" | grep 'query failed' | head -1)
+    # Drop the line's OWN terminating CR first -- a pty turns every \n into
+    # \r\n, so without this the "last carriage return" is the line ending and
+    # the text after it is always empty, which reads as "nothing captured"
+    # whether the erase works or not.
+    GEN_LINE=${GEN_LINE%$'\r'}
+    GEN_VISIBLE=${GEN_LINE##*$'\r'}
+    case "$GEN_VISIBLE" in
+        *…*) fail "the animation erases itself" "no frame left on the result line" \
+                  "$GEN_VISIBLE" ;;
+        '') fail "the animation erases itself" "a result line to inspect" "nothing captured" ;;
+        *) pass "the animation erases itself" ;;
+    esac
+fi
+rm -rf "$GEN_STUB"
+
 exit "$FAILED"
