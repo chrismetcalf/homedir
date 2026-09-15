@@ -194,8 +194,19 @@ function hashDirection(label) {
 // "lots".
 function pulseFor(busy) {
   const n = Math.min(Math.max(busy | 0, 0), 6)
-  if (!n) return { rate: 0, depth: 0 }
-  return { rate: 0.06 + 0.045 * (n - 1), depth: 0.035 + 0.012 * (n - 1) }
+  if (!n) return { rate: 0, depth: 0, swing: 0 }
+  return {
+    rate: 0.06 + 0.045 * (n - 1),
+    depth: 0.035 + 0.012 * (n - 1),
+    // How far along the colour ramp the breath reaches at its peak. Explicit
+    // rather than derived from `depth`, which it used to be: the size swing has
+    // to stay small enough not to outgrow the space the solid is fitted to,
+    // while the colour swing has no such ceiling and wants to be obvious. Tying
+    // them together capped the hue shift at whatever was safe for the geometry.
+    // One busy agent already reaches well past the midpoint; six goes the whole
+    // way.
+    swing: 0.55 + 0.09 * (n - 1),
+  }
 }
 
 // --- renderer ---------------------------------------------------------------
@@ -247,19 +258,32 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
   // rotation, not as a signal -- but a hue shift in step with it is
   // unmistakable at a glance from across the room.
   //
-  // accent -> accent-alt, NOT toward wait or busy: those two mean "an agent
-  // needs you" and "an agent is working" everywhere else in this config, and
-  // borrowing them here would make a perfectly healthy machine look like it was
-  // asking for something. This pair is the theme's own two decorative colours
-  // and carries no such claim.
+  // THREE stops: accent -> accent-alt -> busy. Blue through purple into orange,
+  // which is a big enough sweep to read as a signal from across a room rather
+  // than as a trick of the shading.
   //
-  // The swing scales with depth, so it arrives with the breath: at zero busy
-  // there is no colour movement at all, which is what "looks normal when idle"
-  // has to mean.
-  const swing = Math.min(1, pulse.depth / 0.095)
-  const tone = swing
-    ? mixHex(theme.accent, theme.accentAlt || theme.accent, ((swell + 1) / 2) * swing)
-    : theme.accent
+  // Reaching @theme-busy is deliberate and, on reflection, correct rather than
+  // merely permitted: that colour means "an agent is working" everywhere else
+  // in this config, and the breath is driven by exactly that. An earlier
+  // version stopped at accent-alt on the reasoning that borrowing a state
+  // colour would overclaim -- but the claim it makes here is true.
+  //
+  // @theme-WAIT is still off limits, and that is the half of the rule worth
+  // keeping: red means "an agent needs you", the sticky banner owns it, and a
+  // solid that went red while nothing was asking would be a lie. The ramp stops
+  // at orange.
+  //
+  // At zero busy there is no colour movement at all, which is what "looks
+  // normal when idle" has to mean.
+  const stops = [
+    theme.accent,
+    theme.accentAlt || theme.accent,
+    theme.busy || theme.accentAlt || theme.accent,
+  ]
+  const reach = ((swell + 1) / 2) * (pulse.swing || 0)
+  const seg = reach * (stops.length - 1)
+  const lo = Math.min(stops.length - 2, Math.floor(seg))
+  const tone = pulse.swing ? mixHex(stops[lo], stops[lo + 1], seg - lo) : theme.accent
   const scale = Math.min(usable * 0.52, (usableW / ASPECT) * 0.46) * breathe
   const cx = usableW / 2
   const cy = top + usable / 2

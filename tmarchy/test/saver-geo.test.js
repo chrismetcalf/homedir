@@ -61,8 +61,8 @@ test('more busy agents breathe faster and deeper', () => {
 test('the breath is capped, and nonsense input is harmless', () => {
   assert.deepStrictEqual(geo.pulseFor(12), geo.pulseFor(6), 'capped at six')
   assert.deepStrictEqual(geo.pulseFor(200), geo.pulseFor(6))
-  assert.deepStrictEqual(geo.pulseFor(-3), { rate: 0, depth: 0 }, 'negative is idle')
-  assert.deepStrictEqual(geo.pulseFor(undefined), { rate: 0, depth: 0 })
+  assert.deepStrictEqual(geo.pulseFor(-3), { rate: 0, depth: 0, swing: 0 }, 'negative is idle')
+  assert.deepStrictEqual(geo.pulseFor(undefined), { rate: 0, depth: 0, swing: 0 })
 })
 
 // The peak must equal the un-pulsed size, not exceed it: the solid is fitted to
@@ -139,35 +139,67 @@ test('an idle solid holds a single colour', () => {
 test('a busy solid shifts colour as it breathes', () => {
   assert.ok(tones(geo.pulseFor(3), 24).size > 5,
     'three busy agents should sweep a range of tones')
-  assert.ok(tones(geo.pulseFor(6), 24).size > tones(geo.pulseFor(1), 24).size,
-    'and six should sweep further than one')
+  // Deliberately NOT "six visits more distinct tones than one". That was the
+  // assertion here, and the count of distinct shades is a bad proxy for how far
+  // the sweep travels -- a slower breath lingers and visits MORE intermediate
+  // values per frame sampled, so one busy agent can out-count six while
+  // covering a third of the ramp. Distance is measured properly below, on the
+  // red channel's extent.
 })
 
-// It must NOT borrow the alert colours. @theme-wait means "an agent needs you"
-// and @theme-busy means "an agent is working" everywhere else in this config;
-// a healthy machine turning either would be claiming something untrue.
-// Sabotage: in render replace `theme.accentAlt || theme.accent` with
-// `theme.wait` -- this fails.
-test('the breath never borrows the alert colours', () => {
-  const theme = { accent: '#7aa2f7', accentAlt: '#bb9af7', fg: '#c0caf5',
-    wait: '#f7768e', busy: '#e0af68' }
+const RAMP_THEME = { accent: '#7aa2f7', accentAlt: '#bb9af7', fg: '#c0caf5',
+  wait: '#f7768e', busy: '#e0af68' }
+
+function rampTones(busy, frames) {
   const seen = new Set()
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < frames; i++) {
     const rows = 20
     const cols = 60
     const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
-    geo.render({ grid, rows, cols, frame: 200, theme, fg: noColour,
-      dim: (v) => v + '|', spin: 0, pulse: geo.pulseFor(6) })
+    geo.render({ grid, rows, cols, frame: 200, theme: RAMP_THEME, fg: noColour,
+      dim: (v) => v + '|', spin: 0, pulse: geo.pulseFor(busy) })
     for (const r of grid) for (const v of r) if (v) seen.add(v.split('|')[0])
   }
-  // Every tone must lie between accent and accent-alt: those two differ only in
-  // the red channel here, so a colour outside that span came from elsewhere.
-  for (const t of seen) {
-    const r = parseInt(t.slice(1, 3), 16)
-    assert.ok(r >= 0x7a && r <= 0xbb, `tone ${t} is outside the accent span`)
-    assert.notStrictEqual(t, theme.wait)
-    assert.notStrictEqual(t, theme.busy)
+  return seen
+}
+
+const redOf = (hex) => parseInt(hex.slice(1, 3), 16)
+
+// The sweep has to ARRIVE somewhere, not just drift a few shades. Reaching
+// @theme-busy is the point: it means "an agent is working" everywhere else in
+// this config, and the breath is driven by exactly that. Sabotage: in render
+// drop the third stop, leaving `[theme.accent, theme.accentAlt || theme.accent]`
+// -- the sweep stops at purple, never gets near orange, and this fails.
+test('a fully busy solid sweeps all the way into the orange', () => {
+  const reds = [...rampTones(6, 60)].map(redOf)
+  assert.ok(Math.max(...reds) >= 0xd0,
+    `expected the ramp to reach orange, peaked at red=${Math.max(...reds).toString(16)}`)
+  assert.ok(Math.min(...reds) <= 0x82,
+    'and to come back down to the accent at the bottom of the breath')
+})
+
+// But it must stop AT orange. @theme-wait means "an agent needs you", the
+// sticky banner owns it, and a solid that went red while nothing was asking
+// would be a lie. Sabotage: in render append `theme.wait` as a fourth stop --
+// tones run past orange into red and this fails.
+test('the breath stops at orange and never reaches the alert red', () => {
+  for (const busy of [1, 3, 6]) {
+    for (const t of rampTones(busy, 60)) {
+      assert.ok(redOf(t) <= redOf(RAMP_THEME.busy),
+        `busy=${busy}: tone ${t} is redder than @theme-busy, i.e. past orange`)
+      assert.notStrictEqual(t, RAMP_THEME.wait, 'never the alert colour itself')
+    }
   }
+})
+
+// Fewer busy agents means a shorter journey along the same ramp, so the amount
+// of colour still carries the count. Sabotage: in pulseFor replace
+// `swing: 0.55 + 0.09 * (n - 1)` with `swing: 1` -- one busy agent sweeps as
+// far as six and this fails.
+test('how far along the ramp it gets tracks how many are busy', () => {
+  const peak = (n) => Math.max(...[...rampTones(n, 60)].map(redOf))
+  assert.ok(peak(6) > peak(3), `six should out-reach three: ${peak(6)} vs ${peak(3)}`)
+  assert.ok(peak(3) > peak(1), `three should out-reach one: ${peak(3)} vs ${peak(1)}`)
 })
 
 // A theme with no accent-alt must not produce 'undefined' as a colour.
