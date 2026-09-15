@@ -180,12 +180,27 @@ function hashDirection(label) {
   return [r * Math.cos(theta), r * Math.sin(theta), z]
 }
 
+// How hard the solid breathes, from the number of agents actually working.
+//
+// Zero busy returns zero on both counts, so an idle box shows a solid of a
+// FIXED size rather than a slow throb -- "nothing is happening" has to look
+// like nothing happening, or the animation stops carrying information.
+//
+// Capped at six. Past that the period drops under a second and the thing
+// strobes, which is unpleasant to sit next to and no more informative than
+// "lots".
+function pulseFor(busy) {
+  const n = Math.min(Math.max(busy | 0, 0), 6)
+  if (!n) return { rate: 0, depth: 0 }
+  return { rate: 0.06 + 0.045 * (n - 1), depth: 0.035 + 0.012 * (n - 1) }
+}
+
 // --- renderer ---------------------------------------------------------------
 const HOLD = 240                   // frames resting on a shape
 const BLEND = 140                  // frames morphing to the next
 
 function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, bottom = 0,
-  top: reserved = 0, points = [] }) {
+  top: reserved = 0, points = [], pulse = { rate: 0, depth: 0 } }) {
   const cycle = HOLD + BLEND
   const idx = Math.floor(frame / cycle) % SHAPES.length
   const nxt = (idx + 1) % SHAPES.length
@@ -210,7 +225,19 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
   const top = Math.max(1, reserved)
   const floor = rows - bottom - 1
   const usable = Math.max(6, floor - top)
-  const scale = Math.min(usable * 0.52, (usableW / ASPECT) * 0.46)
+  // The breath PHASE accumulates, for the same reason the rotation angles do:
+  // frame * rate would teleport the size the moment an agent started or
+  // finished, because the same frame number would suddenly mean a different
+  // point in the cycle.
+  render.breath = (render.breath || 0) + pulse.rate
+  // Normalised so the PEAK equals the un-pulsed size rather than exceeding it.
+  // Without this the solid grows past the room reserved for it at the top of
+  // the swing and the rasteriser clips it against the pane edge, which reads
+  // as the shape being cut off rather than as breathing.
+  const breathe = pulse.depth
+    ? (1 + pulse.depth * Math.sin(render.breath)) / (1 + pulse.depth)
+    : 1
+  const scale = Math.min(usable * 0.52, (usableW / ASPECT) * 0.46) * breathe
   const cx = usableW / 2
   const cy = top + usable / 2
   const DIST = 4.2
@@ -323,4 +350,4 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
   return t > 0 ? `${SHAPES[idx].name}->${SHAPES[nxt].name}` : SHAPES[idx].name
 }
 
-module.exports = { render, SHAPES, MESH, RAMP, spinFactor, radiusOf, hashDirection }
+module.exports = { render, SHAPES, MESH, RAMP, spinFactor, pulseFor, radiusOf, hashDirection }

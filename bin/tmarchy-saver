@@ -495,8 +495,11 @@ function main() {
       // Spin tracks load per core, so the thing visibly works harder when the
       // box does. That is the readout, not decoration.
       const spin = geo.spinFactor(os.loadavg()[0], (stats && stats.cores) || os.cpus().length)
+      // Spin tracks the machine's load; the breath tracks how many agents are
+      // actually working. Two different questions, so two different signals --
+      // a box can be busy with one agent or idle with six waiting.
       geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right,
-        bottom: graphH, top: bannerH, points })
+        bottom: graphH, top: bannerH, points, pulse: geo.pulseFor(data.busy) })
     }
 
     // --- rain ---------------------------------------------------------------
