@@ -478,3 +478,37 @@ test('a 256-colour theme degrades to the nearest stop, not a broken colour', () 
     assert.match(c, /^colour\d+$/, `expected a palette index, got ${c}`)
   }
 })
+
+// --- the agent section is budgeted, not capped ------------------------------
+
+// It used to render `agents.slice(0, 5)` regardless of how many were running,
+// so a sixth and seventh agent vanished with nothing on screen to say so.
+// Sabotage: in render replace `(agents || []).map(...)` with
+// `(agents || []).slice(0, 5).map(...)` -- the old behaviour returns and this
+// fails at every height.
+test('every live agent gets a row, however many there are', () => {
+  const many = ['one', 'two', 'three', 'four', 'five', 'six', 'seven']
+    .map((label, i) => ({ label, state: i === 0 ? 'wait' : 'idle' }))
+  for (const rows of [44, 36, 30, 24, 20]) {
+    const text = drawPanel(rows, FULL, many)
+    for (const a of many) {
+      assert.ok(text.includes(a.label),
+        `rows=${rows}: agent "${a.label}" is missing from the panel`)
+    }
+    assert.ok(text.includes('└'), `rows=${rows}: the border must still close`)
+  }
+})
+
+// Agents outrank everything else that shares the row budget: they are the only
+// section about work waiting on YOU. Sabotage: in render move the
+// `section(' AGENTS ', agentRows)` call below `section(' SSH ', ...)` -- on a
+// short pane the ssh list survives and the agents do not, and this fails.
+test('when space runs out, agents are the last section standing', () => {
+  const many = ['one', 'two', 'three', 'four', 'five', 'six', 'seven']
+    .map((label) => ({ label, state: 'idle' }))
+  const tiny = drawPanel(20, FULL, many)
+  assert.ok(tiny.includes('AGENTS'), 'AGENTS must survive')
+  assert.ok(!tiny.includes('SSH'), 'SSH should have gone first')
+  assert.ok(!tiny.includes('PING'), 'PING should have gone too')
+  assert.ok(tiny.includes('└'), 'the border must still close')
+})

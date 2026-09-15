@@ -235,15 +235,6 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
   row(` ${lamp(true, frame, 1)} TMP ${String(s.temp ?? '--').padStart(3)}\u00b0C   ${s.cores ?? '--'} cores`, tempColour)
   row(`   LOAD ${(s.load || ['--', '--', '--']).join('  ')}`, dimC)
 
-  rule(' AGENTS ', '\u251c', '\u2524')
-  const list = (agents || []).slice(0, 5)
-  if (!list.length) row('   no live agents', dimC)
-  for (const a of list) {
-    const g = a.state === 'wait' ? '\u25c9' : a.state === 'busy' ? '\u25cd' : '\u25ce'
-    const c = a.state === 'wait' ? fg(theme.wait) : a.state === 'busy' ? fg(theme.busy) : fg(theme.done)
-    row(` ${g} ${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}`, c)
-  }
-
   // --- the variable-height sections ------------------------------------------
   // Added LAST, and only into the rows actually left over, because the panel is
   // vertically centred and anything past the bottom is silently clipped -- on a
@@ -252,9 +243,10 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
   // fit is dropped WHOLE, header included: a rule with no rows under it is a
   // section that looks broken rather than one that looks absent.
   //
-  // CLAUDE first because it is the only one of the three you might act on in
-  // the next five minutes; SSH last because the resolvers are the same three
-  // rows on every host while the ssh list is however long your week was.
+  // AGENTS first because it is the only section about something waiting on you;
+  // then CLAUDE, the only other thing you might act on in the next five
+  // minutes; SSH last, since the resolvers are the same rows on every host
+  // while the ssh list is however long your week was.
   const TAIL_LINES = 3                        // LINK rule, strip row, border
   let budget = rows - lines.length - TAIL_LINES
   const section = (label, entries) => {
@@ -282,7 +274,21 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
     colour: pingColour(theme, fg, dim, e.state, e.ms),
   }))
 
+  // Agents lead: this is the only section about work that is waiting on YOU,
+  // and it used to be a hardcoded five rows regardless of how many were
+  // running -- which silently dropped the sixth and seventh with nothing on
+  // screen to say so. It is a budgeted section now like the rest, so it shows
+  // as many as the pane can hold and is the last thing trimmed.
+  const agentRows = (agents || []).map((a) => ({
+    text: ` ${a.state === 'wait' ? '\u25c9' : a.state === 'busy' ? '\u25cd' : '\u25ce'} ` +
+      `${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}`,
+    colour: a.state === 'wait' ? fg(theme.wait)
+      : a.state === 'busy' ? fg(theme.busy) : fg(theme.done),
+  }))
+  if (!agentRows.length) agentRows.push({ text: '   no live agents', colour: dimC })
+
   const pg = ping || {}
+  section(' AGENTS ', agentRows)
   section(' CLAUDE ', claudeRows)
   section(' PING ', reach(pg.net))
   section(' SSH ', reach(pg.ssh))

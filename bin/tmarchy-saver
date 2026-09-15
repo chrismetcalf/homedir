@@ -125,13 +125,28 @@ try {
 // exists -- scout's stale flag is not (see isStale in lib/scout.js). One tmux
 // call per two-second data tick, not per frame. A failure yields null, which
 // means "nothing to refute the flag with" rather than "no panes".
-function livePanes() {
+// One query, two answers: which panes exist, and what their windows are called.
+// The window name is what you see in the tab bar, and it is the name you would
+// use to say which agent you mean -- the working directory's basename is often
+// something else entirely (a worktree at ~/.homedir reads as ".homedir" while
+// its tab says "tmarchy"), which made the list look like other people's agents.
+function paneInfo() {
   try {
     const out = require('node:child_process').execFileSync(
-      'tmux', ['list-panes', '-a', '-F', '#{pane_id}'],
+      'tmux', ['list-panes', '-a', '-F', '#{pane_id}\t#{window_name}'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 })
-    const ids = out.trim().split('\n').filter(Boolean)
-    return ids.length ? new Set(ids) : null
+    const live = new Set()
+    const names = new Map()
+    for (const line of out.trim().split('\n')) {
+      if (!line) continue
+      const [id, name] = line.split('\t')
+      if (!id) continue
+      live.add(id)
+      if (name) names.set(id, name)
+    }
+    // An empty result means the query failed, not that there are no panes: a
+    // live tmux server always has at least one.
+    return live.size ? { live, names } : null
   } catch { return null }
 }
 
@@ -139,7 +154,8 @@ function readAgents() {
   if (!sessionState) return []
   try {
     const doc = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.tmux-scout', 'status.json'), 'utf8'))
-    const live = livePanes()
+    const info = paneInfo()
+    const live = info && info.live
     const out = []
     for (const s of Object.values(doc.sessions || {})) {
       if (isStale ? isStale(s, live) : (!s.tmuxPane || s.staleReason || s.endedAt)) continue
@@ -148,7 +164,14 @@ function readAgents() {
       // Keyed by pane, not by label: two worktrees of the same repo share a
       // basename, and a sticky list that merged them would silently report one
       // agent where two had asked.
-      out.push({ key: s.tmuxPane, label: path.basename(s.workingDirectory || '') || '?', state })
+      // The tab's name first, the directory only as a fallback -- outside tmux,
+      // or for a pane the query did not see, there is no window name to use.
+      const named = info && info.names.get(s.tmuxPane)
+      out.push({
+        key: s.tmuxPane,
+        label: named || path.basename(s.workingDirectory || '') || '?',
+        state,
+      })
     }
     // Sorted for the panel's list, but WAITING agents are pulled to the front
     // before the cap: the panel shows twelve, and an agent that needs you
@@ -156,7 +179,10 @@ function readAgents() {
     return out
       .sort((a, b) => (a.state === 'wait' ? 0 : 1) - (b.state === 'wait' ? 0 : 1) ||
         a.label.localeCompare(b.label))
-      .slice(0, 12)
+      // A safety bound, not a display budget -- the panel decides how many rows
+      // it can actually spare. Waiting agents are already sorted to the front,
+      // so if anything is ever cut here it is never one that needs you.
+      .slice(0, 24)
   } catch { return [] }
 }
 

@@ -55,9 +55,17 @@ printf '{"sessions":{"s1":{"tmuxPane":"%s","workingDirectory":"/tmp/agent-under-
     "$TARGET" > "$TMPDIR_SELF/.tmux-scout/status.json"
 sleep 4
 
+# The window is named 'target' while the working directory is
+# /tmp/agent-under-test, so the banner's label proves WHICH of the two it
+# prefers. The window name is the one you see in the tab bar and the one you
+# would use to say which agent you mean; a worktree's directory basename is
+# routinely something else (~/.homedir reads as ".homedir" while its tab says
+# "tmarchy"), which made the list look like other people's agents.
 ROW=$(tmux -L "$SOCK" capture-pane -p -t "$SAVER" | sed -n '2p')
 case "$ROW" in
-    *agent-under-test*) ok "a waiting agent raises the sticky banner" ;;
+    *agent-under-test*)
+        fail "banner used the directory basename, not the window name ('$ROW')" ;;
+    *target*) ok "a waiting agent raises the banner, labelled by its window name" ;;
     *) fail "no banner for a waiting agent (row 2: '$ROW')"; echo "$FAIL failed"; exit 1 ;;
 esac
 
@@ -65,7 +73,7 @@ BEFORE=$(tmux -L "$SOCK" list-windows -t t -f '#{window_active}' -F '#{window_na
 if [ "$BEFORE" = "target" ]; then
     fail "setup: already on the target window, the click test would be vacuous"
 else
-    COL=$(awk -v r="$ROW" 'BEGIN{ print index(r, "agent-under-test") }')
+    COL=$(awk -v r="$ROW" 'BEGIN{ print index(r, "target") }')
     tmux -L "$SOCK" send-keys -t "$SAVER" -l "$(printf '\033[<0;%d;2M' "$COL")"
     sleep 2
     AFTER=$(tmux -L "$SOCK" list-windows -t t -f '#{window_active}' -F '#{window_name}')
