@@ -28,7 +28,39 @@ const STATE = path.join(os.homedir(), '.local', 'state', 'tmarchy')
 // the agent nodes and the HUD are written once and neither renderer knows they
 // exist. `geo` is the default because it is the one worth staring at; `rain` is
 // the first one and still the better backdrop if you want the HUD legible.
-const MODE = (process.argv[2] || 'geo').replace(/^--/, '')
+// Flags and the mode can come in any order, and the mode may be spelled bare or
+// with dashes: `tmarchy-saver rain`, `--rain`, `--kiosk rain` all work. The old
+// form was `argv[2]` positionally, which silently read `--kiosk` as a mode name
+// and fell through to geo.
+const ARGS = process.argv.slice(2)
+const MODES = ['geo', 'rain']
+const flag = (...names) => ARGS.some((a) => names.includes(a))
+
+if (flag('--help', '-h')) {
+  process.stdout.write([
+    'tmarchy-saver [geo|rain] [--kiosk]',
+    '',
+    '  A live visualisation of this machine: a rotating solid that spins and',
+    '  breathes with the work in progress, a telemetry column, a CPU timeline,',
+    '  and the hosts it talks to pinned to the surface.',
+    '',
+    '  geo       rotating solid (default)',
+    '  rain      falling glyphs',
+    '',
+    '  --kiosk   run it as a display rather than a screensaver. ONLY q quits',
+    '            (or Ctrl-C). Stray keys are ignored, and a click on an agent',
+    '            in the alert banner still jumps to it without ending the',
+    '            display. Use this for a window you want to leave running.',
+    '',
+    '  Needs a terminal. Runs perfectly well outside tmux -- the agent and',
+    '  reachability panels come from files and the network, not from tmux.',
+    '',
+  ].join('\n'))
+  process.exit(0)
+}
+
+const KIOSK = flag('--kiosk', '-k')
+const MODE = ARGS.map((a) => a.replace(/^--?/, '')).find((a) => MODES.includes(a)) || 'geo'
 let geo = null
 try { geo = require(path.join(__dirname, 'tmarchy-geo.js')) } catch { /* rain still works */ }
 let panel = null
@@ -401,16 +433,33 @@ function main() {
   // press -- the matching release arrives as 'm' and must not count as a second
   // click. Coordinates are 1-based.
   const SGR_PRESS = /\x1b\[<(\d+);(\d+);(\d+)M/
+  // Ctrl-C arrives as a BYTE, not a signal: raw mode is on, so the SIGINT
+  // handler below never sees it and a kiosk with no quit key would need a kill
+  // from another terminal.
+  const QUIT_KEYS = new Set(['q', 'Q', '\x03'])
+
   const onInput = (buf) => {
-    const m = SGR_PRESS.exec(String(buf))
+    const str = String(buf)
+    const m = SGR_PRESS.exec(str)
     if (m && m[1] === '0') {
       const x = Number(m[2]) - 1
       const y = Number(m[3]) - 1
       const hit = hits.find((h) => h.y === y && x >= h.x0 && x <= h.x1)
-      // A click on a name goes to that agent; a click anywhere else just
-      // dismisses, which is what every other key already does.
-      if (hit) jumpTo(hit.key)
+      // A click on a name goes to that agent. As a SCREENSAVER that also
+      // dismisses it -- you are leaving, so the lock should end. As a DISPLAY
+      // it does not: the point of kiosk mode is that the window keeps showing
+      // this, and sending the tmux session somewhere else is no reason to tear
+      // the display down.
+      if (hit) { jumpTo(hit.key); cleanup(); return }
+      // A click anywhere else dismisses a screensaver, but must not kill a
+      // display you deliberately left running.
+      if (KIOSK) return
+      cleanup()
+      return
     }
+    // As a screensaver, ANY key leaves -- that is what a lock is for. As a
+    // display, only a deliberate one does.
+    if (KIOSK && !QUIT_KEYS.has(str)) return
     cleanup()
   }
 

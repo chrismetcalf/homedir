@@ -88,5 +88,39 @@ else
     fi
 fi
 
+# --- standalone, no tmux ----------------------------------------------------
+# The saver is an ordinary program, not a tmux feature. These run it through a
+# pty with TMUX scrubbed from the environment, because "works outside tmux" is
+# the claim and the only way to test it is to take tmux away.
+#
+# Frames are counted by cursor-home writes: a run that was killed by the first
+# keypress draws far fewer than one that kept going to the end.
+kiosk_frames() { # $1 = flags, $2 = key sent partway through
+    local raw="$TMPDIR_SELF/kiosk.raw"
+    rm -f "$raw"
+    ( sleep 2; printf '%s' "$2"; sleep 2 ) |
+        env -u TMUX -u TMUX_PANE timeout 12 script -qfec "$ROOT/bin/tmarchy-saver $1" "$raw" \
+        >/dev/null 2>&1
+    python3 -c "import sys; print(open(sys.argv[1],'rb').read().count(b'\x1b[1;1H'))" "$raw"
+}
+
+if ! command -v script >/dev/null; then
+    echo "  skip script(1) not installed; standalone checks need a pty"
+else
+    stray=$(kiosk_frames "--kiosk" " ")
+    quit=$(kiosk_frames "--kiosk" "q")
+    saver=$(kiosk_frames "" " ")
+    if [ "$stray" -gt "$saver" ]; then
+        ok "kiosk ignores a stray key ($stray frames) where the screensaver exits ($saver)"
+    else
+        fail "kiosk died on a stray key ($stray frames vs screensaver's $saver)"
+    fi
+    if [ "$quit" -lt "$stray" ]; then
+        ok "kiosk still quits on q ($quit frames)"
+    else
+        fail "kiosk did not quit on q ($quit frames vs $stray for a stray key)"
+    fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then echo "all passed"; else echo "$FAIL failed"; fi
 exit $((FAIL > 0))
