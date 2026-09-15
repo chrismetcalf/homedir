@@ -15,6 +15,14 @@ PANE="${TMUX_PANE:-}"
 ESC=$'\033'
 RESET="${ESC}[0m"
 
+# Subagents get their OWN colour rather than sharing the row's state colour.
+# The four state colours already mean specific things (203 needs you, 214
+# working, 78 done, 245 idle) and a window can be in any of them while running
+# subagents -- the two are independent facts, so one colour cannot carry both.
+# 44 is deliberately outside that set: distinct at a glance, and not a red or an
+# amber, because subagents running is activity rather than a problem.
+SUBCOL=44
+
 # tmux-scout state -> 256-color foreground (matches the powerline theme tint)
 color_for() {
 	case "$1" in
@@ -66,14 +74,19 @@ draw() {
 		[ "$avail" -lt 3 ] && avail=3
 		nm="$name"
 		[ "${#nm}" -gt "$avail" ] && nm="${nm:0:$((avail - 1))}…"
-		[ -n "$tag" ] && nm="${nm} ${tag}"
+		# The tag is coloured SEPARATELY from the name, so it is built as its own
+		# escape run rather than concatenated into $nm. `plain` still counts the
+		# visible characters -- padding the active row by the escaped length
+		# would push it metres past the pane edge.
+		tagpart=""
+		[ -n "$tag" ] && tagpart=" ${ESC}[38;5;${SUBCOL}m${tag}"
 		if [ "$active" = "1" ]; then
-			plain=">${idx} ${nm}"
+			plain=">${idx} ${nm}${tag:+ $tag}"
 			pad=$((W - ${#plain}))
 			[ "$pad" -lt 0 ] && pad=0
-			lines+=("${ESC}[48;5;236m${ESC}[1;38;5;${col}m${plain}$(printf '%*s' "$pad" '')${RESET}")
+			lines+=("${ESC}[48;5;236m${ESC}[1;38;5;${col}m>${idx} ${nm}${tagpart}$(printf '%*s' "$pad" '')${RESET}")
 		else
-			lines+=(" ${ESC}[38;5;${col}m${idx}${RESET} ${ESC}[38;5;250m${nm}${RESET}")
+			lines+=(" ${ESC}[38;5;${col}m${idx}${RESET} ${ESC}[38;5;250m${nm}${tagpart}${RESET}")
 		fi
 	done < <(tmux list-windows -t "$PANE" \
 		-F '#{window_active} #{window_index} #{?@scout-state,#{@scout-state},none} #{?@scout-subagents,#{@scout-subagents},0} #{window_name}' 2>/dev/null)

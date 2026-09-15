@@ -75,17 +75,11 @@ function dim(value, factor) {
 // 256-colour themes (jewel) cannot be interpolated -- there is no arithmetic
 // between palette indices that means anything -- so they alternate between the
 // two colours instead. A hard switch rather than no pulse at all.
-function rgbOf(value) {
-  const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value || '')
-  return hex ? [1, 2, 3].map((i) => parseInt(hex[i], 16)) : null
-}
+let mixHex = null
+try { ({ mixHex } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'colour'))) } catch {}
 
 function mix(a, b, t) {
-  const ca = rgbOf(a)
-  const cb = rgbOf(b)
-  if (!ca || !cb) return fg(t < 0.5 ? a : b)
-  const c = [0, 1, 2].map((i) => Math.round(ca[i] + (cb[i] - ca[i]) * t))
-  return `\x1b[38;2;${c[0]};${c[1]};${c[2]}m`
+  return mixHex ? fg(mixHex(a, b, t)) : fg(t < 0.5 ? a : b)
 }
 
 function loadTheme() {
@@ -102,7 +96,12 @@ function loadTheme() {
     fg: t.fg || '#c0caf5',
     dim: t.dim || '#565f89',
     accent: t.accent || '#7aa2f7',
-    accentAlt: t.accent_muted || t.accent_alt || '#bb9af7',
+    // accent-alt BEFORE accent-muted. The breath blends toward this, and muted
+    // is by definition the dimmer, more tertiary of the two -- blending toward
+    // it makes the swing hard to see, which defeats the point of having a
+    // colour signal at all. (It was the other way round from when nothing but
+    // the rain read this; the breath is now its only consumer.)
+    accentAlt: t.accent_alt || t.accent_muted || '#bb9af7',
     wait: t.wait || '#f7768e',
     busy: t.busy || '#e0af68',
     done: t.done || '#9ece6a',

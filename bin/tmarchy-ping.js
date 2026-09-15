@@ -35,6 +35,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { execFile } = require('node:child_process')
+const { mixHex } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'colour'))
 
 const SITE = 'chrismetcalf.net'    // the one fixed target
 // How many ssh hosts to TRACK. The panel shows far fewer -- that is a row
@@ -193,22 +194,6 @@ function pingArgs(platform, host) {
 // points hand it to dim() to fade with the terminator.
 const LATENCY_LO = 0.1
 const LATENCY_HI = 1000
-
-function hexRgb(v) {
-  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(v || '')
-  return m ? [1, 2, 3].map((i) => parseInt(m[i], 16)) : null
-}
-
-function mixHex(a, b, t) {
-  const ca = hexRgb(a)
-  const cb = hexRgb(b)
-  // 256-colour themes (jewel) have no arithmetic between palette indices, so
-  // they fall back to the nearer stop -- the bands they had before, rather than
-  // a broken colour.
-  if (!ca || !cb) return t < 0.5 ? a : b
-  const c = [0, 1, 2].map((i) => Math.round(ca[i] + (cb[i] - ca[i]) * t))
-  return '#' + c.map((n) => n.toString(16).padStart(2, '0')).join('')
-}
 
 // Where a round-trip time sits on the scale, 0 (fastest) to 1 (slowest).
 // Separated out because it is the only part with a testable ORDER: "slower is

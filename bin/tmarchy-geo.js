@@ -27,6 +27,9 @@
 // multiplies x by ASPECT. Without it a sphere renders as a vertical ellipse.
 'use strict'
 
+const path = require('node:path')
+const { mixHex } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'colour'))
+
 const RAMP = ' .:-=+*#%@'          // low to high luminance
 const ASPECT = 2.0                 // character cell height : width
 const SUBDIV = 2                   // 20 -> 80 -> 320 faces, 162 vertices
@@ -234,9 +237,29 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
   // Without this the solid grows past the room reserved for it at the top of
   // the swing and the rasteriser clips it against the pane edge, which reads
   // as the shape being cut off rather than as breathing.
+  const swell = Math.sin(render.breath)
   const breathe = pulse.depth
-    ? (1 + pulse.depth * Math.sin(render.breath)) / (1 + pulse.depth)
+    ? (1 + pulse.depth * swell) / (1 + pulse.depth)
     : 1
+
+  // The breath is a colour as well as a size. Size alone is easy to miss on a
+  // shape that is also rotating -- a few percent of radius reads as the
+  // rotation, not as a signal -- but a hue shift in step with it is
+  // unmistakable at a glance from across the room.
+  //
+  // accent -> accent-alt, NOT toward wait or busy: those two mean "an agent
+  // needs you" and "an agent is working" everywhere else in this config, and
+  // borrowing them here would make a perfectly healthy machine look like it was
+  // asking for something. This pair is the theme's own two decorative colours
+  // and carries no such claim.
+  //
+  // The swing scales with depth, so it arrives with the breath: at zero busy
+  // there is no colour movement at all, which is what "looks normal when idle"
+  // has to mean.
+  const swing = Math.min(1, pulse.depth / 0.095)
+  const tone = swing
+    ? mixHex(theme.accent, theme.accentAlt || theme.accent, ((swell + 1) / 2) * swing)
+    : theme.accent
   const scale = Math.min(usable * 0.52, (usableW / ASPECT) * 0.46) * breathe
   const cx = usableW / 2
   const cy = top + usable / 2
@@ -293,7 +316,7 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
         // Colour carries depth where the ten-step ramp cannot: without it near
         // facets flatten into far ones.
         const depth = 0.35 + 0.65 * ((z + 1) / 2)
-        grid[y][x] = dim(theme.accent,
+        grid[y][x] = dim(tone,
           Math.max(0.15, Math.min(1, depth * (0.4 + 0.6 * lum)))) + ch
       }
     }

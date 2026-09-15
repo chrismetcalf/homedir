@@ -100,3 +100,95 @@ test('spin still tracks load per core, clamped at both ends', () => {
   assert.strictEqual(geo.spinFactor(400, 20), 3.2, 'and a hammered one must not strobe')
   assert.ok(geo.spinFactor(20, 20) > geo.spinFactor(2, 20), 'busier is faster')
 })
+
+// --- the breath is a colour as well as a size -------------------------------
+//
+// Size alone is easy to miss on a shape that is also rotating: a few percent of
+// radius reads as the rotation rather than as a signal. A hue shift in step
+// with it is unmistakable from across the room.
+
+// Every painted tone, across a cycle. `dim` is stubbed to hand back the colour
+// VALUE it was given, so this reads what the renderer chose rather than a
+// brightness-faded version of it.
+function tones(pulse, frames) {
+  const theme = { accent: '#7aa2f7', accentAlt: '#bb9af7', fg: '#c0caf5' }
+  const seen = new Set()
+  for (let i = 0; i < frames; i++) {
+    const rows = 20
+    const cols = 60
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    geo.render({ grid, rows, cols, frame: 200, theme, fg: noColour,
+      dim: (v) => v + '|', spin: 0, pulse })
+    for (const r of grid) for (const v of r) if (v) seen.add(v.split('|')[0])
+  }
+  return seen
+}
+
+// Idle must be ONE colour, for the same reason it must be one size. Sabotage:
+// in render replace `const swing = Math.min(1, pulse.depth / 0.095)` with
+// `const swing = 1` -- an idle box starts shifting hue and this fails.
+test('an idle solid holds a single colour', () => {
+  const seen = tones(geo.pulseFor(0), 24)
+  assert.strictEqual(seen.size, 1, `expected one tone, got ${[...seen].join(' ')}`)
+  assert.ok(seen.has('#7aa2f7'), 'and it should be the theme accent')
+})
+
+// Sabotage: in render replace `tone` in the `grid[y][x] = dim(tone, ...)`
+// assignment with `theme.accent` -- the colour stops moving with the breath and
+// this fails.
+test('a busy solid shifts colour as it breathes', () => {
+  assert.ok(tones(geo.pulseFor(3), 24).size > 5,
+    'three busy agents should sweep a range of tones')
+  assert.ok(tones(geo.pulseFor(6), 24).size > tones(geo.pulseFor(1), 24).size,
+    'and six should sweep further than one')
+})
+
+// It must NOT borrow the alert colours. @theme-wait means "an agent needs you"
+// and @theme-busy means "an agent is working" everywhere else in this config;
+// a healthy machine turning either would be claiming something untrue.
+// Sabotage: in render replace `theme.accentAlt || theme.accent` with
+// `theme.wait` -- this fails.
+test('the breath never borrows the alert colours', () => {
+  const theme = { accent: '#7aa2f7', accentAlt: '#bb9af7', fg: '#c0caf5',
+    wait: '#f7768e', busy: '#e0af68' }
+  const seen = new Set()
+  for (let i = 0; i < 40; i++) {
+    const rows = 20
+    const cols = 60
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    geo.render({ grid, rows, cols, frame: 200, theme, fg: noColour,
+      dim: (v) => v + '|', spin: 0, pulse: geo.pulseFor(6) })
+    for (const r of grid) for (const v of r) if (v) seen.add(v.split('|')[0])
+  }
+  // Every tone must lie between accent and accent-alt: those two differ only in
+  // the red channel here, so a colour outside that span came from elsewhere.
+  for (const t of seen) {
+    const r = parseInt(t.slice(1, 3), 16)
+    assert.ok(r >= 0x7a && r <= 0xbb, `tone ${t} is outside the accent span`)
+    assert.notStrictEqual(t, theme.wait)
+    assert.notStrictEqual(t, theme.busy)
+  }
+})
+
+// A theme with no accent-alt must not produce 'undefined' as a colour.
+// Sabotage: in render drop the `|| theme.accent` fallback -- mixHex is handed
+// undefined, returns it at the top of the swing, and this fails.
+test('a theme without an accent-alt degrades to its accent', () => {
+  // A WHOLE CYCLE, not one frame. mixHex returns the second colour only once
+  // the blend passes halfway, and the breath phase is a module-level
+  // accumulator carried in from earlier tests -- so a single frame lands
+  // wherever it happens to land and passed with the fallback deleted. At
+  // pulseFor(4) the period is ~32 frames, so 48 covers it with room to spare.
+  const theme = { accent: '#7aa2f7', fg: '#c0caf5' }
+  const seen = new Set()
+  for (let i = 0; i < 48; i++) {
+    const rows = 20
+    const cols = 60
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    geo.render({ grid, rows, cols, frame: 200, theme, fg: noColour,
+      dim: (v) => v + '|', spin: 0, pulse: geo.pulseFor(4) })
+    for (const r of grid) for (const v of r) if (v) seen.add(v.split('|')[0])
+  }
+  assert.deepStrictEqual([...seen], ['#7aa2f7'],
+    `every tone should be the accent, got ${[...seen].join(' ')}`)
+})
