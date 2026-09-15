@@ -353,7 +353,7 @@ function pingWithStubbedExec(handler) {
   const realExec = cp.execFile
   const realRead = fsMod.readFileSync
   cp.execFile = (file, args, opts, cb) => {
-    process.nextTick(() => handler(file, cb))
+    process.nextTick(() => handler(file, cb, args))
     return {}
   }
   // A loopback-only resolv.conf is what makes round() reach for resolvectl.
@@ -574,4 +574,123 @@ test('addresses are not looked up, names are', () => {
   for (const name of ['pipad-lan', 'octoprint', 'chrismetcalf.net', 'print-server']) {
     assert.strictEqual(ping.looksNumeric(name), false, `${name} should be looked up`)
   }
+})
+
+// A name whose ssh -G has not come back yet must NOT be pinged. Pinging the
+// alias is exactly what fails -- that is the whole bug -- and recording the
+// failure reports a healthy host as down for something never properly tried.
+// It stays `pending` until the lookup lands, which is an honest "not measured".
+//
+// Deterministic because the harness supplies the host list: the real one comes
+// from ~/.zsh-history and would differ per machine.
+function pingWithFakeHosts(handler, historyLine) {
+  const cp = require('node:child_process')
+  const fsMod = require('node:fs')
+  const osMod = require('node:os')
+  const spec = require.resolve(path.join(__dirname, '..', '..', 'bin', 'tmarchy-ping.js'))
+  const realExec = cp.execFile
+  const realRead = fsMod.readFileSync
+  const realHome = osMod.homedir
+
+  // A REAL temp home, not a stubbed readFileSync: recentSshHosts reads the
+  // history with openSync/readSync (it takes a 64KB tail), so stubbing
+  // readFileSync supplies nothing and the host list comes back empty -- which
+  // is how the first version of this test failed against correct code.
+  const home = fsMod.mkdtempSync(path.join(osMod.tmpdir(), 'tmarchy-ping-test-'))
+  fsMod.mkdirSync(path.join(home, '.zsh-history'), { recursive: true })
+  fsMod.mkdirSync(path.join(home, '.local', 'state', 'tmarchy'), { recursive: true })
+  fsMod.writeFileSync(path.join(home, '.zsh-history', 'box'), historyLine)
+  fsMod.writeFileSync(path.join(home, '.local', 'state', 'tmarchy', 'ssh-frecency'), '')
+
+  osMod.homedir = () => home
+  cp.execFile = (file, args, opts, cb) => { process.nextTick(() => handler(file, cb, args)); return {} }
+  fsMod.readFileSync = (f, ...rest) =>
+    (String(f) === '/etc/resolv.conf' ? 'nameserver 1.1.1.1\n' : realRead(f, ...rest))
+
+  delete require.cache[spec]
+  const mod = require(spec)
+  return {
+    mod,
+    restore() {
+      cp.execFile = realExec
+      fsMod.readFileSync = realRead
+      osMod.homedir = realHome
+      fsMod.rmSync(home, { recursive: true, force: true })
+      delete require.cache[spec]
+    },
+  }
+}
+
+// Sabotage: in round() replace
+// `for (const t of targets.ssh) if (aliasReady(t.label)) pingOnce(t.host)`
+// with an unconditional `pingOnce(t.host)` -- the alias is pinged before its
+// lookup returns and this fails.
+test('an unresolved alias is not pinged until ssh -G comes back', async () => {
+  const pinged = []
+  const { mod, restore } = pingWithFakeHosts((file, cb, args) => {
+    if (file === 'ssh') return cb(null, 'user me\nhostname 192.168.1.21\nport 22\n', '')
+    if (file === 'ping') { pinged.push(args[args.length - 1]); return cb(null, '', '') }
+    return cb(null, '', '')
+  }, ': 1700000000:0;ssh pipad-lan\n')
+  try {
+    mod.start()
+    await drain()
+    assert.ok(!pinged.includes('pipad-lan'),
+      `the alias must not be pinged before it resolves: ${pinged.join(' ')}`)
+    // Once the lookup lands, the REAL address is what gets pinged.
+    await new Promise((r) => setTimeout(r, 400))
+    assert.ok(pinged.includes('192.168.1.21'),
+      `expected the resolved address to be pinged, got: ${pinged.join(' ')}`)
+    mod.stop()
+  } finally { restore() }
+})
+
+// Sabotage: in resolveSshAlias remove the `flushAliases()` call -- the rebuild
+// then waits for the next fifteen-second round, which is the delay that made
+// the row sit grey, and this fails.
+test('a resolved alias is pinged within a moment, not a round later', async () => {
+  const pinged = []
+  const { mod, restore } = pingWithFakeHosts((file, cb, args) => {
+    if (file === 'ssh') return cb(null, 'hostname 10.9.9.9\n', '')
+    if (file === 'ping') { pinged.push(args[args.length - 1]); return cb(null, '', '') }
+    return cb(null, '', '')
+  }, ': 1700000000:0;ssh some-alias\n')
+  try {
+    mod.start()
+    // Well under the 15s round interval -- if the flush is gone, nothing here.
+    await new Promise((r) => setTimeout(r, 600))
+    assert.ok(pinged.includes('10.9.9.9'),
+      `expected a ping inside 600ms, got: ${pinged.join(' ') || '(nothing)'}`)
+    mod.stop()
+  } finally { restore() }
+})
+
+// Several aliases resolve within milliseconds of each other, and a rebuild per
+// callback would ping the WHOLE ssh list once per alias. Sabotage: in
+// flushAliases replace `if (aliasFlush) return` with `if (false) return` --
+// three aliases then trigger three full sweeps and the count roughly triples,
+// failing the bound below.
+test('simultaneous alias lookups coalesce into one sweep', async () => {
+  const pinged = []
+  const { mod, restore } = pingWithFakeHosts((file, cb, args) => {
+    if (file === 'ssh') {
+      const host = args[args.length - 1]
+      return cb(null, `hostname 10.0.0.${host.length}\n`, '')
+    }
+    if (file === 'ping') { pinged.push(args[args.length - 1]); return cb(null, '', '') }
+    return cb(null, '', '')
+  }, [': 1700000001:0;ssh alpha-box',
+      ': 1700000002:0;ssh bravo-boxx',
+      ': 1700000003:0;ssh charlie-boxxx'].join('\n') + '\n')
+  try {
+    mod.start()
+    await new Promise((r) => setTimeout(r, 700))
+    const ssh = pinged.filter((h) => h.startsWith('10.0.0.'))
+    assert.ok(ssh.length >= 3, `all three should be pinged, got ${ssh.join(' ')}`)
+    // One sweep of three, not one sweep per alias. Six allows for the round's
+    // own pass; nine or more means it swept once per callback.
+    assert.ok(ssh.length <= 6,
+      `expected one coalesced sweep, got ${ssh.length} pings: ${ssh.join(' ')}`)
+    mod.stop()
+  } finally { restore() }
 })

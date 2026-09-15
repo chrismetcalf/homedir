@@ -255,6 +255,30 @@ function hostnameFromSshConfig(stdout) {
   return m && isSafeHost(m[1]) ? m[1] : null
 }
 
+// Has this name been resolved far enough to ping? An address always has; a
+// name has once its lookup has come back either way.
+function aliasReady(host) {
+  return looksNumeric(host) || sshAlias.has(host)
+}
+
+// Rebuild and ping as soon as the lookups land, rather than waiting for the
+// next fifteen-second round -- that wait was the whole visible symptom: an
+// alias sat grey for a quarter of a minute before going green.
+//
+// DEBOUNCED, because several aliases resolve within milliseconds of each other
+// and a rebuild per callback would ping the entire ssh list once per alias.
+let aliasFlush = null
+function flushAliases() {
+  if (aliasFlush) return
+  aliasFlush = setTimeout(() => {
+    aliasFlush = null
+    targetsDirty = false
+    targets = resolveTargets()
+    for (const t of targets.ssh) if (aliasReady(t.label)) pingOnce(t.host)
+  }, 250)
+  if (aliasFlush.unref) aliasFlush.unref()
+}
+
 function resolveSshAlias(host) {
   if (looksNumeric(host) || sshAlias.has(host) || sshAliasPending.has(host)) return
   if (!isSafeHost(host)) return
@@ -265,7 +289,8 @@ function resolveSshAlias(host) {
     // stops a box with no ssh binary re-forking one per host every round.
     const real = (!err && hostnameFromSshConfig(stdout)) || host
     sshAlias.set(host, real)
-    if (real !== host) targetsDirty = true
+    targetsDirty = true
+    flushAliases()
   })
 }
 
@@ -407,7 +432,13 @@ function round() {
     })
   }
 
-  for (const t of [...targets.net, ...targets.ssh]) pingOnce(t.host)
+  // An ssh name whose lookup has not come back yet is NOT pinged. Pinging the
+  // alias would fail -- that is the entire bug -- and recording that failure
+  // would report a healthy host as down for something we never properly tried.
+  // It stays `pending` (a dot, dim) until the lookup lands a moment later,
+  // which is an honest "not measured yet" rather than a wrong answer.
+  for (const t of targets.net) pingOnce(t.host)
+  for (const t of targets.ssh) if (aliasReady(t.label)) pingOnce(t.host)
 }
 
 function start() {
