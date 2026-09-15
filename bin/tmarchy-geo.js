@@ -143,12 +143,29 @@ function faceNormal(a, b, c) {
 // it ARRIVES anywhere -- it slides through the solid on its way to the next.
 const smooth = (t) => t * t * (3 - 2 * t)
 
-// Spin tracks load per core: idle drifts, a saturated box whirls. Clamped both
-// ends -- below the floor it looks frozen and reads as a hang, above the ceiling
-// the facets alias into strobing.
-function spinFactor(load1, cores) {
+// Spin tracks load per core AND the number of agents running -- whichever says
+// the machine is busier. Idle drifts, a saturated box whirls. Clamped both ends:
+// below the floor it looks frozen and reads as a hang, above the ceiling the
+// facets alias into strobing.
+//
+// The two inputs are MAX'd rather than added or multiplied, because they measure
+// the same thing by different means and each misses cases the other catches.
+// Load misses agents that are running but not costing CPU -- an agent blocked on
+// an API call or on a slow network is working and contributes nothing to the
+// load average, which is most of what an agent does. Agent count misses work
+// that is not an agent at all: a compile, a container build, a backup. Adding
+// them would double-count the common case where agents ARE the load and peg the
+// spin at the ceiling the moment anything happened; max just believes whichever
+// signal is more alarmed.
+function spinFactor(load1, cores, busy = 0) {
   const ratio = cores > 0 ? load1 / cores : 0
-  return Math.max(0.35, Math.min(3.2, 0.35 + ratio * 3.4))
+  const fromLoad = 0.35 + ratio * 3.4
+  // Six agents reaches the ceiling, the same count at which the breath maxes
+  // out -- the two signals should saturate together rather than one continuing
+  // to move after the other has stopped.
+  const n = Math.min(Math.max(busy | 0, 0), 6)
+  const fromAgents = n ? 0.35 + n * 0.48 : 0
+  return Math.max(0.35, Math.min(3.2, Math.max(fromLoad, fromAgents)))
 }
 
 // --- surface points ----------------------------------------------------------

@@ -92,13 +92,59 @@ test('the breath advances between frames, not with the frame number', () => {
     'repeated renders at the same frame number must still advance the cycle')
 })
 
-// Spin is the OTHER signal and is unchanged -- load per core, clamped both ends.
-// Sabotage: in spinFactor drop the Math.max floor -- an idle box freezes and
-// reads as a hang, and this fails.
-test('spin still tracks load per core, clamped at both ends', () => {
+// The floor is defence in depth and the comment says so rather than naming a
+// sabotage that does not bite: `fromLoad` already starts AT 0.35, so removing
+// the outer `Math.max(0.35, ...)` alone changes nothing. Sabotage: remove BOTH,
+// i.e. `const fromLoad = ratio * 3.4` AND the outer floor -- an idle box then
+// freezes completely, which reads as a hang rather than as idle, and this
+// fails. Either change alone leaves the other holding.
+test('spin tracks load per core, clamped at both ends', () => {
   assert.ok(geo.spinFactor(0, 20) >= 0.35, 'an idle box must still drift, not freeze')
   assert.strictEqual(geo.spinFactor(400, 20), 3.2, 'and a hammered one must not strobe')
   assert.ok(geo.spinFactor(20, 20) > geo.spinFactor(2, 20), 'busier is faster')
+})
+
+// Agents spin it up even when they cost no CPU -- which is most of what an
+// agent does, since one blocked on an API call contributes nothing to the load
+// average. Sabotage: in spinFactor replace `Math.max(fromLoad, fromAgents)`
+// with `fromLoad` -- agents stop moving the spin and this fails.
+test('agents spin it up even on an idle machine', () => {
+  const idle = geo.spinFactor(0.1, 20, 0)
+  assert.ok(geo.spinFactor(0.1, 20, 1) > idle, 'one agent should already be faster')
+  for (let n = 2; n <= 6; n++) {
+    assert.ok(geo.spinFactor(0.1, 20, n) > geo.spinFactor(0.1, 20, n - 1),
+      `${n} agents should out-spin ${n - 1}`)
+  }
+})
+
+// MAX, not sum: agents usually ARE the load, so adding the two would
+// double-count the common case and peg the spin the moment anything happened.
+// Sabotage: in spinFactor replace `Math.max(fromLoad, fromAgents)` with
+// `fromLoad + fromAgents` -- a lightly loaded box with one agent jumps most of
+// the way to the ceiling and this fails.
+test('load and agents are combined by taking the busier, not by adding', () => {
+  const load = 1.9
+  const cores = 20
+  const oneAgent = geo.spinFactor(load, cores, 1)
+  assert.ok(oneAgent < 1.2,
+    `one agent on a lightly loaded box should stay gentle, got ${oneAgent}`)
+  // And a hammered machine is already at the ceiling, so agents cannot push it
+  // past -- there is nowhere past.
+  assert.strictEqual(geo.spinFactor(400, cores, 6), 3.2)
+  assert.strictEqual(geo.spinFactor(400, cores, 0), 3.2)
+})
+
+// Both signals saturate at the SAME count, so one does not keep climbing after
+// the other has stopped. Sabotage: in spinFactor replace `n * 0.48` with
+// `n * 0.2` -- six agents then reach 1.55 instead of the ceiling, so the spin
+// still has room to grow when the breath has none, and this fails.
+//
+// (Note the obvious sabotage here is not one: removing the `Math.min(..., 6)`
+// cap changes nothing, because the outer clamp already stops at 3.2. The cap
+// earns its place in pulseFor, not here.)
+test('spin and breath saturate at the same agent count', () => {
+  assert.strictEqual(geo.spinFactor(0.1, 20, 6), 3.2, 'spin maxes at six')
+  assert.deepStrictEqual(geo.pulseFor(6), geo.pulseFor(12), 'and so does the breath')
 })
 
 // --- the breath is a colour as well as a size -------------------------------
