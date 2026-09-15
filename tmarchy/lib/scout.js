@@ -112,6 +112,34 @@ function subagentCount(session, now = Date.now()) {
   return n
 }
 
+// Is this pane's agent mid-turn? The counterpart to paneIsPrompting, and it
+// exists for the same reason: scout only learns what a session is doing from
+// hooks, and a session it found by SCANNING TMUX PANES has never fired one.
+// Those get `phase: 'idle'` as a DEFAULT -- it means "never heard from", not
+// "not working" -- and every surface believed it. Measured here: five of six
+// live agents had `lastHookAt: null` and `lastEvent.type: 'discovered'`, so an
+// agent that was genuinely running read as idle, tinted nothing, and did not
+// move the screensaver's spin or breath.
+//
+// The marker is the live status line Claude Code draws while a turn is in
+// flight:
+//
+//     · Frolicking… (1m 43s · ↓ 4.6k tokens)      <- working
+//     ✻ Worked for 1m 16s · done 8:36 PM          <- finished, and stays on screen
+//
+// So the test is the ELLIPSIS followed by a parenthesised running clock, which
+// the finished line does not have. Matching the spinner glyph would be wrong --
+// Claude Code cycles through several and they appear on the finished line too --
+// and matching a duration alone would match the finished line exactly.
+//
+// Only the last dozen non-blank lines, exactly as paneIsPrompting does, so a
+// transcript quoting one of these does not count as live.
+function paneIsWorking(text) {
+  const tail = text.split('\n').map((l) => l.replace(/\s+$/, '')).filter(Boolean).slice(-12)
+  return tail.some((l) =>
+    /\u2026\s*\((?:\d+h\s*)?(?:\d+m\s*)?\d+s\b/.test(l) || /esc to interrupt/i.test(l))
+}
+
 function paneStates(active) {
   const paneState = new Map()
   for (const s of active) {
@@ -125,16 +153,25 @@ function paneStates(active) {
     if (!prev || PRIO[state] > PRIO[prev]) paneState.set(s.tmuxPane, state)
   }
 
-  // Pane-content fallback: scout only learns of a permission prompt via its
-  // PermissionRequest hook, which never fires for sessions started before that
-  // hook existed, or when scout has latched an interrupted/stale phase. One
-  // capture-pane per agent pane per tick.
+  // Pane-content fallback: scout only learns what a session is doing from its
+  // hooks, which never fire for a session started before the hook existed or
+  // one scout discovered by scanning panes. ONE capture-pane per agent pane per
+  // tick, feeding BOTH tests -- capturing twice would double the fork cost this
+  // whole design exists to avoid, and would read two different moments.
   for (const s of active) {
     const pane = s.tmuxPane
     if (!pane || paneState.get(pane) === 'wait') continue
-    if (paneIsPrompting(tmux(['capture-pane', '-p', '-t', pane]))) {
+    const text = tmux(['capture-pane', '-p', '-t', pane])
+    if (paneIsPrompting(text)) {
       paneState.set(pane, 'wait')
+      continue
     }
+    // Only ever an UPGRADE: a session scout can see is running stays running,
+    // and one it calls done is not demoted because its finished line scrolled
+    // off. This rescues exactly the case the scrape exists for -- idle-by-
+    // default, or no opinion at all.
+    const known = paneState.get(pane)
+    if ((!known || known === 'idle') && paneIsWorking(text)) paneState.set(pane, 'busy')
   }
   return paneState
 }
@@ -270,6 +307,7 @@ module.exports = {
   computeScoutStates,
   windowStates,
   paneIsPrompting,
+  paneIsWorking,
   paneStates,
   sessionState,
   isStale,

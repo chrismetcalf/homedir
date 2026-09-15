@@ -149,8 +149,10 @@ function loadTheme() {
 let sessionState = null
 let isStale = null
 let subagentCount = null
+let paneIsWorking = null
+let paneIsPrompting = null
 try {
-  ({ sessionState, isStale, subagentCount } =
+  ({ sessionState, isStale, subagentCount, paneIsWorking, paneIsPrompting } =
     require(path.join(__dirname, '..', 'tmarchy', 'lib', 'scout')))
 } catch { /* tmarchy absent: nodes simply do not appear */ }
 
@@ -183,6 +185,25 @@ function paneInfo() {
   } catch { return null }
 }
 
+// What the pane itself says, for agents scout has no hook evidence about. See
+// paneIsWorking in lib/scout.js: a session scout discovered by scanning panes
+// gets `phase: 'idle'` as a default meaning "never heard from", and believing
+// it makes a working agent invisible to the spin and the breath.
+//
+// One capture per agent pane per two-second data tick, not per frame, and only
+// for panes whose record has nothing better to offer.
+function paneVerdict(pane) {
+  if (!paneIsWorking && !paneIsPrompting) return null
+  try {
+    const text = require('node:child_process').execFileSync(
+      'tmux', ['capture-pane', '-p', '-t', pane],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1000 })
+    if (paneIsPrompting && paneIsPrompting(text)) return 'wait'
+    if (paneIsWorking && paneIsWorking(text)) return 'busy'
+  } catch { /* pane gone, or no tmux at all */ }
+  return null
+}
+
 function readAgents() {
   if (!sessionState) return []
   try {
@@ -192,7 +213,11 @@ function readAgents() {
     const out = []
     for (const s of Object.values(doc.sessions || {})) {
       if (isStale ? isStale(s, live) : (!s.tmuxPane || s.staleReason || s.endedAt)) continue
-      const state = sessionState(s)
+      let state = sessionState(s)
+      // Upgrade only, and only when the record has no opinion worth keeping:
+      // scout seeing 'running' or 'completed' beats anything scraped off a
+      // screen, but its idle-by-default does not.
+      if (!state || state === 'idle') state = paneVerdict(s.tmuxPane) || state
       if (!state) continue
       // Keyed by pane, not by label: two worktrees of the same repo share a
       // basename, and a sticky list that merged them would silently report one

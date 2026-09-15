@@ -263,3 +263,62 @@ test('windowSums reports nothing for panes with no subagents', () => {
   const sums = windowSums('@1 %1\n@2 %2\n', new Map([['%1', 0]]))
   assert.strictEqual(sums.size, 0, 'a zero count must not create a window entry')
 })
+
+// --- paneIsWorking: the busy half of the pane-content fallback --------------
+//
+// scout learns what a session is doing only from hooks, and a session it found
+// by SCANNING TMUX PANES has never fired one. Those carry `phase: 'idle'` as a
+// default -- it means "never heard from", not "not working" -- and every
+// surface believed it. Measured on this host: five of six live agents had
+// `lastHookAt: null`, so an agent that was genuinely running read as idle,
+// tinted no tab, and did not move the screensaver's spin or breath.
+const { paneIsWorking } = require('../lib/scout')
+
+// The real shape, captured from a pane mid-turn.
+//
+// Two independent things exclude the finished line -- the leading ellipsis and
+// the requirement that the clock be PARENTHESISED -- so removing either alone
+// leaves the other holding and this test still passes. Sabotage: remove BOTH,
+// i.e. reduce the pattern to `/(?:\d+h\s*)?(?:\d+m\s*)?\d+s\b/` -- then
+// "Worked for 1m 16s" matches and this fails. Named honestly because the
+// obvious one-line sabotage (dropping just the ellipsis) does nothing.
+test('a live status line reads as working, a finished one does not', () => {
+  const box = ['─────', '❯ ', '─────',
+    '  krezel@host /repo (master) Opus 5 ctx:40%',
+    '  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents']
+
+  const working = ['  some output', '· Frolicking… (1m 43s · ↓ 4.6k tokens)', ...box]
+  assert.strictEqual(paneIsWorking(working.join('\n')), true, 'live spinner line')
+
+  // The finished line stays on screen after a turn ends and must NOT count.
+  const finished = ['  some output', '✻ Worked for 1m 16s · done 8:36 PM', ...box]
+  assert.strictEqual(paneIsWorking(finished.join('\n')), false, '"Worked for ... done"')
+
+  assert.strictEqual(paneIsWorking(box.join('\n')), false, 'a bare prompt')
+})
+
+// Some builds print the interrupt hint instead. Sabotage: drop the
+// `|| /esc to interrupt/i.test(l)` alternative -- this fails.
+test('the interrupt hint also counts as working', () => {
+  assert.strictEqual(
+    paneIsWorking('✻ Thinking (4s · esc to interrupt)\n❯ '), true)
+})
+
+// THE non-vacuity test. A transcript that merely QUOTES a status line must not
+// count as live -- the pane is full of text the agent wrote, and this repo has
+// already been bitten by the same thing on the prompting side. The window is
+// what saves it. Sabotage: in paneIsWorking replace `.slice(-12)` with
+// `.slice(0)` -- the quoted copy higher up starts counting and this fails.
+test('a status line quoted in the transcript is not a live one', () => {
+  const lines = [
+    '  I printed this example earlier in the conversation:',
+    '    · Frolicking… (1m 43s · ↓ 4.6k tokens)   <- working',
+    '  ...and it is still on screen.',
+    // Twelve lines of ordinary transcript push it out of the window.
+    ...Array.from({ length: 12 }, (_, i) => `  transcript line ${i}`),
+    '✻ Worked for 2m 3s · done 9:01 PM',
+    '─────', '❯ ', '─────',
+  ]
+  assert.strictEqual(paneIsWorking(lines.join('\n')), false,
+    'a quoted status line outside the window must not read as live')
+})
