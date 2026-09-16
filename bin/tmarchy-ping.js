@@ -1,5 +1,6 @@
 // tmarchy-saver's reachability sampler: round-trip times to the resolvers this
-// box actually uses, to chrismetcalf.net, and to the hosts you last ssh'd to.
+// box actually uses, to a short list of fixed sites, and to the hosts you last
+// ssh'd to.
 //
 // NOTHING HERE MAY BLOCK. The saver runs a 20fps frame loop, so every ping is
 // an async child and the renderer only ever reads a cache. A round that is
@@ -37,7 +38,10 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 const { mixHex } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'colour'))
 
-const SITE = 'chrismetcalf.net'    // the one fixed target
+// The fixed targets, in PRIORITY ORDER -- the panel trims this section row by
+// row, so the first entry is the one that survives when only one fits.
+// Reordering the list is how you change which that is.
+const SITES = ['chrismetcalf.net', 'family.binti.com']
 // How many ssh hosts to TRACK. The panel shows far fewer -- that is a row
 // budget, not a data limit -- but the screensaver pins every target to the
 // solid, and a globe wants more than a handful of cities. 40 unique hosts are
@@ -375,12 +379,12 @@ function recentSshHosts() {
   return mergeSshHosts(maps)
 }
 
-// The site leads, then the resolvers. Not just a reading order: the panel trims
+// The sites lead, then the resolvers. Not just a reading order: the panel trims
 // this section row by row when space is short, so whatever sits first is what
-// survives -- and of the three, "can I reach my own site" is the one row worth
-// keeping when only one fits. The resolvers answer a narrower question.
+// survives -- and "can I reach a site I care about" is worth more than a
+// resolver, which answers a narrower question and reads the same on every host.
 function resolveTargets() {
-  const net = [{ label: SITE, host: SITE }]
+  const net = SITES.map((h) => ({ label: h, host: h }))
   for (const ip of resolvers()) net.push({ label: ip, host: ip })
   // The LABEL stays the name you know it by; only what gets pinged is
   // rewritten. Seeing `pipad-lan` in the panel and `192.168.1.21` on the globe
@@ -468,5 +472,5 @@ module.exports = {
   isSafeHost, parseRtt, parseIp, hostnameFromSshConfig, looksNumeric, dnsFromResolvConf, dnsFromResolvectl, isLoopback,
   chooseResolvers,
   sshHostFromCommand, sshHostsFromHistory, sshHostsFromFrecency, mergeSshHosts,
-  pingArgs, latencyState, latencyHex, latencyPosition, mixHex, SITE, SSH_LIMIT,
+  pingArgs, latencyState, latencyHex, latencyPosition, mixHex, SITES, SSH_LIMIT,
 }

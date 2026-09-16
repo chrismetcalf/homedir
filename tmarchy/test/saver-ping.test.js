@@ -694,3 +694,34 @@ test('simultaneous alias lookups coalesce into one sweep', async () => {
     mod.stop()
   } finally { restore() }
 })
+
+// The fixed sites are a LIST, and every entry in it has to become a real
+// target -- the whole point of the list is that adding a name to it is all it
+// takes. They also lead the section, because the panel trims PING row by row
+// and a site is worth more than a resolver when only one row fits.
+//
+// Sabotage: in resolveTargets replace the `SITES.map(...)` with
+// `[{ label: SITES[0], host: SITES[0] }]` -- the shape this had when there was
+// only ever one site. Every entry after the first stops being pinged, and both
+// assertions below fail.
+test('every fixed site is pinged, and they lead the resolvers', async () => {
+  const pinged = []
+  const { mod, restore } = pingWithFakeHosts((file, cb, args) => {
+    if (file === 'ping') { pinged.push(args[args.length - 1]); return cb(null, '', '') }
+    return cb(null, '', '')
+  }, '')
+  try {
+    assert.ok(mod.SITES.length > 1, 'this test is only meaningful with several sites')
+    mod.start()
+    await drain()
+    for (const site of mod.SITES) {
+      assert.ok(pinged.includes(site), `${site} was never pinged: ${pinged.join(' ') || '(nothing)'}`)
+    }
+    // The harness's resolv.conf names 1.1.1.1, so the resolver row follows.
+    const net = mod.resolveTargets().net.map((t) => t.label)
+    assert.deepStrictEqual(net.slice(0, mod.SITES.length), mod.SITES,
+      `the sites must lead the net list, got: ${net.join(' ')}`)
+    assert.ok(net.length > mod.SITES.length, 'expected a resolver row after the sites')
+    mod.stop()
+  } finally { restore() }
+})
