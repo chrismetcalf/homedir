@@ -198,3 +198,50 @@ test('a reading with no portable source renders as --, not as zero', () => {
     assert.ok(!/TMP\s+0\u00b0C/.test(tmp), 'temperature must not claim to be zero')
   } finally { restore() }
 })
+
+// --- panel row padding ------------------------------------------------------
+
+// Agent icons come from the Nerd Font ranges in plane 15, where ONE glyph is
+// two UTF-16 units. `row()` used to pad with `.length`, which was correct for
+// as long as every glyph the panel drew lived in the BMP; an astral one made
+// the row pad a column short and sit one short of its own border, which reads
+// as a box-drawing bug rather than an encoding one.
+//
+// Measure the ROW THAT CARRIES THE ICON, not the widest row on the panel. The
+// first version of this test took a maximum across every line and passed
+// against the broken code, because the borders and rules are full width no
+// matter what the agent row does -- a reminder that a panel-wide measurement
+// says nothing about one row in it.
+//
+// Sabotage: in tmarchy-panel.js's `row()` go back to
+// `content.length > inner ? content.slice(0, inner) : content.padEnd(inner)`
+// -- the icon row comes back one column narrow and this fails.
+test('a row carrying an astral glyph pads to the same width as one without', () => {
+  const rows = 40, cols = 100
+  // U+F03EB is astral (two UTF-16 units, one terminal column -- tmux reports
+  // cursor_x = 1 for it, and 2 for an emoji, which is why the icon allowlist
+  // in lib/agents.js admits the first and refuses the second).
+  const rowFor = (agent, needle) => {
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    panel.render({
+      grid, rows, cols, frame: 0, theme, fg, dim,
+      stats: { cpu: 1, load: [0, 0, 0], cores: 1 },
+      agents: [agent], claude: [], meta: {}, ping: {},
+    })
+    // Each grid cell holds `colour + oneCharacter`, so the row's text has to
+    // be reassembled before it can be searched -- no single cell contains the
+    // label. The two stub colours are the ones this file's `fg`/`dim` return.
+    const text = (r) => r.map((c) => (c || ' ').replace('<head>', '').replace('<trace>', '')).join('')
+    const line = grid.find((r) => text(r).includes(needle))
+    assert.ok(line, `no panel row drew ${needle}`)
+    return line.filter(Boolean).length
+  }
+
+  const iconRow = rowFor({ label: 'astral', state: 'wait', icon: '\u{f03eb}' }, 'astral')
+  const plainRow = rowFor({ label: 'plainbmp', state: 'wait' }, 'plainbmp')
+
+  assert.strictEqual(iconRow, plainRow,
+    `an icon row must occupy the same columns as any other (${iconRow} vs ${plainRow})`)
+  assert.strictEqual(plainRow, panel.WIDTH,
+    'sanity: a panel row fills the panel width, so this is not two equally-broken rows')
+})

@@ -53,6 +53,19 @@ const DEADLINE_MS = 20000
 
 const REALTIME_LANES = ['sonnet', 'opus', 'voice']
 
+// Icons, so Otto's rows are distinguishable at a glance from the tmux panes
+// sitting next to them -- and from each other, since the two lane kinds want
+// different things from you. Both are already in use elsewhere in this repo,
+// which is the reason they were picked over better-matching guesses: a glyph
+// the font lacks renders as a box, and the panel row is a bad place to find
+// that out. tmarchy validates these as single-column and silently falls back
+// to the state glyph if a future edit puts something wide here.
+const ICON_GOAL = '\u{f03eb}'   // pencil: tmux-cmd uses it for "asks you for
+                                // text first", and a goal in waiting-feedback
+                                // is doing exactly that
+const ICON_REALTIME = '\u{f06a9}' // robot: the same glyph tmux-cmd and the bar
+                                  // use for an agent
+
 const args = process.argv.slice(2)
 const has = (f) => args.includes(f)
 const DOCTOR = has('--doctor')
@@ -132,6 +145,7 @@ async function collect(libs) {
         label: shortLabel(lane.slug),
         state,
         agentType: 'claude',
+        icon: ICON_GOAL,
       })
     }
   } catch { /* no goal lanes this round */ }
@@ -147,6 +161,7 @@ async function collect(libs) {
         label: `otto-${lane}`,
         state,
         agentType: 'claude',
+        icon: ICON_REALTIME,
       })
     } catch { /* that lane is not answering */ }
   }

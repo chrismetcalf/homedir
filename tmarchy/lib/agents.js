@@ -73,6 +73,57 @@ const TYPE_RE = /^[A-Za-z0-9_-]{1,24}$/
 // A tmux pane id and nothing else. This value is passed to `tmux -t`.
 const PANE_RE = /^%\d+$/
 
+// An icon is SINGLE-COLUMN or it is refused. The saver draws into a fixed
+// character grid, so a double-width glyph -- CJK, and most emoji -- overflows
+// every row it lands on and shoves the panel sideways. That is the same
+// failure the rain renderer hit with full-width katakana, and it reads as a
+// layout bug rather than a width bug, which is why it is worth being strict
+// about here rather than at the point of drawing.
+//
+// Allowlisted rather than blocklisted: the set of wide characters is a moving
+// target that grows with every Unicode release, while the set of things worth
+// putting in a 1-column slot does not. ASCII, arrows, maths operators,
+// geometric shapes, and the two Private Use Areas where Nerd Font lives --
+// which is where every glyph this repo already uses sits.
+const ICON_RANGES = [
+  [0x21, 0x7e],                      // printable ASCII, space excluded
+  [0x2190, 0x21ff], [0x2200, 0x22ff], // arrows, maths
+  [0x25a0, 0x25fc], [0x25ff, 0x25ff], // geometric shapes; 25FD/25FE are wide
+  [0xe000, 0xf8ff],                  // BMP private use
+  [0xf0000, 0xffffd],                // plane 15 private use (Nerd Font MDI)
+]
+
+// Icons BY AGENT TYPE, for agents that do not name their own. scout records
+// carry an agentType too, so this reaches tmux panes as well as providers --
+// a Codex pane and a Claude pane stop looking identical.
+//
+// `claude` is deliberately ABSENT. It is very nearly every row on this host,
+// and an icon that appears on every row distinguishes nothing; falling through
+// to the state glyph keeps that slot carrying information. The glyphs below
+// are chosen for being distinct and for being already proven to render in this
+// repo's terminals, not for iconography -- swap them freely.
+const TYPE_ICONS = {
+  codex: '\u{f0633}',    // command
+  gemini: '\u{f018d}',   // console
+}
+
+function normaliseIcon(raw) {
+  if (typeof raw !== 'string') return null
+  const cps = [...raw]
+  if (cps.length !== 1) return null
+  const cp = cps[0].codePointAt(0)
+  return ICON_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi) ? raw : null
+}
+
+// What to draw for one agent: its own icon, else one for its kind, else
+// whatever the caller was going to draw anyway (the state glyph). An agent
+// that names an unusable icon falls back rather than being dropped -- an icon
+// is cosmetic, exactly like a label.
+function iconFor(agent, fallback) {
+  if (!agent) return fallback
+  return normaliseIcon(agent.icon) || TYPE_ICONS[agent.agentType] || fallback
+}
+
 function providerDir(home) {
   return path.join(home || os.homedir(), DIR)
 }
@@ -111,6 +162,7 @@ function normaliseAgent(raw, producer) {
     // Prefixed here rather than trusted from the file -- see rule 3.
     key: `${producer}:${raw.key}`,
     label, state: raw.state, subagents, pane, agentType, producer,
+    icon: normaliseIcon(raw.icon),
   }
 }
 
@@ -165,5 +217,6 @@ function readProviders({ home, now = Date.now(), dir } = {}) {
 
 module.exports = {
   readProviders, parseProvider, normaliseAgent, sanitiseLabel, producerFor, providerDir,
+  normaliseIcon, iconFor, TYPE_ICONS, ICON_RANGES,
   STATES, MAX_TTL_MS, FUTURE_SKEW_MS, MAX_FILES, MAX_RECORDS, LABEL_MAX, DIR,
 }

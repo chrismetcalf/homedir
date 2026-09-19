@@ -22,6 +22,14 @@ const os = require('node:os')
 let latencyHex = null
 try { ({ latencyHex } = require('./tmarchy-ping.js')) } catch { /* bands it is */ }
 
+// Agent icons: the agent's own, else one for its kind, else the state glyph
+// the caller passes. Absent tmarchy, every row simply keeps the state glyph.
+const path = require('node:path')
+let iconFor = null
+try { ({ iconFor } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'agents.js'))) }
+catch { /* state glyphs only */ }
+const icon = (a, fallback) => (iconFor ? iconFor(a, fallback) : fallback)
+
 const WIDTH = 30                  // panel columns, border included
 const MIN_COLS = 74               // below this the pane belongs to the solid
 
@@ -213,8 +221,20 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
   // and every gauge row came out five columns short of its own border, which
   // looks like a box-drawing bug rather than an arithmetic one.
   const inner = WIDTH - 2
+  // Measured in CODE POINTS, not in `.length`. Every glyph this panel used to
+  // draw was in the BMP, where the two agree -- then agent icons arrived from
+  // the Nerd Font ranges in plane 15, where one glyph is two UTF-16 units. A
+  // row carrying one padded a column short and sat one short of its own
+  // border, which reads as a box-drawing bug rather than an encoding one.
+  // (`put` already walks the string with for..of, so it was only the padding
+  // that was wrong.) Measured, not assumed: tmux reports cursor_x = 1 for
+  // U+F03EB and 2 for an emoji, which is why the icon allowlist in
+  // lib/agents.js admits the first and refuses the second.
   const row = (content, colour) => {
-    const text = content.length > inner ? content.slice(0, inner) : content.padEnd(inner)
+    const cps = [...content]
+    const text = cps.length > inner
+      ? cps.slice(0, inner).join('')
+      : content + ' '.repeat(inner - cps.length)
     lines.push({ t: '\u2502' + text + '\u2502', c: colour })
   }
   const rule = (label, left, right_) => {
@@ -283,7 +303,12 @@ function render({ grid, rows, cols, frame, theme, fg, dim, stats, agents, claude
     // A subagent count rides on the row rather than getting its own: a Task
     // subagent is not a thing you can navigate to, so listing it as a peer
     // would imply it is. "+3" says this agent has three of its own running.
-    text: ` ${a.state === 'wait' ? '\u25c9' : a.state === 'busy' ? '\u25cd' : '\u25ce'} ` +
+    //
+    // The leading glyph is the agent's own icon if it has one, then one for
+    // its kind, and only then the state glyph -- see iconFor in lib/agents.js.
+    // Nothing is lost when an identity glyph takes the slot: the state is
+    // still carried by the row's COLOUR and by the word next to the label.
+    text: ` ${icon(a, a.state === 'wait' ? '\u25c9' : a.state === 'busy' ? '\u25cd' : '\u25ce')} ` +
       `${a.label.slice(0, 16).padEnd(16)} ${a.state.padEnd(4)}` +
       `${a.subagents ? ' +' + Math.min(a.subagents, 9) : ''}`,
     colour: a.state === 'wait' ? fg(theme.wait)

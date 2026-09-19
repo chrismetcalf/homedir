@@ -238,6 +238,10 @@ function scoutAgents() {
         // Only meaningful for a parent we have already established is live --
         // see subagentCount's note on scout's leaked records.
         subagents: subagentCount ? subagentCount(s) : 0,
+        // scout records what KIND of agent this is (claude, codex, gemini).
+        // Carried through so the panel can draw them differently -- the same
+        // field a provider may set, so one rule covers both sources.
+        agentType: s.agentType || null,
       })
     }
     return out

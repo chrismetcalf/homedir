@@ -223,3 +223,71 @@ test('a file is bounded to MAX_RECORDS agents', () => {
   const body = JSON.stringify({ generatedAt: NOW, ttlMs: 30000, agents: many })
   assert.strictEqual(agents.parseProvider(body, 'p', NOW).length, agents.MAX_RECORDS)
 })
+
+// --- icons ------------------------------------------------------------------
+
+// An icon must be SINGLE-COLUMN. The saver draws into a fixed character grid,
+// so a double-width glyph overflows every row it lands on and shoves the panel
+// sideways -- the same failure the rain renderer hit with full-width katakana,
+// and one that reads as a layout bug rather than a width bug.
+//
+// Sabotage A: in normaliseIcon `return raw` instead of testing ICON_RANGES --
+// the emoji and the CJK character are accepted and this fails.
+// Sabotage B: drop the `cps.length !== 1` guard -- 'ab' is accepted and this
+// fails. Independent of A: a two-character string is inside no range either
+// way, so each guard has to be removed on its own to see it break.
+test('an icon is accepted only if it occupies one column', () => {
+  // Every glyph this repo already draws, so the allowlist cannot be narrower
+  // than what tmux-cmd and tmux-goto already put on screen.
+  for (const g of ['\u{f03eb}', '\u{f06a9}', '\u{f10ac}', '◉', '→', '*']) {
+    assert.strictEqual(agents.normaliseIcon(g), g, `${JSON.stringify(g)} should be usable`)
+  }
+  for (const bad of ['\u{1F916}', '一', 'Ａ', 'ab', '', ' ', '\u0007', 42, null]) {
+    assert.strictEqual(agents.normaliseIcon(bad), null,
+      `${JSON.stringify(bad)} is not one usable column and must be refused`)
+  }
+})
+
+// Sabotage: in normaliseAgent drop the `icon: normaliseIcon(raw.icon)` line --
+// the provider's icon never arrives and the first assertion fails.
+test("a provider's icon rides on the record, a wide one does not", () => {
+  const good = agents.normaliseAgent(
+    { key: 'a', label: 'a', state: 'busy', icon: '\u{f03eb}' }, 'p')
+  assert.strictEqual(good.icon, '\u{f03eb}')
+  // A bad icon costs the icon, never the agent: it is cosmetic, exactly like a
+  // label, and dropping a live agent over a glyph is the worse bug.
+  const wide = agents.normaliseAgent(
+    { key: 'a', label: 'a', state: 'busy', icon: '\u{1F916}' }, 'p')
+  assert.strictEqual(wide.icon, null)
+  assert.strictEqual(wide.state, 'busy', 'the agent itself must survive a bad icon')
+})
+
+// Precedence: the agent's own icon, then one for its kind, then whatever the
+// caller was drawing anyway.
+//
+// Sabotage A: in iconFor put `TYPE_ICONS[agent.agentType]` first -- an agent
+// carrying both loses its own icon and the first assertion fails.
+// Sabotage B: add a `claude` entry to TYPE_ICONS -- the deliberate absence is
+// gone and the third assertion fails.
+test('iconFor prefers the agent, then its kind, then the fallback', () => {
+  assert.strictEqual(
+    agents.iconFor({ icon: '\u{f03eb}', agentType: 'codex' }, 'X'), '\u{f03eb}',
+    "an agent's own icon outranks one picked for its kind")
+  assert.strictEqual(agents.iconFor({ agentType: 'codex' }, 'X'), agents.TYPE_ICONS.codex)
+  // claude is deliberately NOT in the map: it is very nearly every row on this
+  // host, and an icon on every row distinguishes nothing, so that slot goes on
+  // carrying the state glyph.
+  assert.strictEqual(agents.iconFor({ agentType: 'claude' }, 'X'), 'X')
+  assert.strictEqual(agents.iconFor({}, 'X'), 'X')
+  assert.strictEqual(agents.iconFor(null, 'X'), 'X')
+})
+
+// Every icon in the type map has to pass the same width rule providers are
+// held to, or tmarchy ships the very thing it refuses from others.
+// Sabotage: put an emoji in TYPE_ICONS -- this fails.
+test('tmarchy own type icons obey the same width rule', () => {
+  for (const [type, glyph] of Object.entries(agents.TYPE_ICONS)) {
+    assert.strictEqual(agents.normaliseIcon(glyph), glyph,
+      `TYPE_ICONS.${type} is not one column`)
+  }
+})

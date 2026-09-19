@@ -216,9 +216,40 @@ It reads a drop directory instead:
 ```
 
 `state` is one of `wait` / `busy` / `done` / `idle` — the same vocabulary the
-bar tint and the screensaver already use. `subagents`, `pane` and `agentType`
-are optional. `bin/otto-agents-publish` is a worked example: it maps Otto's
-goal and realtime containers into this shape and is run once a minute by cron.
+bar tint and the screensaver already use. `subagents`, `pane`, `agentType` and
+`icon` are optional. `bin/otto-agents-publish` is a worked example: it maps
+Otto's goal and realtime containers into this shape and is run once a minute
+by cron.
+
+### Icons
+
+The panel's leading glyph is resolved by `iconFor()`: the agent's own `icon`,
+then one for its `agentType`, then the state glyph it would have drawn anyway.
+Nothing is lost when an identity glyph takes that slot — the state is still
+carried by the row's colour and by the word beside the label.
+
+An icon must be **one terminal column**. The saver draws into a fixed
+character grid, so a double-width glyph overflows every row it lands on and
+shoves the panel sideways — the same failure the rain renderer hit with
+full-width katakana, and one that reads as a layout bug rather than a width
+bug. The check allowlists narrow ranges rather than blocklisting wide ones:
+the set of wide characters grows with every Unicode release, the set of things
+worth putting in a 1-column slot does not. ASCII, arrows, maths, geometric
+shapes, and both Private Use Areas — which is where every glyph this repo
+already draws lives. Measured rather than assumed: tmux reports `cursor_x = 1`
+for U+F03EB and `2` for an emoji. A refused icon costs the icon, never the
+agent.
+
+`TYPE_ICONS` maps `agentType` to a glyph, and reaches tmux panes as well as
+providers because scout records carry an `agentType` too — so a Codex pane and
+a Claude pane stop looking identical. **`claude` is deliberately absent**: it
+is very nearly every row on this host, and an icon on every row distinguishes
+nothing, so that slot goes on carrying the state glyph.
+
+One trap this uncovered: Nerd Font glyphs live in plane 15, where a single
+glyph is **two UTF-16 units**. `bin/tmarchy-panel.js`'s `row()` padded with
+`.length`, which was correct while every glyph it drew was in the BMP, and
+silently short by a column once one was not.
 
 Four rules, each of which exists because the file comes from code this repo
 does not control:
