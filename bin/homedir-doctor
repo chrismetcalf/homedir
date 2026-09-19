@@ -272,6 +272,40 @@ check_tool_state() {
         skip "tmarchy theme state" "(no theme persisted yet)"
     fi
 
+    # Agent providers (tmarchy/lib/agents.js). A provider file carries its own
+    # TTL and tmarchy simply ignores an expired one -- which is exactly right
+    # for the renderer and exactly wrong for an operator, because "the producer
+    # died" and "nothing is running" look identical on screen. This is the only
+    # place the difference is visible. Generic on purpose: it reports whatever
+    # is in the directory and knows nothing about who writes it.
+    ad="$st/agents.d"
+    if [ ! -d "$ad" ]; then
+        skip "agent providers" "(none installed)"
+    elif ! command -v node >/dev/null 2>&1; then
+        skip "agent providers" "(node not installed)"
+    else
+        stale=$(node -e '
+            const fs = require("fs"), path = require("path"), dir = process.argv[1]
+            const now = Date.now(), out = []
+            for (const f of fs.readdirSync(dir)) {
+              if (!f.endsWith(".json")) continue
+              let d; try { d = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) } catch { out.push(f + " (unreadable)"); continue }
+              const at = Number(d.generatedAt), ttl = Number(d.ttlMs)
+              if (!Number.isFinite(at) || !Number.isFinite(ttl)) { out.push(f + " (no ttl)"); continue }
+              if (now > at + ttl) out.push(f + " (" + Math.round((now - at) / 1000) + "s old)")
+            }
+            process.stdout.write(out.join(", "))
+        ' "$ad" 2>/dev/null)
+        live=$(ls -1 "$ad"/*.json 2>/dev/null | wc -l | tr -d " ")
+        if [ -n "$stale" ]; then
+            warn "agent provider stale: $stale" "whatever writes it has stopped; its agents have already vanished from the bar and screensaver"
+        elif [ "$live" -gt 0 ]; then
+            ok "$live agent provider(s) publishing"
+        else
+            skip "agent providers" "(none installed)"
+        fi
+    fi
+
     if [ -d "$HOME/.local/share/nvim/lazy/lazy.nvim" ]; then ok "lazy.nvim bootstrapped"
     else warn "lazy.nvim not bootstrapped" "open nvim once, or run: nvim --headless '+Lazy! sync' +qa"; fi
 }

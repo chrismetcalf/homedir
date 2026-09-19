@@ -204,7 +204,9 @@ function paneVerdict(pane) {
   return null
 }
 
-function readAgents() {
+// Pane-backed agents, from scout. Returns [] on any failure -- a torn
+// status.json must not take the providers down with it, and vice versa.
+function scoutAgents() {
   if (!sessionState) return []
   try {
     const doc = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.tmux-scout', 'status.json'), 'utf8'))
@@ -227,6 +229,10 @@ function readAgents() {
       const named = info && info.names.get(s.tmuxPane)
       out.push({
         key: s.tmuxPane,
+        // Where to jump on a click. For a pane-backed agent that is the key
+        // itself; a provider's agent may have no pane at all, so the two are
+        // separate fields rather than one doing both jobs.
+        pane: s.tmuxPane,
         label: named || path.basename(s.workingDirectory || '') || '?',
         state,
         // Only meaningful for a parent we have already established is live --
@@ -234,17 +240,31 @@ function readAgents() {
         subagents: subagentCount ? subagentCount(s) : 0,
       })
     }
-    // Sorted for the panel's list, but WAITING agents are pulled to the front
-    // before the cap: the panel shows twelve, and an agent that needs you
-    // sorting thirteenth alphabetically must not be the one that falls off.
     return out
-      .sort((a, b) => (a.state === 'wait' ? 0 : 1) - (b.state === 'wait' ? 0 : 1) ||
-        a.label.localeCompare(b.label))
-      // A safety bound, not a display budget -- the panel decides how many rows
-      // it can actually spare. Waiting agents are already sorted to the front,
-      // so if anything is ever cut here it is never one that needs you.
-      .slice(0, 24)
   } catch { return [] }
+}
+
+// Every agent, whatever it is running in. The two sources are read
+// independently and merged here: scout owns the tmux panes, and whatever
+// filled agents.d owns the rest. Neither can fail the other.
+function readAgents() {
+  const out = scoutAgents()
+  if (readProviders) {
+    // readProviders never throws -- a file it cannot parse costs that producer
+    // its rows and nothing else -- but it does touch the filesystem, and this
+    // is on the frame loop's data tick.
+    try { out.push(...readProviders()) } catch { /* no providers this tick */ }
+  }
+  // Sorted for the panel's list, but WAITING agents are pulled to the front
+  // before the cap: the panel shows twelve, and an agent that needs you
+  // sorting thirteenth alphabetically must not be the one that falls off.
+  return out
+    .sort((a, b) => (a.state === 'wait' ? 0 : 1) - (b.state === 'wait' ? 0 : 1) ||
+      a.label.localeCompare(b.label))
+    // A safety bound, not a display budget -- the panel decides how many rows
+    // it can actually spare. Waiting agents are already sorted to the front,
+    // so if anything is ever cut here it is never one that needs you.
+    .slice(0, 24)
 }
 
 // Quota comes from tmarchy's own segment rather than being re-parsed here, so
@@ -254,6 +274,13 @@ function readAgents() {
 // matters here in a way it does not on the bar: a locked session stops
 // redrawing its status line, so without this a screensaver left up for an hour
 // would quietly show hour-old numbers.
+// Agents that are not tmux panes -- a containerised relay, a queue runner, a
+// daemon elsewhere. See tmarchy/lib/agents.js: tmarchy reads a drop directory
+// and never learns who fills it.
+let readProviders = null
+try { ({ readProviders } = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'agents'))) }
+catch { /* tmarchy absent: only pane-backed agents appear */ }
+
 let alerts = null
 try { alerts = require(path.join(__dirname, '..', 'tmarchy', 'lib', 'alerts')) }
 catch { /* tmarchy absent: no banner, everything else still draws */ }
@@ -322,7 +349,7 @@ const BANNER_MAX = 64
 // sides of the frame loop.
 const hits = []
 
-function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now) {
+function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now, agents) {
   if (!alerts || !sticky || !sticky.length) return 0
 
   const title = alerts.bannerTitle(sticky)
@@ -363,10 +390,23 @@ function drawBanner(grid, rows, cols, mainW, frame, theme, sticky, now) {
   // Recomputed every frame rather than cached: the widths move as the elapsed
   // times tick over from "9s" to "10s", and a stale region would send you to
   // the agent next door.
+  //
+  // A name only becomes clickable if it has somewhere to go. An agent that is
+  // not a tmux pane -- anything out of agents.d -- has no pane to select, so it
+  // gets no region at all and a click on it falls through to "clicked the
+  // background". The alternative would be a click that looks live and does
+  // nothing, which reads as a broken saver rather than an agent that simply is
+  // not somewhere tmux can take you.
+  //
+  // Note this is the CURRENT pane list, while the sticky entries outlive it:
+  // an agent that has since gone stops being clickable, which is right.
+  const paneFor = new Map((agents || []).map((a) => [a.key, a.pane]))
   hits.length = 0
   const textX = x0 + 2                       // past the border and its space
   for (const seg of layout.segments) {
-    hits.push({ y: 1, x0: textX + seg.start, x1: textX + seg.start + seg.length - 1, key: seg.key })
+    const pane = paneFor.get(seg.key)
+    if (!pane) continue
+    hits.push({ y: 1, x0: textX + seg.start, x1: textX + seg.start + seg.length - 1, pane })
   }
   return 3
 }
@@ -475,7 +515,7 @@ function main() {
       // it does not: the point of kiosk mode is that the window keeps showing
       // this, and sending the tmux session somewhere else is no reason to tear
       // the display down.
-      if (hit) { jumpTo(hit.key); cleanup(); return }
+      if (hit) { jumpTo(hit.pane); cleanup(); return }
       // A click anywhere else dismisses a screensaver, but must not kill a
       // display you deliberately left running.
       if (KIOSK) return
@@ -555,7 +595,7 @@ function main() {
     // --- the alert banner ---------------------------------------------------
     // Drawn FIRST so the solid can be told to start below it, rather than being
     // drawn over afterwards and leaving a hole in the shape.
-    const bannerH = drawBanner(grid, rows, cols, mainW, frame, theme, sticky, Date.now())
+    const bannerH = drawBanner(grid, rows, cols, mainW, frame, theme, sticky, Date.now(), data.agents)
 
     // Hosts pinned to the solid like cities on a globe. REAL addresses, not
     // invented ones: these are the machines this box actually talks to, carrying

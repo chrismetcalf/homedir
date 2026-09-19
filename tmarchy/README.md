@@ -193,6 +193,67 @@ throwing segment degrades to "absent" rather than breaking the tick. To
 actually render, add a clause to `bar.conf`'s `status-right` following the
 existing `#{?#{@bar-<name>},...,}` pattern for the other segments.
 
+## How to publish agents that are not tmux panes
+
+scout answers "what agents are running in this tmux server". Anything without
+a pane — a containerised relay, a queue runner, a daemon on another box — is
+invisible to it, and tmarchy does not learn about such things one at a time.
+It reads a drop directory instead:
+
+```
+~/.local/state/tmarchy/agents.d/<producer>.json
+```
+
+```json
+{
+  "generatedAt": 1789400000000,
+  "ttlMs": 30000,
+  "agents": [
+    { "key": "goal:hf-manpack", "label": "hf-manpack", "state": "wait",
+      "subagents": 0, "pane": null, "agentType": "claude" }
+  ]
+}
+```
+
+`state` is one of `wait` / `busy` / `done` / `idle` — the same vocabulary the
+bar tint and the screensaver already use. `subagents`, `pane` and `agentType`
+are optional. `bin/otto-agents-publish` is a worked example: it maps Otto's
+goal and realtime containers into this shape and is run once a minute by cron.
+
+Four rules, each of which exists because the file comes from code this repo
+does not control:
+
+1. **The TTL is mandatory.** A file with no fresh `generatedAt` is ignored,
+   not trusted, and `ttlMs` is capped at ten minutes so it cannot be used to
+   opt out. A `generatedAt` in the future is refused outright — it would never
+   expire. A producer that dies has to decay to nothing on its own, because
+   tmarchy has no way to ask whether it is still alive, and a phantom agent is
+   not cosmetic: it pins the screensaver's breath and raises a banner about
+   work that is not happening. `homedir-doctor` reports an expired file,
+   because on screen a dead producer and a quiet one look identical.
+2. **JSON, never code.** Unlike `segments.d/`, this is data. A JS drop-in
+   would give anything that can write the directory a foothold inside the
+   frame loop; the worst a malformed JSON file can do is cost its own rows.
+   It also means a producer can be bash, python, or a cron job in another
+   repo.
+3. **The filename is the identity.** `producer` comes from the file's stem,
+   never a field inside it, and every key is prefixed with it. So a file
+   cannot claim to be another producer, and a provider key can never collide
+   with a tmux pane id — which matters, because the key is what the
+   screensaver's click handler resolves.
+4. **Nothing reaches a command line unvalidated.** `pane` is the only field
+   that does, and it must look exactly like a tmux pane id. There is
+   deliberately no "command to run to reach me" field; that would reintroduce
+   rule 2 through the side door. An agent with no pane gets no click region at
+   all, rather than a name that looks live and goes nowhere.
+
+**Which surfaces read it.** The screensaver, today. The bar's `agents` segment
+and `prefix + ~` are window-scoped by construction — they count tinted tabs and
+navigate to panes — so a paneless agent has nothing to mean there. That is a
+property of those surfaces, not a gap in the contract: `lib/agents.js` is a
+plain `readProviders()` that any of them can concatenate the day it has
+something sensible to do with an agent that is not somewhere you can go.
+
 ## Running the tests
 
 Two independent suites:
@@ -287,6 +348,15 @@ commented plugin line; this section exists so the same warning is findable
 from here too.
 
 ## Things that cost real debugging time here
+
+**`tmux new-window -t <session>` is not the same as `-t <session>:`.** Measured
+on a scratch server: `new-window -t t -n x` works while session `t` has one
+window and then fails with `create window failed: index 2 in use` once it has
+two. The trailing colon pins the target to the session, so tmux picks the next
+free index. `bin/tmarchy-saver-selftest` uses the colon form for exactly this
+reason — the bare form passed the first time it ran and broke the moment a
+second window was added.
+
 
 - **A running tmux server does not un-apply a deleted `set` line.**
   `source-file` only applies what it currently reads; an option set by a

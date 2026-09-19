@@ -43,7 +43,11 @@ tmux -L "$SOCK" new-session -d -s t -x 100 -y 30 \
     "HOME=$TMPDIR_SELF $ROOT/bin/tmarchy-saver; sleep 120"
 SAVERWIN=$(tmux -L "$SOCK" display-message -p -t t '#{window_id}')
 SAVER=$(tmux -L "$SOCK" list-panes -t "$SAVERWIN" -F '#{pane_id}')
-tmux -L "$SOCK" new-window -t t -n target 'sleep 300'
+# `-t t:` with the colon, NOT `-t t`. Measured on a scratch server: the bare
+# session name works while the session has one window and then fails with
+# `create window failed: index 2 in use` once it has two. The trailing colon
+# pins the target to the SESSION, so tmux picks the next free index.
+tmux -L "$SOCK" new-window -t t: -n target 'sleep 300'
 TARGETWIN=$(tmux -L "$SOCK" display-message -p -t t:target '#{window_id}')
 TARGET=$(tmux -L "$SOCK" list-panes -t "$TARGETWIN" -F '#{pane_id}')
 
@@ -85,6 +89,72 @@ else
         ok "clicking a banner name switches to that agent's pane"
     else
         fail "click did not navigate (window '$BEFORE' -> '$AFTER', pane '$PANE', wanted $TARGET)"
+    fi
+fi
+
+# --- an agent that is not a tmux pane ---------------------------------------
+# The provider contract (tmarchy/lib/agents.js): anything that can write a JSON
+# file gets onto the saver's surfaces. This proves the whole path end to end
+# with scout holding NOTHING -- an empty status.json -- so a row on screen can
+# only have come from the drop directory.
+#
+# Two agents, because `pane` is optional and the two halves behave differently:
+# one carries the target pane and must be clickable, one carries none and gets
+# no click region at all.
+#
+# NOTE on what is NOT asserted here. "Clicking the paneless one navigates
+# nowhere" looks like the obvious second assertion and is worthless: a hit
+# region holding a non-pane string would make jumpTo run
+# `display-message -t selftest:goal:none`, which simply fails to resolve, so
+# the sabotaged code and the correct code land on exactly the same window. The
+# guard's value is that it does not TRY, and that is not observable from
+# outside the process. So the clickable half is what gets tested.
+#
+# A fresh saver in its own window, because the click test above dismissed the
+# first one (that is what a click on a name does) and a dismissed saver draws
+# nothing.
+echo '{"sessions":{}}' > "$TMPDIR_SELF/.tmux-scout/status.json"
+mkdir -p "$TMPDIR_SELF/.local/state/tmarchy/agents.d"
+# The stamp is NOW: a fixture with a stale timestamp would take the expiry
+# path by accident and report it as "no banner".
+python3 - "$TMPDIR_SELF/.local/state/tmarchy/agents.d/selftest.json" "$TARGET" <<'PYEOF'
+import json, sys, time
+json.dump({"generatedAt": int(time.time() * 1000), "ttlMs": 120000, "agents": [
+    {"key": "goal:none", "label": "paneless-goal", "state": "wait"},
+    {"key": "goal:pinned", "label": "pinned-goal", "state": "wait", "pane": sys.argv[2]},
+]}, open(sys.argv[1], "w"))
+PYEOF
+
+tmux -L "$SOCK" new-window -t t: -n saver2 \
+    "HOME=$TMPDIR_SELF $ROOT/bin/tmarchy-saver; sleep 120"
+SAVER2WIN=$(tmux -L "$SOCK" display-message -p -t t:saver2 '#{window_id}')
+SAVER2=$(tmux -L "$SOCK" list-panes -t "$SAVER2WIN" -F '#{pane_id}')
+tmux -L "$SOCK" select-window -t "$SAVER2WIN"
+sleep 4
+
+ROW2=$(tmux -L "$SOCK" capture-pane -p -t "$SAVER2" | sed -n '2p')
+case "$ROW2" in
+    *paneless-goal*) ok "a provider's agent reaches the banner with no scout record" ;;
+    *) fail "no banner for a provider agent (row 2: '$ROW2')" ;;
+esac
+
+# The pane-carrying one navigates, which is what proves the provider's `pane`
+# is plumbed through rather than merely accepted by the parser.
+COL2=$(awk -v r="$ROW2" 'BEGIN{ print index(r, "pinned-goal") }')
+BEFORE2=$(tmux -L "$SOCK" list-windows -t t -f '#{window_active}' -F '#{window_name}')
+if [ "$COL2" -eq 0 ]; then
+    fail "setup: no pinned-goal row, the click check would be vacuous ('$ROW2')"
+elif [ "$BEFORE2" = "target" ]; then
+    fail "setup: already on the target window, the click check would be vacuous"
+else
+    tmux -L "$SOCK" send-keys -t "$SAVER2" -l "$(printf '\033[<0;%d;2M' "$COL2")"
+    sleep 2
+    AFTER2=$(tmux -L "$SOCK" list-windows -t t -f '#{window_active}' -F '#{window_name}')
+    PANE2=$(tmux -L "$SOCK" list-panes -t "$TARGETWIN" -f '#{pane_active}' -F '#{pane_id}')
+    if [ "$AFTER2" = "target" ] && [ "$PANE2" = "$TARGET" ]; then
+        ok "a provider agent carrying a pane is clickable"
+    else
+        fail "provider click did not navigate ('$BEFORE2' -> '$AFTER2', pane '$PANE2')"
     fi
 fi
 

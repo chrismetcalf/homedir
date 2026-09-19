@@ -1,0 +1,234 @@
+#!/usr/bin/env node
+// Publish Otto's Claude sessions into tmarchy's agent drop directory, so the
+// status bar, the screensaver and anything else that reads agents.d can see
+// work that is not running in a tmux pane.
+//
+// This is GLUE and it lives here on purpose. It belongs to neither side:
+// tmarchy must not learn what Otto is (that is the whole point of the provider
+// contract in tmarchy/lib/agents.js), and Otto has no business knowing what a
+// screensaver is. It reads Otto's own read-only operator libraries -- the same
+// ones `relay-containers.js list|fleet` uses, which are explicitly krezel-side
+// -- and writes one JSON file. Nothing here can change Otto's state.
+//
+// Otto runs two kinds of Claude session, and both are containers rather than
+// panes:
+//
+//   goal lanes     otto-goal-<slug>, one per active goal. These are the ones
+//                  that can NEED YOU: a goal in `waiting-feedback` is asking a
+//                  question and will sit there until answered -- the reason
+//                  this exists at all, since nothing on screen said so.
+//   realtime lanes otto-realtime-{sonnet,opus,voice}, the warm pool behind
+//                  Slack and voice. They answer and go quiet; nothing gates on
+//                  a human, so they never report `wait`.
+//
+// A third kind -- build windows from spawn-build-window.js -- is deliberately
+// NOT published: those are real tmux windows in this server, so scout already
+// sees them and publishing them too would double every one of them.
+//
+// Usage:
+//   otto-agents-publish              write once (this is what cron runs)
+//   otto-agents-publish --watch 5    rewrite every 5s until killed
+//   otto-agents-publish --all        include idle lanes (normally skipped)
+//   otto-agents-publish --doctor     report what was found, write nothing
+'use strict'
+
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+
+const OTTO = process.env.OTTO_ROOT || '/opt/otto'
+const OUT_DIR = process.env.TMARCHY_AGENTS_DIR ||
+  path.join(os.homedir(), '.local', 'state', 'tmarchy', 'agents.d')
+// The filename IS the producer name as far as tmarchy is concerned, and every
+// key it publishes gets prefixed with it. See rule 3 in tmarchy/lib/agents.js.
+const OUT = path.join(OUT_DIR, 'otto.json')
+
+// Long enough that a missed cron minute does not blink every row out of
+// existence, short enough that a box where this stopped running goes quiet
+// within a few minutes rather than lying indefinitely.
+const TTL_MS = 150000
+// A wedged docker daemon or an unresponsive supervisor socket must not leave a
+// cron process alive until the next one starts.
+const DEADLINE_MS = 20000
+
+const REALTIME_LANES = ['sonnet', 'opus', 'voice']
+
+const args = process.argv.slice(2)
+const has = (f) => args.includes(f)
+const DOCTOR = has('--doctor')
+const ALL = has('--all')
+const WATCH = has('--watch') ? Number(args[args.indexOf('--watch') + 1]) || 5 : 0
+
+// --- pure shaping -----------------------------------------------------------
+
+// Goal slugs are sentence-length (`help-me-formulate-a-plan-to-turn-obsidian-
+// open-vault-work-fi`). The panel's row is 16 columns and the banner is 64, so
+// the full slug is useless in both; cut at a hyphen so the result reads as
+// words rather than as a slug with its tail bitten off.
+function shortLabel(slug, max = 24) {
+  if (slug.length <= max) return slug
+  const cut = slug.slice(0, max)
+  const at = cut.lastIndexOf('-')
+  return at > 8 ? cut.slice(0, at) : cut
+}
+
+// tmarchy caps a key at 64 characters INCLUDING the producer prefix it adds,
+// so a full-length slug has to be trimmed here or the record is dropped on the
+// far side with nothing to say why.
+function agentKey(kind, slug) {
+  return `${kind}:${slug}`.slice(0, 48)
+}
+
+// A goal lane's state. `waiting-feedback` is the only thing in Otto that means
+// "a human has to answer this", so it is the only thing that maps to `wait` --
+// and it maps there even when the container is gone, because the goal is still
+// waiting on you whether or not anything is running.
+function goalState(lane) {
+  if (lane.goal && lane.goal.status === 'waiting-feedback') return 'wait'
+  if (lane.state !== 'running') return null
+  return lane.sup && lane.sup.ok && lane.sup.busy ? 'busy' : 'idle'
+}
+
+// A realtime lane is busy if its own turn is running or anything in its warm
+// pool is. Never `wait`: nothing in the Slack/voice path blocks on a human.
+function realtimeState(status) {
+  if (!status || !status.ok) return null
+  const pooled = status.pool && status.pool.busy
+  return status.busy || pooled ? 'busy' : 'idle'
+}
+
+// --- reading otto -----------------------------------------------------------
+
+function ottoLibs() {
+  const fleet = path.join(OTTO, 'scripts', 'lib', 'relay-fleet.js')
+  if (!fs.existsSync(fleet)) return null
+  try {
+    return {
+      fleet: require(fleet),
+      cr: require(path.join(OTTO, 'scripts', 'lib', 'container-relay.js')),
+      secretFor: (lane) => {
+        try {
+          return require(path.join(OTTO, 'scripts', 'lib', 'relay-secret.js'))
+            .relaySecretFor(lane, { kind: 'realtime' })
+        } catch { return null }
+      },
+    }
+  } catch { return null }
+}
+
+async function collect(libs) {
+  const out = []
+
+  // Goal lanes. A failure here must not take the realtime lanes with it: the
+  // two are independent facts and reporting neither because one broke is worse
+  // than reporting half.
+  try {
+    const f = await libs.fleet.fleetStatus()
+    for (const lane of f.lanes) {
+      const state = goalState(lane)
+      if (!state) continue
+      out.push({
+        key: agentKey('goal', lane.slug),
+        label: shortLabel(lane.slug),
+        state,
+        agentType: 'claude',
+      })
+    }
+  } catch { /* no goal lanes this round */ }
+
+  for (const lane of REALTIME_LANES) {
+    try {
+      const status = await libs.cr.supervisorStatusAt(
+        libs.cr.socketPath(lane, { kind: 'realtime' }), { secret: libs.secretFor(lane) })
+      const state = realtimeState(status)
+      if (!state) continue
+      out.push({
+        key: agentKey('rt', lane),
+        label: `otto-${lane}`,
+        state,
+        agentType: 'claude',
+      })
+    } catch { /* that lane is not answering */ }
+  }
+
+  // Idle lanes are infrastructure sitting warm rather than work in progress,
+  // and three permanently-idle rows would crowd out the panel's budget for
+  // agents that are actually doing something. --all keeps them for debugging.
+  return ALL ? out : out.filter((a) => a.state !== 'idle')
+}
+
+// --- writing ----------------------------------------------------------------
+
+// Atomic, because the saver reads this file on a frame loop: a half-written
+// file would parse as garbage and blank Otto's rows for that tick. Same reason
+// tmarchy-theme sync writes current.sh through a rename.
+function publish(agents) {
+  fs.mkdirSync(OUT_DIR, { recursive: true })
+  const body = JSON.stringify({
+    generatedAt: Date.now(), ttlMs: TTL_MS, agents,
+  })
+  const tmp = `${OUT}.${process.pid}.tmp`
+  fs.writeFileSync(tmp, body)
+  fs.renameSync(tmp, OUT)
+}
+
+// A host that no longer has Otto should go quiet NOW rather than after the TTL
+// runs out -- and a host that never had it must not be left with a stale file
+// from a checkout that did.
+function withdraw() {
+  try { fs.unlinkSync(OUT) } catch { /* nothing published */ }
+}
+
+async function once() {
+  const libs = ottoLibs()
+  if (!libs) {
+    if (!DOCTOR) withdraw()
+    return { agents: null }
+  }
+  const agents = await collect(libs)
+  if (!DOCTOR) publish(agents)
+  return { agents }
+}
+
+async function main() {
+  if (DOCTOR) {
+    const libs = ottoLibs()
+    console.log(`otto root     ${OTTO}${libs ? '' : '  (absent -- nothing to publish)'}`)
+    console.log(`output        ${OUT}`)
+    if (!libs) return
+    const agents = await collect(libs)
+    console.log(`ttl           ${TTL_MS / 1000}s`)
+    console.log(`published     ${agents.length} agent(s)${ALL ? '' : '  (idle lanes hidden; --all shows them)'}`)
+    for (const a of agents) console.log(`  ${a.state.padEnd(5)} ${a.label.padEnd(26)} ${a.key}`)
+    try {
+      const stat = fs.statSync(OUT)
+      console.log(`last write    ${Math.round((Date.now() - stat.mtimeMs) / 1000)}s ago`)
+    } catch { console.log('last write    never') }
+    return
+  }
+
+  if (WATCH) {
+    for (;;) {
+      await once()
+      await new Promise((r) => setTimeout(r, WATCH * 1000))
+    }
+  }
+  await once()
+}
+
+// The deadline is a backstop on the whole run, not on any one call: docker and
+// the supervisor sockets are both things that can stop answering entirely, and
+// cron starting a new copy every minute on top of wedged ones is its own
+// outage.
+if (!WATCH) {
+  const bail = setTimeout(() => {
+    process.stderr.write('otto-agents-publish: timed out\n')
+    process.exit(1)
+  }, DEADLINE_MS)
+  bail.unref()
+}
+
+main().then(() => process.exit(0), (e) => {
+  process.stderr.write(`otto-agents-publish: ${e && e.message}\n`)
+  process.exit(1)
+})
