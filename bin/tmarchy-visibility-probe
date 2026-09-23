@@ -1,0 +1,205 @@
+#!/usr/bin/env node
+// Find out what a terminal tells us when its app goes to the BACKGROUND.
+//
+// tmarchy-saver runs a 20fps frame loop and, measured at a phone-sized 50x30,
+// emits ~300 KB/s -- about a gigabyte an hour. On a desktop over a LAN that is
+// invisible. On an iPhone over cellular it is not, and it keeps costing while
+// the app is not even on screen. Pausing needs a signal, and which signals
+// exist is a property of the terminal app, not something that can be reasoned
+// out from here. So: measure.
+//
+// It matters that this is testable at all. tmux runs `lock-command` ONCE PER
+// ATTACHED CLIENT, with that client's tty as stdin and stdout -- verified: the
+// tty the lock command sees is the same device `list-clients` reports. So the
+// saver on the phone is its own process talking straight to the phone's
+// terminal, with tmux out of the path. Whatever this probe learns applies
+// directly, and pausing one client cannot affect another.
+//
+// Run it INSIDE the terminal you want to characterise -- ShellFish on the
+// phone, Tabby, Rio -- then follow the prompts. It writes a log you can read
+// afterwards, because the interesting part happens while you cannot see the
+// screen.
+//
+//   tmarchy-visibility-probe            # 60s, log to ~/.local/state/tmarchy
+//   tmarchy-visibility-probe 120        # longer run
+//
+// Three signals are tested, in the order they would be preferred:
+//
+//   1. FOCUS REPORTING (DECSET 1004). The terminal sends ESC[I on focus gained
+//      and ESC[O on focus lost. If an app sends ESC[O when backgrounded, this
+//      is the whole answer: cheap, instant, no polling.
+//   2. DEVICE STATUS REPORT (ESC[6n). The terminal answers with the cursor
+//      position. If a backgrounded app stops answering, a heartbeat detects it
+//      -- slower and pollier than focus events, but it needs no support beyond
+//      DSR, which is universal.
+//   3. WRITE BACKPRESSURE. If the app stops reading, the pty fills and our
+//      writes stall. Measured as the gap between write attempts, because node
+//      writes to a tty SYNCHRONOUSLY -- a full buffer BLOCKS the process
+//      rather than returning false, so `write()`'s return value tells us
+//      nothing (verified: a writer stalled the instant the reader stopped, with
+//      write() having returned true every time).
+'use strict'
+
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+
+const SECONDS = Number(process.argv[2]) || 60
+const LOG_DIR = path.join(os.homedir(), '.local', 'state', 'tmarchy')
+const LOG = path.join(LOG_DIR, 'visibility-probe.log')
+
+if (!process.stdout.isTTY) {
+  process.stderr.write('tmarchy-visibility-probe: needs a terminal\n')
+  process.exit(1)
+}
+
+fs.mkdirSync(LOG_DIR, { recursive: true })
+// SYNCHRONOUS, and an open fd rather than a write stream. A stream's pending
+// writes are DISCARDED by process.exit(), which cost the first version of this
+// tool its entire verdict: the run finished, printed three conclusions to the
+// screen, and left a log that stopped at the last line written a second
+// earlier. An instrument whose output can vanish at exactly the moment it has
+// something to say is worse than no instrument.
+const logFd = fs.openSync(LOG, 'w')
+const t0 = Date.now()
+const at = () => String(Date.now() - t0).padStart(6)
+const note = (s) => { try { fs.writeSync(logFd, `${at()}  ${s}\n`) } catch { /* log gone */ } }
+
+note(`probe start  term=${process.env.TERM}  size=${process.stdout.columns}x${process.stdout.rows}`)
+note(`ssh=${process.env.SSH_CONNECTION || '(none)'}  tmux=${process.env.TMUX ? 'inside' : 'outside'}`)
+
+// --- what came back ---------------------------------------------------------
+
+const seen = { focusIn: 0, focusOut: 0, dsrReplies: 0, otherBytes: 0 }
+let dsrSent = 0
+let lastDsrReplyAt = null
+
+process.stdin.setRawMode(true)
+process.stdin.resume()
+process.stdin.on('data', (buf) => {
+  const s = buf.toString('latin1')
+  // Focus in/out, and the cursor-position reply to our DSR.
+  for (const ch of s.matchAll(/\x1b\[(I|O)/g)) {
+    if (ch[1] === 'I') { seen.focusIn++; note('FOCUS IN   (ESC[I)') }
+    else { seen.focusOut++; note('FOCUS OUT  (ESC[O)') }
+  }
+  for (const m of s.matchAll(/\x1b\[(\d+);(\d+)R/g)) {
+    seen.dsrReplies++
+    lastDsrReplyAt = Date.now()
+    note(`DSR reply  row=${m[1]} col=${m[2]}  (sent ${dsrSent}, answered ${seen.dsrReplies})`)
+  }
+  if (/^q|\x03/.test(s)) finish('quit key')
+  const rest = s.replace(/\x1b\[(I|O)/g, '').replace(/\x1b\[\d+;\d+R/g, '')
+  if (rest.length) {
+    seen.otherBytes += rest.length
+    note(`input      ${JSON.stringify(rest.slice(0, 40))}`)
+  }
+})
+
+// --- the load ---------------------------------------------------------------
+
+// Roughly what one saver frame costs at this size, so backpressure has a
+// chance to show up: a full-width coloured row per frame at 20fps. Not the
+// saver itself -- this has to stay simple enough to trust as an instrument.
+const cols = () => process.stdout.columns || 80
+function frameBytes() {
+  let s = ''
+  for (let i = 0; i < cols(); i++) {
+    s += `\x1b[38;2;${(i * 7) % 256};${(i * 13) % 256};${(i * 29) % 256}m#`
+  }
+  return s + '\x1b[0m'
+}
+
+let frames = 0
+// TWO numbers, deliberately, because the first version tracked only the gap
+// BETWEEN writes and reported that as the verdict -- so a run whose writes
+// blocked for three seconds still concluded "the app keeps draining". The gap
+// is bounded by the timer that schedules the next frame; the time spent INSIDE
+// write() is the one that shows a blocked terminal.
+let worstGap = 0
+let worstBlocked = 0
+let lastWriteEnd = Date.now()
+
+const FRAME_MS = 50
+const frameTimer = setInterval(() => {
+  const before = Date.now()
+  // The gap since the previous write FINISHED. A blocked tty shows up here and
+  // nowhere else, for the reason in the header.
+  const gap = before - lastWriteEnd
+  if (gap > worstGap) worstGap = gap
+  process.stdout.write(`\x1b[1;1H${frameBytes()}`)
+  lastWriteEnd = Date.now()
+  frames++
+  const blocked = lastWriteEnd - before
+  if (blocked > worstBlocked) worstBlocked = blocked
+  if (blocked > 250) note(`WRITE STALLED ${blocked}ms -- the terminal stopped reading`)
+}, FRAME_MS)
+
+// DSR heartbeat, well clear of the frame rate so a reply is easy to attribute.
+const DSR_MS = 2000
+const dsrTimer = setInterval(() => {
+  dsrSent++
+  process.stdout.write('\x1b[6n')
+  const since = lastDsrReplyAt === null ? null : Date.now() - lastDsrReplyAt
+  if (dsrSent > 1 && (lastDsrReplyAt === null || since > DSR_MS * 2)) {
+    note(`DSR UNANSWERED  sent=${dsrSent} answered=${seen.dsrReplies}` +
+      `  last reply ${since === null ? 'never' : since + 'ms ago'}`)
+  }
+}, DSR_MS)
+
+// --- what the operator sees -------------------------------------------------
+
+const statusTimer = setInterval(() => {
+  const left = Math.max(0, SECONDS - Math.round((Date.now() - t0) / 1000))
+  const line =
+    `\x1b[3;1H\x1b[2K  tmarchy visibility probe -- ${left}s left, then it exits` +
+    `\x1b[4;1H\x1b[2K  BACKGROUND THIS APP NOW, wait ~15s, come back.` +
+    `\x1b[5;1H\x1b[2K` +
+    `\x1b[6;1H\x1b[2K  focus events : in ${seen.focusIn}  out ${seen.focusOut}` +
+    `\x1b[7;1H\x1b[2K  DSR          : sent ${dsrSent}  answered ${seen.dsrReplies}` +
+    `\x1b[8;1H\x1b[2K  frames       : ${frames}   worst blocked write ${worstBlocked}ms` +
+    `\x1b[9;1H\x1b[2K` +
+    `\x1b[10;1H\x1b[2K  log: ${LOG}` +
+    `\x1b[11;1H\x1b[2K  q to stop early`
+  process.stdout.write(line)
+}, 500)
+
+// --- lifecycle --------------------------------------------------------------
+
+// Focus reporting on. Harmless where unsupported: a terminal that does not
+// know DECSET 1004 ignores it and simply never sends ESC[I / ESC[O, which this
+// probe reports as "not supported" rather than as a failure.
+process.stdout.write('\x1b[?1049h\x1b[?25l\x1b[2J\x1b[?1004h')
+
+let finished = false
+function finish(why) {
+  if (finished) return
+  finished = true
+  clearInterval(frameTimer); clearInterval(dsrTimer); clearInterval(statusTimer)
+  process.stdout.write('\x1b[?1004l\x1b[?25h\x1b[0m\x1b[?1049l')
+  try { process.stdin.setRawMode(false) } catch { /* already gone */ }
+
+  const verdict = []
+  verdict.push(seen.focusOut > 0
+    ? 'FOCUS EVENTS: supported -- this is the signal to use'
+    : 'focus events: never arrived (either unsupported, or not sent on background)')
+  verdict.push(seen.dsrReplies === 0
+    ? 'DSR: never answered at all -- unusable as a heartbeat here'
+    : `DSR: answered ${seen.dsrReplies}/${dsrSent} -- usable if the gaps line up with being backgrounded`)
+  verdict.push(worstBlocked > 1000
+    ? `BACKPRESSURE: writes blocked up to ${worstBlocked}ms -- the app stops reading when backgrounded`
+    : `backpressure: writes never blocked more than ${worstBlocked}ms -- the app keeps draining in the background`)
+
+  note(`probe end (${why})  frames=${frames}  worstBlocked=${worstBlocked}ms  worstGap=${worstGap}ms`)
+  for (const v of verdict) note(v)
+  try { fs.closeSync(logFd) } catch { /* already closed */ }
+
+  process.stdout.write(`\ntmarchy visibility probe -- ${why}\n\n`)
+  for (const v of verdict) process.stdout.write(`  ${v}\n`)
+  process.stdout.write(`\n  full log: ${LOG}\n\n`)
+  process.exit(0)
+}
+
+setTimeout(() => finish('time up'), SECONDS * 1000)
+process.on('SIGINT', () => finish('SIGINT'))
+process.on('SIGTERM', () => finish('SIGTERM'))
