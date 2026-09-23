@@ -231,6 +231,29 @@ else
             fail "narrow terminal cost ${ADAPT} KB/s against ${FIXED} at 20fps -- the frame-rate tier is not applying"
         fi
     fi
+
+    # 84 COLUMNS SPECIFICALLY, because that is what ShellFish on an iPhone
+    # reports and the boundary used to be at 80 -- so the device this whole
+    # exercise was about sat one tier too high and paid 294 MB/hour where the
+    # cheap tier costs 126 at the same size. An 80-column break passes every
+    # other check in this file, which is exactly why this one names a width.
+    #
+    # The ratio is what pins it, and the numbers are NOT what dividing the
+    # frame rate suggests: measured at 84x44, 20fps costs 70.7 KB/s, 12fps
+    # 55.4 and 6fps 35.4 -- ratios of 1.00, 0.78 and 0.50. Fewer frames each
+    # change more of the screen, so halving the rate is nothing like halving
+    # the bytes. 0.62 sits between the two tiers with room on both sides; a
+    # threshold picked from the frame rates alone would have been 0.30 and
+    # would have failed against correct code.
+    P_FIX=$(rate_at 84 44 --fps 20)
+    P_ADA=$(rate_at 84 44)
+    if [ "$P_FIX" -lt 0 ] || [ "$P_ADA" -lt 0 ]; then
+        fail "the saver died measuring the phone-width tier"
+    elif [ "$P_ADA" -lt "$((P_FIX * 62 / 100))" ]; then
+        ok "a phone-width terminal gets the cheap tier (${P_ADA} vs ${P_FIX} KB/s at 84 cols)"
+    else
+        fail "84 columns cost ${P_ADA} KB/s against ${P_FIX} at 20fps -- the cheap tier stops short of a phone"
+    fi
 fi
 
 # --- standalone, no tmux ----------------------------------------------------

@@ -321,10 +321,25 @@ shades and a merged neighbour costs nothing at all. Quantising to 16 cut a
 the widest tier rounds to 4 (64 levels per channel, past anything the eye
 resolves on a character grid) which is worth 1.7x on a desktop.
 
-**Frame rate by width**: 20fps at 120 columns or more, 12 at 80, 6 below.
+**Frame rate by width**: 20fps at 120 columns or more, 12 at 100, 6 below.
 `--fps N` overrides. Columns are an honest proxy for "small remote window" and
 nothing better is available to a process whose whole world is one tty; a
 formula over cell count would only dress the guess up as arithmetic.
+
+**The middle boundary is 100 because of a measurement, not because it is a
+round number.** ShellFish on an iPhone reports **84 columns**, so an
+80-column break put the device this whole exercise was about one tier too
+high: 294 MB/hour where the cheap tier costs 126 at the same size. That was
+larger than any other factor left. A window under a hundred columns is a small
+window, and the cost of being wrong the other way is a laptop split animating
+a little more coarsely.
+
+**Halving the frame rate does not halve the bytes.** Measured at 84x44: 20fps
+costs 70.7 KB/s, 12fps 55.4, 6fps 35.4 — ratios of 1.00, 0.78 and 0.50. Fewer
+frames each change more of the screen. Worth knowing before reaching for an
+even lower rate, and worth knowing when setting a test threshold: a bound
+derived from the frame rates alone would be 0.30 and would fail against
+correct code.
 
 **Motion is measured in time, not frames.** Everything in the renderers is
 tuned in frames — the morph cycle, the banner pulse, the rotation increments —
