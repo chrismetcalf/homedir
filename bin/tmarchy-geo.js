@@ -230,7 +230,13 @@ function pulseFor(busy) {
 const HOLD = 240                   // frames resting on a shape
 const BLEND = 140                  // frames morphing to the next
 
-function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, bottom = 0,
+// `step` is how many BASE_FPS frames this call represents. Everything below is
+// tuned in frames, so a saver drawing at 6fps has to advance four of them per
+// call or the solid simply rotates a third as fast -- cheaper and slower is
+// not the trade being made. Defaults to 1, so a caller that does not know
+// about frame rates gets exactly the old behaviour.
+function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, step = 1,
+  right = 0, bottom = 0,
   top: reserved = 0, points = [], pulse = { rate: 0, depth: 0 } }) {
   const cycle = HOLD + BLEND
   const idx = Math.floor(frame / cycle) % SHAPES.length
@@ -243,9 +249,9 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
   // multiplied angle would teleport whenever load changed, because the same
   // frame number would suddenly mean a different rotation.
   render.a = render.a || [0, 0, 0]
-  render.a[0] += spin * 0.019
-  render.a[1] += spin * 0.012
-  render.a[2] += spin * 0.006
+  render.a[0] += spin * step * 0.019
+  render.a[1] += spin * step * 0.012
+  render.a[2] += spin * step * 0.006
   const [rx, ry, rz] = render.a
 
   // The solid centres in what is LEFT of the pane: the panel takes the right
@@ -260,7 +266,7 @@ function render({ grid, rows, cols, frame, theme, fg, dim, spin = 1, right = 0, 
   // frame * rate would teleport the size the moment an agent started or
   // finished, because the same frame number would suddenly mean a different
   // point in the cycle.
-  render.breath = (render.breath || 0) + pulse.rate
+  render.breath = (render.breath || 0) + pulse.rate * step
   // Normalised so the PEAK equals the un-pulsed size rather than exceeding it.
   // Without this the solid grows past the room reserved for it at the top of
   // the swing and the rasteriser clips it against the pane edge, which reads

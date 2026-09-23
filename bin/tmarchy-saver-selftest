@@ -158,6 +158,81 @@ else
     fi
 fi
 
+# --- what a frame costs -----------------------------------------------------
+# A screensaver nobody is looking at is still a data bill. Measured on a real
+# backgrounded iPhone client, the original full-repaint renderer sent 305 KB/s
+# at 52x27 -- a gigabyte an hour, over a cellular link, for a picture that was
+# not on screen.
+#
+# Two ceilings rather than one, because two independent things keep it down and
+# a single number would let either rot:
+#
+#   at a FIXED 20fps, the renderer itself -- frame diffing plus colour
+#   quantisation. Losing either shows up here (measured: 170 KB/s without
+#   quantisation, 304 KB/s with neither) while the frame-rate tier hides it.
+#
+#   ADAPTIVE against that fixed rate, which is the tier logic. It cannot be
+#   caught by an absolute ceiling, because a tier that stopped working still
+#   passes any bound the 20fps renderer passes.
+#
+# Rates are measured through a real pty at a pinned size -- tmux is deliberately
+# not in the path, because tmux diffs on its own and would measure its work
+# rather than ours. That is also the honest configuration: a locked client runs
+# lock-command on its own tty with no tmux in between.
+rate_at() {  # $1 = cols, $2 = rows, rest = args; prints KB/s as an integer
+    python3 - "$1" "$2" "${@:3}" <<'PYEOF'
+import os, pty, fcntl, termios, struct, select, time, signal, sys
+cols, rows = int(sys.argv[1]), int(sys.argv[2])
+extra = sys.argv[3:]
+pid, fd = pty.fork()
+if pid == 0:
+    env = dict(os.environ); env.pop('TMUX', None); env.pop('TMUX_PANE', None)
+    os.execve(os.environ['SAVER'], ['tmarchy-saver', *extra], env)
+fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
+time.sleep(1.5)                      # past the first full repaint
+total, t0, died = 0, time.time(), False
+while time.time() - t0 < 6:
+    r, _, _ = select.select([fd], [], [], 0.2)
+    if r:
+        try:
+            chunk = os.read(fd, 1 << 20)
+            if not chunk: died = True; break
+            total += len(chunk)
+        except OSError: died = True; break
+el = time.time() - t0
+try: os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)
+except (ProcessLookupError, ChildProcessError): pass
+# A crashed child would otherwise divide a stack trace by a fraction of a
+# second and report a spectacular rate. It reports -1 instead.
+print(-1 if died or el < 5 else round(total / el / 1024))
+PYEOF
+}
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '  skip output rate (no python3)\n'
+else
+    export SAVER="$ROOT/bin/tmarchy-saver"
+    FIXED=$(rate_at 52 27 --fps 20)
+    ADAPT=$(rate_at 52 27)
+    CEIL=110
+    if [ "$FIXED" -lt 0 ] || [ "$ADAPT" -lt 0 ]; then
+        fail "the saver died during the rate measurement"
+    else
+        if [ "$FIXED" -le "$CEIL" ]; then
+            ok "renderer stays under ${CEIL} KB/s at 52x27 (${FIXED} KB/s at a fixed 20fps)"
+        else
+            fail "renderer sends ${FIXED} KB/s at 52x27, ceiling ${CEIL} -- diffing or colour quantisation is gone"
+        fi
+        # Generous ratio: the point is that the tier does SOMETHING, not to pin
+        # a particular frame rate, and a loaded box adds noise to both numbers.
+        if [ "$ADAPT" -lt "$((FIXED * 3 / 4))" ]; then
+            ok "a narrow terminal costs less than a fixed 20fps (${ADAPT} vs ${FIXED} KB/s)"
+        else
+            fail "narrow terminal cost ${ADAPT} KB/s against ${FIXED} at 20fps -- the frame-rate tier is not applying"
+        fi
+    fi
+fi
+
 # --- standalone, no tmux ----------------------------------------------------
 # The saver is an ordinary program, not a tmux feature. These run it through a
 # pty with TMUX scrubbed from the environment, because "works outside tmux" is
@@ -171,7 +246,15 @@ kiosk_frames() { # $1 = flags, $2 = key sent partway through
     ( sleep 2; printf '%s' "$2"; sleep 2 ) |
         env -u TMUX -u TMUX_PANE timeout 12 script -qfec "$ROOT/bin/tmarchy-saver $1" "$raw" \
         >/dev/null 2>&1
-    python3 -c "import sys; print(open(sys.argv[1],'rb').read().count(b'\x1b[1;1H'))" "$raw"
+    # Count CURSOR ADDRESSES, not cursor-HOME. The renderer used to repaint
+    # every row from column 1 and so emitted ESC[1;1H once per frame; it now
+    # emits ESC[y;xH once per changed run, and the first run of a frame rarely
+    # starts at the top-left. Counting homes therefore returned 1 for every run
+    # -- a live one and a killed one alike -- which made both kiosk checks
+    # vacuous rather than failing: they compared 1 against 1. Any address works
+    # as a liveness proxy, because a run that kept drawing emits thousands and
+    # one that was killed emits a handful.
+    python3 -c "import sys,re; print(len(re.findall(rb'\x1b\[[0-9]+;[0-9]+H', open(sys.argv[1],'rb').read())))" "$raw"
 }
 
 if ! command -v script >/dev/null; then

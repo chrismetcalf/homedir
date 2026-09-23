@@ -270,3 +270,64 @@ test('a theme without an accent-alt degrades to its accent', () => {
   assert.deepStrictEqual([...seen], ['#7aa2f7'],
     `every tone should be the accent, got ${[...seen].join(' ')}`)
 })
+
+// --- motion is measured in TIME, not in frames ------------------------------
+
+// The saver drops its frame rate on a small terminal, because a frame costs
+// roughly its cell count in bytes and a phone pays for those. Everything here
+// is tuned in frames, though, so a lower rate has to advance MORE per call or
+// the picture does not get cheaper, it gets slow: at 6fps the solid would
+// rotate at less than a third of its speed. `step` is how many BASE_FPS frames
+// one call represents, and the invariant is that a second of wall clock turns
+// the solid by the same angle at any rate.
+//
+// Sabotage: in tmarchy-geo.js drop the `* step` from the three `render.a[i] +=`
+// lines -- the 6fps run then turns 3.3x less far in the same second and this
+// fails. (Dropping it from the breath line instead is caught by the sibling
+// test below, so neither stands in for the other.)
+function turnedInOneSecond(fps) {
+  const rows = 30, cols = 80
+  const step = 20 / fps
+  geo.render.a = [0, 0, 0]
+  for (let i = 0; i < fps; i++) {
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    geo.render({ grid, rows, cols, frame: i * step, theme, fg: noColour, dim: noColour,
+      spin: 1, step, pulse: { rate: 0, depth: 0 } })
+  }
+  return geo.render.a[0]
+}
+
+test('the solid turns the same amount per second at any frame rate', () => {
+  const full = turnedInOneSecond(20)
+  const slow = turnedInOneSecond(6)
+  assert.ok(full > 0, 'sanity: the solid must actually be turning')
+  assert.ok(Math.abs(full - slow) < 1e-9,
+    `a second should turn the same angle at any rate: 20fps ${full}, 6fps ${slow}`)
+})
+
+// The breath is the other accumulator, and it needs the same treatment for the
+// same reason -- a phone would otherwise show a solid breathing three times
+// too slowly, which reads as a different (and wrong) agent count.
+//
+// Sabotage: in tmarchy-geo.js drop the `* step` from the `render.breath` line
+// -- the two rates diverge and this fails. Independent of the rotation test
+// above: removing either `* step` leaves the other's assertion passing.
+function breathedInOneSecond(fps) {
+  const rows = 30, cols = 80
+  const step = 20 / fps
+  geo.render.breath = 0
+  for (let i = 0; i < fps; i++) {
+    const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    geo.render({ grid, rows, cols, frame: i * step, theme, fg: noColour, dim: noColour,
+      spin: 0, step, pulse: { rate: 0.05, depth: 0.05 } })
+  }
+  return geo.render.breath
+}
+
+test('the solid breathes at the same rate per second at any frame rate', () => {
+  const full = breathedInOneSecond(20)
+  const slow = breathedInOneSecond(6)
+  assert.ok(full > 0, 'sanity: the breath must actually be advancing')
+  assert.ok(Math.abs(full - slow) < 1e-9,
+    `a second should breathe the same phase at any rate: 20fps ${full}, 6fps ${slow}`)
+})

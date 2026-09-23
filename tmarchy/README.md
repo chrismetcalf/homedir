@@ -285,6 +285,59 @@ property of those surfaces, not a gap in the contract: `lib/agents.js` is a
 plain `readProviders()` that any of them can concatenate the day it has
 something sensible to do with an agent that is not somewhere you can go.
 
+## What a frame costs
+
+The screensaver is a 20fps full-screen animation, and on a remote client that
+is a data bill. Measured on a real backgrounded iPhone client over Tailscale:
+**305 KB/s at 52x27 — a gigabyte an hour**, for a picture that was not on
+screen. Three things now keep it down, and they are independent:
+
+| | 52x27 | 209x61 |
+|---|---|---|
+| before | 1068 MB/hr | 4340 MB/hr |
+| after | **92 MB/hr** | **1868 MB/hr** |
+
+**Frame diffing** (`writeFrame` in `bin/tmarchy-saver`). Only changed cells are
+emitted. SGR state is terminal-global and survives cursor moves, so the
+background is set once per full repaint and a foreground only when it actually
+changes; nothing is reset mid-frame, because a reset would clear the
+background too. A blank cell never sets a colour — a space shows no
+foreground, and blanks are most of what changes as the solid turns.
+
+tmux already does this for a pane: the same content through a pane reached a
+client at 37.8 KB/s against 303.7 direct, eight times less. But **tmux is not
+in the path for the case that matters** — a locked client runs `lock-command`
+with its own tty as stdin and stdout (verified: the tty the lock command sees
+is the device `list-clients` reports), so for the screensaver nothing is
+diffing anything.
+
+**Colour quantisation** is the biggest lever, and that is not obvious.
+Measured on one frame at 52x27: **81% of the bytes are colour escapes**, and a
+frame emits ~250 of them for only ~76 distinct colours — the same colours
+re-established over and over, because a shaded solid scanned row by row puts a
+different face in every few cells. Rounding the channels merges neighbouring
+shades and a merged neighbour costs nothing at all. Quantising to 16 cut a
+20fps phone-sized frame from 170 to 61 KB/s. It is tiered by width, and even
+the widest tier rounds to 4 (64 levels per channel, past anything the eye
+resolves on a character grid) which is worth 1.7x on a desktop.
+
+**Frame rate by width**: 20fps at 120 columns or more, 12 at 80, 6 below.
+`--fps N` overrides. Columns are an honest proxy for "small remote window" and
+nothing better is available to a process whose whole world is one tty; a
+formula over cell count would only dress the guess up as arithmetic.
+
+**Motion is measured in time, not frames.** Everything in the renderers is
+tuned in frames — the morph cycle, the banner pulse, the rotation increments —
+so a lower rate has to advance *more* per call or the picture does not get
+cheaper, it gets slow: at 6fps the solid would turn at less than a third of
+its speed. `step` (how many 20fps frames one call represents) scales the
+accumulators, and `tmarchy/test/saver-geo.test.js` asserts a second of wall
+clock turns and breathes the same amount at any rate.
+
+What did **not** work, so nobody re-derives it: bridging short unchanged gaps
+to avoid cursor jumps. Cursor addresses are only 6% of the bytes, and a sweep
+from 0 to 32 cells of bridging moved the total by less than 1%.
+
 ## Running the tests
 
 Two independent suites:

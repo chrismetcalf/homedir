@@ -60,6 +60,14 @@ if (flag('--help', '-h')) {
 }
 
 const KIOSK = flag('--kiosk', '-k')
+// --fps N, where N is 1..60. A bad value is ignored rather than fatal: this is
+// a screensaver, and refusing to lock the screen over a typo is the worse
+// failure.
+const FPS_FLAG = (() => {
+  const i = ARGS.indexOf('--fps')
+  const n = i >= 0 ? Number(ARGS[i + 1]) : NaN
+  return Number.isFinite(n) && n >= 1 && n <= 60 ? Math.round(n) : 0
+})()
 const MODE = ARGS.map((a) => a.replace(/^--?/, '')).find((a) => MODES.includes(a)) || 'geo'
 let geo = null
 try { geo = require(path.join(__dirname, 'tmarchy-geo.js')) } catch { /* rain still works */ }
@@ -67,8 +75,43 @@ let panel = null
 try { panel = require(path.join(__dirname, 'tmarchy-panel.js')) } catch { /* panel is optional */ }
 let ping = null
 try { ping = require(path.join(__dirname, 'tmarchy-ping.js')) } catch { /* reachability is optional */ }
-const FPS = 20
-const TICK = Math.round(1000 / FPS)
+// FRAME RATE FOLLOWS THE TERMINAL, because the cost does. A frame costs
+// roughly its cell count in bytes, so a 20fps full-rate animation that is
+// invisible on a desktop over a LAN is a gigabyte an hour on a phone over a
+// cellular link -- measured, on a real client: 305 KB/s to a backgrounded
+// iPhone at 52x27, which is the saver's entire output and nothing else.
+//
+// Tiers rather than a formula. The honest signal here is "is this a small
+// remote window", and columns are the only proxy available to a process whose
+// whole world is one tty -- a formula over cell count would dress that guess
+// up as arithmetic. --fps overrides it for anyone who wants the full rate on a
+// small screen, and for tests that need a known rate.
+const BASE_FPS = 20                // what the animation's constants are tuned for
+function fpsFor(width) {
+  if (FPS_FLAG) return FPS_FLAG
+  if (width >= 120) return BASE_FPS
+  if (width >= 80) return 12
+  return 6
+}
+let FPS = BASE_FPS
+let TICK = Math.round(1000 / FPS)
+// How far the animation advances per tick, in BASE_FPS frames. Everything that
+// moves is tuned in frames -- the morph cycle, the banner pulse, the rotation
+// increments -- so dropping the frame rate without this does not make the
+// picture cheaper, it makes it SLOW: a 6fps saver would rotate at a third of
+// the speed rather than showing the same motion in fewer steps.
+let STEP = BASE_FPS / FPS
+// Same tiers as the frame rate and the same reasoning: a wide window is a
+// cheap one and keeps the theme's exact colours, which were hand-matched
+// across the bar, nvim, bat and the prompt and should not be rounded off on a
+// desktop that is not paying for bytes.
+// Even the widest tier quantises a little. 4 leaves 64 levels per channel,
+// which is past anything the eye resolves on a character grid, and it is worth
+// 1.7x on a desktop-sized window -- measured 3355 -> 1924 MB/hour at 209x61.
+// The reason to stop there rather than go further is the theme: these colours
+// were hand-matched across the bar, nvim, bat and the prompt, and a client not
+// paying for bytes should not have them rounded off for nothing.
+function quantFor(width) { return width >= 120 ? 4 : width >= 80 ? 8 : 16 }
 // Real data changes on human timescales; re-reading it every frame would spend
 // the whole budget on syscalls for numbers that move once a minute.
 const DATA_EVERY = 2000
@@ -82,10 +125,20 @@ const CPU_EVERY = 1000
 // The same two spellings bin/lib/tmux-theme.sh handles: eight themes are
 // #rrggbb, jewel is 256-colour colourNNN. Anything else yields no escape at
 // all rather than a broken one, exactly as ansi_for does.
+// Colour QUANTISATION, the single biggest lever on what a frame costs.
+// Measured at 52x27: 81% of a frame's bytes are colour escapes, and a frame
+// emits ~250 of them for only ~76 distinct colours -- the same colours
+// re-established over and over, because a shaded solid scanned row by row puts
+// a different face in every few cells. Rounding channels merges neighbouring
+// shades, and a merged neighbour costs no escape at all.
+let QUANT = 1
+function setQuant(n) { QUANT = Math.max(1, n | 0) }
+const qz = (v) => (QUANT <= 1 ? v : Math.min(255, Math.round(v / QUANT) * QUANT))
+
 function fg(value) {
   if (!value) return ''
   const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value)
-  if (hex) return `\x1b[38;2;${parseInt(hex[1], 16)};${parseInt(hex[2], 16)};${parseInt(hex[3], 16)}m`
+  if (hex) return `\x1b[38;2;${qz(parseInt(hex[1], 16))};${qz(parseInt(hex[2], 16))};${qz(parseInt(hex[3], 16))}m`
   const idx = /^colou?r(\d{1,3})$/.exec(value)
   if (idx) return `\x1b[38;5;${idx[1]}m`
   return ''
@@ -95,7 +148,7 @@ function fg(value) {
 function dim(value, factor) {
   const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value || '')
   if (!hex) return fg(value)
-  const c = [1, 2, 3].map((i) => Math.round(parseInt(hex[i], 16) * factor))
+  const c = [1, 2, 3].map((i) => qz(Math.round(parseInt(hex[i], 16) * factor)))
   return `\x1b[38;2;${c[0]};${c[1]};${c[2]}m`
 }
 
@@ -338,6 +391,113 @@ function makeColumn(rows) {
   }
 }
 
+// The ground is TRUE BLACK, painted by us rather than inherited: the alt
+// screen otherwise shows through to the emulator's own background, so one
+// session looked like three different screensavers depending on which client
+// was attached. Module scope because the frame writer needs it too -- it is
+// re-established on a full repaint and then left alone.
+const BG = '\x1b[48;2;0;0;0m'
+
+// ----------------------------------------------------------- frame writer ----
+// Emit only the cells that CHANGED, and only the colour escapes that changed
+// with them.
+//
+// This is the difference between a screensaver and a data bill. Measured on a
+// real backgrounded iPhone client at 52x27, the full repaint this replaced
+// cost 305 KB/s -- a gigabyte an hour -- while only 17.6% of cells differ
+// between consecutive frames.
+//
+// tmux already does exactly this for a pane: the same content through a pane
+// reached a client at 37.8 KB/s, eight times less. But tmux is NOT in the path
+// for the case that actually hurts. A locked client runs `lock-command` with
+// that client's own tty as stdin and stdout -- verified, the tty the lock
+// command sees is the device `list-clients` reports -- so for the screensaver
+// nothing is diffing anything, and this is the only thing that can.
+//
+// Two details make it cheap rather than merely correct:
+//
+//   SGR state is terminal-global and SURVIVES CURSOR MOVES, so the background
+//   is set once per full repaint and a foreground only when it actually
+//   changes. Nothing is reset mid-frame: a reset would clear the background
+//   too, and then every following cell would have to re-establish it. (The old
+//   code reset at the end of every row, which is why it re-emitted BG at the
+//   start of every row.)
+//
+//   A BLANK cell never changes the colour. A space shows no foreground, so
+//   emitting one for it is bytes spent on nothing -- and blanks are most of
+//   what changes as the rain falls and the solid turns.
+let prevGrid = null
+let curSgr = null
+
+function invalidateFrame() { prevGrid = null }
+
+// A cell is `sgrPrefix + oneCharacter`, which is how every drawing site in
+// this file and in tmarchy-{geo,panel}.js builds one. Split rather than
+// requiring them all to hand over a pair: the contract is already established
+// across three files, and only the cells that changed are ever parsed.
+const CELL_RE = /^((?:\x1b\[[0-9;]*m)*)([\s\S]*)$/
+// How many unchanged cells are worth redrawing to avoid a cursor jump. Tuned
+// by measurement, not by argument -- see the sweep in the commit message.
+const GAP = Number(process.env.TMARCHY_SAVER_GAP) || 8
+
+function writeFrame(out, grid, rows, cols) {
+  let full = false
+  if (!prevGrid || prevGrid.length !== rows || prevGrid[0].length !== cols) {
+    prevGrid = Array.from({ length: rows }, () => new Array(cols).fill(null))
+    full = true
+  }
+  const buf = []
+  // Re-establish the background on a full repaint only. On an incremental one
+  // it is still set from last time, because nothing since has reset it.
+  if (full) { buf.push(BG); curSgr = null }
+
+  for (let y = 0; y < rows; y++) {
+    const row = grid[y]
+    const prow = prevGrid[y]
+    const at = (i) => (row[i] === null ? ' ' : row[i])
+    let x = 0
+    while (x < cols) {
+      while (x < cols && !full && prow[x] === at(x)) x++   // skip to the next change
+      if (x >= cols) break
+
+      // Extend the run THROUGH short unchanged gaps rather than stopping at
+      // each one. A cursor address costs seven or eight bytes and an unchanged
+      // cell costs one, so jumping over a three-cell gap spends more than
+      // redrawing it -- and the first version of this did exactly that, which
+      // is why diffing alone only bought 1.9x when tmux gets 8x on the same
+      // content. Bridging also lengthens runs, which is what lets the colour
+      // coalescing below actually pay: scattered single cells change colour
+      // almost every time.
+      const start = x
+      let last = x
+      let i = x
+      while (i < cols) {
+        if (full || prow[i] !== at(i)) last = i
+        else if (i - last > GAP) break
+        i++
+      }
+
+      // Cursor addressing rather than newlines: writing into the LAST column
+      // auto-wraps, so a trailing newline lands a row further down than
+      // intended -- every other line blank, and the HUD shoved sideways.
+      buf.push(`\x1b[${y + 1};${start + 1}H`)
+      for (let j = start; j <= last; j++) {
+        const c = at(j)
+        const m = CELL_RE.exec(c)
+        const ch = m[2]
+        if (ch !== ' ') {
+          const sgr = m[1] || '\x1b[39m'       // no colour of its own: default fg
+          if (sgr !== curSgr) { buf.push(sgr); curSgr = sgr }
+        }
+        buf.push(ch)
+        prow[j] = c
+      }
+      x = last + 1
+    }
+  }
+  if (buf.length) out.write(buf.join(''))
+}
+
 // ---------------------------------------------------------------- banner ----
 // The one thing allowed to sit over the middle of the pane.
 //
@@ -440,6 +600,12 @@ function main() {
   let cols = out.columns || 80
   let rows = out.rows || 24
   let columns = Array.from({ length: cols }, () => makeColumn(rows))
+  // TWO counters, and the split is load-bearing. `ticks` is real timer
+  // firings and drives the data/CPU sampling, which is wall-clock work.
+  // `frame` is the animation clock measured in BASE_FPS frames, advanced by
+  // STEP, so every renderer's frame-tuned timing keeps its real-world speed
+  // whatever rate we are actually drawing at.
+  let ticks = 0
   let frame = 0
 
   // Mouse reporting, so a CLICK dismisses the saver the way a keypress does.
@@ -469,7 +635,6 @@ function main() {
   // reset (which the foreground colours need) and that clears the background
   // too. Cheap: one escape per row, not per cell -- the per-cell escapes only
   // ever set a foreground, so the row's background survives them.
-  const BG = '\x1b[48;2;0;0;0m'
   const MOUSE_ON = '\x1b[?1000h\x1b[?1006h'
   const MOUSE_OFF = '\x1b[?1006l\x1b[?1000l'
 
@@ -555,14 +720,20 @@ function main() {
     rows = out.rows || 24
     columns = Array.from({ length: cols }, () => makeColumn(rows))
     out.write(BG + '\x1b[2J')
+    // The diff's memory of the screen is now wrong in both dimensions, so the
+    // next frame has to be a full repaint rather than a set of edits against a
+    // screen that no longer exists.
+    invalidateFrame()
+    retime()                                   // a narrower window is a cheaper one
   })
 
   const stateColour = (s) =>
     s === 'wait' ? theme.wait : s === 'busy' ? theme.busy : s === 'done' ? theme.done : theme.dim
 
-  setInterval(() => {
-    frame++
-    if (frame % Math.round(DATA_EVERY / TICK) === 0) {
+  const onTick = () => {
+    ticks++
+    frame += STEP
+    if (ticks % Math.max(1, Math.round(DATA_EVERY / TICK)) === 0) {
       data = readData()
       theme = loadTheme()                       // switch theme and the rain follows
       if (panel) stats = panel.read()
@@ -572,14 +743,18 @@ function main() {
           data.agents.filter((a) => a.state === 'wait' && a.key), Date.now())
       }
     }
-    if (panel && frame % Math.round(CPU_EVERY / TICK) === 0) {
+    if (panel && ticks % Math.max(1, Math.round(CPU_EVERY / TICK)) === 0) {
       // The gauge shows the sampler's newest reading rather than waiting for the
       // next data tick, so the CPU number and the graph's right edge agree.
       const c = panel.sampleCpu()
       if (c !== null && stats) stats.cpu = c
     }
 
-    const buf = []
+    // The renderers' timing is written in whole BASE_FPS frames -- morph
+    // cycles, blink phases, the banner pulse -- so they get an integer frame
+    // number that advances in STEP-sized jumps rather than the fractional
+    // clock the accumulating motion needs.
+    const aframe = Math.floor(frame)
 
     const grid = Array.from({ length: rows }, () => new Array(cols).fill(null))
 
@@ -599,7 +774,7 @@ function main() {
     // --- the alert banner ---------------------------------------------------
     // Drawn FIRST so the solid can be told to start below it, rather than being
     // drawn over afterwards and leaving a hole in the shape.
-    const bannerH = drawBanner(grid, rows, cols, mainW, frame, theme, sticky, Date.now(), data.agents)
+    const bannerH = drawBanner(grid, rows, cols, mainW, aframe, theme, sticky, Date.now(), data.agents)
 
     // Hosts pinned to the solid like cities on a globe. REAL addresses, not
     // invented ones: these are the machines this box actually talks to, carrying
@@ -626,7 +801,8 @@ function main() {
       // Spin tracks the machine's load; the breath tracks how many agents are
       // actually working. Two different questions, so two different signals --
       // a box can be busy with one agent or idle with six waiting.
-      geo.render({ grid, rows, cols, frame, theme, fg, dim, spin, right,
+      geo.render({ grid, rows, cols, frame: aframe, theme, fg, dim, spin,
+        step: STEP, right,
         bottom: graphH, top: bannerH, points, pulse: geo.pulseFor(data.busy) })
     }
 
@@ -634,7 +810,7 @@ function main() {
     if (MODE === 'rain' || !geo) columns.forEach((col, x) => {
       if (x >= mainW) return                    // leave the panel's columns alone
       const bannerFloor = bannerH
-      col.y += col.speed
+      col.y += col.speed * STEP
       if (col.y - col.len > rows) Object.assign(col, makeColumn(rows), { y: -col.len })
       const head = Math.floor(col.y)
       for (let i = 0; i < col.len; i++) {
@@ -642,7 +818,7 @@ function main() {
         if (y < bannerFloor || y >= rows) continue
         const ch = col.word && i < col.word.length
           ? col.word[col.word.length - 1 - i]
-          : GLYPHS[(x * 31 + y * 17 + Math.floor(frame / 3)) % GLYPHS.length]
+          : GLYPHS[(x * 31 + y * 17 + Math.floor(aframe / 3)) % GLYPHS.length]
         // Head is bright, tail fades to nothing: the whole trick of the effect.
         const colour = i === 0 ? fg(theme.fg)
           : col.word ? fg(theme.info)
@@ -663,7 +839,7 @@ function main() {
 
     // --- telemetry panel ---------------------------------------------------
     if (right) {
-      panel.render({ grid, rows, cols, frame, theme, fg, dim,
+      panel.render({ grid, rows, cols, frame: aframe, theme, fg, dim,
         stats, agents: data.agents, claude: data.claude,
         // The panel gets a SHORT ssh list: its rows are a display budget, while
         // the globe above pins every tracked host. Without this the panel would
@@ -672,18 +848,21 @@ function main() {
         meta: { theme: theme.name, host: data.host, uptimeHours: data.up } })
     }
 
-    // Address each row explicitly rather than ending lines with a newline.
-    // Writing into the LAST column auto-wraps the cursor, so a trailing newline
-    // then lands a row further down than intended -- which paints every other
-    // line blank and shoves the HUD sideways. Cursor addressing makes the wrap
-    // harmless because the next row starts from a known position regardless.
-    for (let y = 0; y < rows; y++) {
-      buf.push(`\x1b[${y + 1};1H` + BG)
-      for (let x = 0; x < cols; x++) buf.push(grid[y][x] === null ? ' ' : grid[y][x])
-      buf.push('\x1b[0m')
-    }
-    out.write(buf.join(''))
-  }, TICK)
+    writeFrame(out, grid, rows, cols)
+  }
+
+  // The timer is restartable because the frame rate is a function of the
+  // terminal's width, and the terminal can be resized under us.
+  let timer = null
+  const retime = () => {
+    FPS = fpsFor(cols)
+    setQuant(Number(process.env.TMARCHY_SAVER_QUANT) || quantFor(cols))
+    TICK = Math.round(1000 / FPS)
+    STEP = BASE_FPS / FPS
+    if (timer) clearInterval(timer)
+    timer = setInterval(onTick, TICK)
+  }
+  retime()
 }
 
 main()
