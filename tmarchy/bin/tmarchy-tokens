@@ -1,0 +1,282 @@
+#!/usr/bin/env node
+// tmarchy-tokens — how many tokens this machine has spent recently, summed from
+// Claude Code's OWN transcripts.
+//
+// The sibling of tmarchy-usage, and it exists because that one cannot work
+// everywhere. tmarchy-usage reads plan utilisation from GET /api/oauth/usage,
+// authenticated with the OAuth token in ~/.claude/.credentials.json. On a host
+// authenticated per-token (an API key rather than a subscription login) that
+// file does not exist at all, so the plan percentage is not merely stale, it is
+// unobtainable — and a plan percentage is the wrong question there anyway, since
+// per-token billing has no five-hour window to be 82% through.
+//
+// What that host does have is every transcript Claude Code has ever written.
+// ~/.claude/projects/<slug>/<session>.jsonl is one JSON object per line, and
+// each assistant message carries `message.usage` alongside a timestamp. Summing
+// those over a rolling window is a direct measurement of what was actually
+// spent, with no endpoint to depend on and nothing undocumented to break.
+//
+// Runs OUT of band, exactly as tmarchy-usage does and for a stronger reason:
+// this walks hundreds of files. The tick spawns it detached when the cache goes
+// stale and reads only the JSON it leaves behind. It must never run inside a
+// redraw.
+//
+// Two counting traps, both of which produce confidently wrong numbers:
+//
+//   - Records REPEAT. Claude Code appends a line per streaming update, so one
+//     assistant turn appears several times with the same `message.id`, a fresh
+//     `uuid` and identical usage. Measured here: three lines per message, which
+//     would inflate every total by ~3x. Dedup is on `message.id`, keeping the
+//     LARGEST total seen for that id, since an early snapshot can be partial.
+//
+//   - Subagent turns are real spend. `isSidechain: true` marks a Task subagent's
+//     messages; they are billed like any other and are deliberately counted. A
+//     window running six background agents is exactly when the number matters.
+'use strict'
+
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const readline = require('node:readline')
+
+const PROJECTS = process.env.TMARCHY_CLAUDE_PROJECTS ||
+  path.join(os.homedir(), '.claude', 'projects')
+const STATE_DIR = process.env.TMARCHY_STATE_DIR ||
+  path.join(os.homedir(), '.local', 'state', 'tmarchy')
+const CACHE = path.join(STATE_DIR, 'claude-tokens.json')
+
+// The windows the bar shows. `1h` is "what is this session costing me right
+// now", `12h` is "what has today cost" — a working day, without the arbitrary
+// midnight boundary a calendar-day total would have.
+const WINDOWS = { '1h': 60 * 60 * 1000, '12h': 12 * 60 * 60 * 1000 }
+const MAX_WINDOW = Math.max(...Object.values(WINDOWS))
+
+// The four categories, in the order they are worth looking at.
+const CATEGORIES = ['input', 'output', 'cache_creation', 'cache_read']
+
+function categorise(u) {
+  return {
+    input: (u && u.input_tokens) || 0,
+    output: (u && u.output_tokens) || 0,
+    cache_creation: (u && u.cache_creation_input_tokens) || 0,
+    cache_read: (u && u.cache_read_input_tokens) || 0,
+  }
+}
+
+// Every category, per the plain reading of "tokens used". A cache read is a
+// token the model processed, and on per-token billing it is a token charged
+// for, merely charged less.
+//
+// Know what this number is before reading it: cache reads DOMINATE, and not by
+// a little. Measured over one hour on this host -- 138M cache read, 6.6M cache
+// creation, 779k output, 7k input. So ~95% of the headline is context being
+// re-read, which scales with how long the conversations are rather than with
+// how hard anything is working. The per-category split is kept in the cache
+// (and printed by --doctor) rather than thrown away precisely because of that:
+// it is what makes the headline interpretable, and it means changing which
+// basis the bar shows is a one-line edit rather than a re-scan.
+function totalTokens(u) {
+  const c = categorise(u)
+  return c.input + c.output + c.cache_creation + c.cache_read
+}
+
+// Every *.jsonl under the projects root, at ANY depth.
+//
+// Recursive rather than the obvious projects/<slug>/<session>.jsonl scan, and
+// that is not future-proofing — it is the difference between a right and a
+// wrong number today. A subagent's turns are written to
+// <slug>/<session>/subagents/agent-<id>.jsonl, and a workflow's to
+// <slug>/<session>/subagents/workflows/<wf>/agent-<id>.jsonl. Measured here:
+// 440 transcripts, of which only 45 sit at the top level. A one-level walk
+// finds a tenth of the files and misses every subagent, i.e. it under-reports
+// hardest exactly when a fan-out is burning the most tokens — the case the
+// meter is for. Worse, it fails silently: the number still looks plausible.
+//
+// Symlinked directories are not followed. isDirectory() is false for a symlink,
+// so this is the default rather than a check, and it is the right default: the
+// tree is Claude Code's own and a link into it could only be a loop or a
+// duplicate, either of which would cost more than it could add.
+function* transcripts(root) {
+  let entries
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true })
+  } catch {
+    return // no projects dir: a host that has never run Claude Code
+  }
+  for (const entry of entries) {
+    const full = path.join(root, entry.name)
+    if (entry.isDirectory()) yield* transcripts(full)
+    else if (entry.isFile() && entry.name.endsWith('.jsonl')) yield full
+  }
+}
+
+// Line-at-a-time rather than readFileSync: a long-running session's transcript
+// runs to tens of megabytes, and there are hundreds of them. Reading each one
+// whole would spike memory for no benefit, since every line is discarded
+// immediately after it is summed.
+function eachLine(file, onLine) {
+  return new Promise((resolve) => {
+    let rl
+    try {
+      rl = readline.createInterface({
+        input: fs.createReadStream(file, { encoding: 'utf8' }),
+        crlfDelay: Infinity,
+      })
+    } catch {
+      resolve()
+      return
+    }
+    rl.on('line', onLine)
+    rl.on('close', resolve)
+    // A truncated or unreadable file is skipped, not fatal: this is a
+    // background job and one bad transcript must not cost the whole reading.
+    rl.on('error', () => resolve())
+    rl.input.on('error', () => { try { rl.close() } catch { /* already gone */ } })
+  })
+}
+
+// `root` is a parameter rather than only the PROJECTS constant so the tests can
+// point it at a fixture tree. The env var stays too: it is what lets a run be
+// sandboxed from the outside, which tmarchy-theme-selftest learned to do the
+// hard way after three of its sync calls rewrote the real state file.
+async function scan(now = Date.now(), root = PROJECTS) {
+  const cutoff = now - MAX_WINDOW
+  // id -> { ts, total }. Held for the whole scan because duplicate lines of one
+  // message can straddle a chunk boundary; bounded by messages in the window,
+  // not by transcript size.
+  const seen = new Map()
+  let scanned = 0
+  let skipped = 0
+
+  for (const file of transcripts(root)) {
+    let st
+    try {
+      st = fs.statSync(file)
+    } catch {
+      continue
+    }
+    // A file not written since the cutoff cannot hold a record inside the
+    // window: its newest line is at least as old as its mtime. This is what
+    // keeps the scan proportional to recent activity rather than to history —
+    // 429 transcripts here, of which only the day's worth are ever opened.
+    if (st.mtimeMs < cutoff) {
+      skipped++
+      continue
+    }
+    scanned++
+
+    await eachLine(file, (line) => {
+      if (!line) return
+      let rec
+      try {
+        rec = JSON.parse(line)
+      } catch {
+        return // a partially-flushed final line is normal on a live session
+      }
+      const usage = rec && rec.message && rec.message.usage
+      if (!usage) return
+      const ts = Date.parse(rec.timestamp)
+      if (!Number.isFinite(ts) || ts < cutoff) return
+      const total = totalTokens(usage)
+      if (!total) return
+      // Fall back to uuid only if a record has no message.id; without a stable
+      // key the safe move is to count it once on its own.
+      const id = (rec.message && rec.message.id) || rec.uuid
+      if (!id) return
+      const prev = seen.get(id)
+      if (!prev || total > prev.total) seen.set(id, { ts, total, by: categorise(usage) })
+    })
+  }
+
+  const windows = {}
+  const breakdown = {}
+  for (const name of Object.keys(WINDOWS)) {
+    windows[name] = 0
+    breakdown[name] = Object.fromEntries(CATEGORIES.map((c) => [c, 0]))
+  }
+  for (const { ts, total, by } of seen.values()) {
+    for (const [name, span] of Object.entries(WINDOWS)) {
+      if (now - ts > span) continue
+      windows[name] += total
+      for (const c of CATEGORIES) breakdown[name][c] += by[c]
+    }
+  }
+
+  return {
+    windows,
+    breakdown,
+    messages: seen.size,
+    files_scanned: scanned,
+    files_skipped: skipped,
+  }
+}
+
+// Atomic, for the same reason tmarchy-usage is: the segment may read this at any
+// moment and a half-written file is a parse error rather than a stale value.
+function writeCache(obj) {
+  fs.mkdirSync(STATE_DIR, { recursive: true })
+  const tmp = `${CACHE}.${process.pid}`
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), { mode: 0o600 })
+  fs.renameSync(tmp, CACHE)
+}
+
+async function refresh(now = Date.now()) {
+  // Always writes, even on failure — fetched_at is what the segment's staleness
+  // check uses to decide whether to spawn again, so a failed run that wrote
+  // nothing would respawn on every single tick.
+  const record = { fetched_at: now, ok: false, error: null, windows: {} }
+  try {
+    const result = await scan(now)
+    Object.assign(record, result)
+    record.ok = true
+  } catch (e) {
+    record.error = e.message
+  }
+  writeCache(record)
+  return record
+}
+
+function doctor(record) {
+  const age = record.fetched_at ? Math.round((Date.now() - record.fetched_at) / 1000) : null
+  process.stdout.write('tmarchy-tokens doctor\n\n')
+  process.stdout.write(`  projects       ${fs.existsSync(PROJECTS) ? PROJECTS : 'MISSING ' + PROJECTS}\n`)
+  process.stdout.write(`  cache          ${CACHE}\n`)
+  process.stdout.write(`  scanned        ${age === null ? 'never' : age + 's ago'}\n`)
+  process.stdout.write(`  ok             ${record.ok}\n`)
+  process.stdout.write(`  error          ${record.error || 'none'}\n`)
+  process.stdout.write(`  files          ${record.files_scanned || 0} read, ${record.files_skipped || 0} too old to matter\n`)
+  process.stdout.write(`  messages       ${record.messages || 0} (deduped by message.id)\n`)
+  const names = Object.keys(record.windows || {})
+  process.stdout.write(`  windows        ${names.length ? '' : 'none'}\n`)
+  for (const n of names) {
+    process.stdout.write(`    ${n.padEnd(6)} ${String(record.windows[n].toLocaleString()).padStart(15)} tokens total\n`)
+    const by = (record.breakdown || {})[n]
+    if (!by) continue
+    // The split is the interpretation: a headline that is 95% cache read means
+    // something very different from one that is 95% output.
+    for (const c of CATEGORIES) {
+      const pct = record.windows[n] ? Math.round((by[c] / record.windows[n]) * 100) : 0
+      process.stdout.write(`      ${c.padEnd(16)} ${String(by[c].toLocaleString()).padStart(13)}  ${String(pct).padStart(3)}%\n`)
+    }
+  }
+}
+
+async function main() {
+  const wantDoctor = process.argv.includes('--doctor')
+  const record = await refresh()
+  if (wantDoctor) doctor(record)
+}
+
+if (require.main === module) {
+  main().catch((e) => {
+    // Never throw out of a background job: there is nowhere for the message to
+    // go and a crash here must not be able to affect the bar.
+    if (process.argv.includes('--doctor')) process.stdout.write(`tmarchy-tokens: ${e.message}\n`)
+    process.exit(0)
+  })
+}
+
+module.exports = {
+  scan, totalTokens, categorise, transcripts, refresh,
+  WINDOWS, CATEGORIES, CACHE, PROJECTS,
+}

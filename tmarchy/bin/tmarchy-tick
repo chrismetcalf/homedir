@@ -141,10 +141,11 @@ function main() {
     // This list is EXPLICIT, and dropping a file into segments.d/ is not enough
     // on its own: loadSegments finds and renders it, but a name missing here is
     // simply never written, so the slot stays empty with nothing to explain why.
-    // 'usage' was added when the always-on five-hour number landed. 'remote' is
-    // absent deliberately, per the note above. tmarchy/test/segments.test.js
-    // asserts this list matches segments.d/ so the next one cannot go missing.
-    for (const name of ['quota', 'usage', 'load', 'agents', 'branch', 'battery']) {
+    // 'usage' was added when the always-on five-hour number landed, 'tokens'
+    // when the per-token-billing fallback did. 'remote' is absent deliberately,
+    // per the note above. tmarchy/test/segments.test.js asserts this list
+    // matches segments.d/ so the next one cannot go missing.
+    for (const name of ['quota', 'usage', 'tokens', 'load', 'agents', 'branch', 'battery']) {
       // Same reasoning as the tints above, and it has to match them: if scout
       // was unreadable this tick, blanking the summary while the tabs keep
       // their colours would make the bar contradict itself.
