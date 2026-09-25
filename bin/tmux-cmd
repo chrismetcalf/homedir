@@ -151,9 +151,23 @@ load_theme() {
 flatten_menu() {
     printf '%s' "${1:-}" | python3 -c '
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
+# .../plugin/pyyaml is the pyyaml REPO; the importable package is one level
+# down in lib/. Pointing at the repo root finds .../pyyaml/yaml/, which holds
+# only Cython sources and no __init__.py -- so Python treats it as a namespace
+# package and `import yaml` SUCCEEDS with an empty module. which-key own build
+# gets this right (`from pyyaml.lib import yaml`).
+#
+# This is why the palette worked on Linux and not on macOS. A namespace package
+# loses to a real one: Python keeps scanning sys.path and a distro python3 with
+# python3-yaml installed finds the genuine module further down. Homebrew python
+# has no yaml at all, so the empty namespace package is what wins, and the
+# failure lands later on yaml.safe_load -- past the guard below, with stderr
+# discarded. The symptom was a palette that came up empty while `--doctor`
+# reported "yaml module ok".
+sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml/lib"))
 try:
     import yaml
+    yaml.safe_load  # a namespace package imports fine and has no attributes
 except Exception:
     sys.exit(0)
 
@@ -378,9 +392,11 @@ per-file symlinks rather than one symlink to the repo, it will not be
 there yet. Fix with:  bin/gitfix"
         return 1
     fi
+    # yaml.safe_load, not bare `import yaml`: see flatten_menu for why an import
+    # that succeeds is not evidence the module works.
     if ! python3 -c 'import sys, os
-sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
-import yaml' 2>/dev/null; then
+sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml/lib"))
+import yaml; yaml.safe_load' 2>/dev/null; then
         PREFLIGHT_ERROR="python3 has no yaml module.
 tmux-which-key vendors a copy, so the usual fix is to install the tmux
 plugins:  prefix + I
@@ -441,8 +457,8 @@ doctor() {
     printf '  frecency_sort  %s\n' "$(type -t frecency_sort 2>/dev/null || echo MISSING)"
     printf '  python3        %s\n' "$(command -v python3 || echo MISSING)"
     printf '  yaml module    %s\n' "$(python3 -c 'import sys,os
-sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml"))
-import yaml; print("ok")' 2>/dev/null || echo MISSING)"
+sys.path.insert(0, os.path.expanduser("~/.tmux/plugins/tmux-which-key/plugin/pyyaml/lib"))
+import yaml; yaml.safe_load; print("ok", yaml.__file__)' 2>/dev/null || echo MISSING)"
     local flat rows
     flat=$(flatten_menu "$(cat "$CONFIG" 2>/dev/null)" 2>/dev/null)
     rows=$(rows_from_flat "$flat" 2>/dev/null)
