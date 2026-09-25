@@ -34,13 +34,56 @@ fail() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL + 1)); }
 
 command -v tmux >/dev/null || { echo "tmux not installed; nothing to check"; exit 0; }
 
+# script(1) is the only portable way to hand a program a pty, and its two
+# implementations disagree on every flag this file needs. GNU (util-linux) takes
+# the command as a STRING after -c and the typescript file last; BSD/macOS takes
+# the typescript file FIRST and the command as ordinary argv, and spells GNU's
+# -f (flush) as -F. Feeding GNU's form to BSD does not degrade gracefully -- it
+# exits immediately on `illegal option -- f`, so on macOS no client ever
+# attached and no pty ever ran. Every check below then failed while the pure-JS
+# tests in tmarchy/test/ all passed, which reads as "the saver is broken on this
+# machine" rather than "the harness is".
+#
+# Detected by feature rather than by uname: GNU script answers --version and BSD
+# rejects it, which is the same shape as .zsh/rc/bat resolving bat-vs-batcat.
+# BSD also echoes its stdin into the typescript; harmless here, since the
+# standalone checks count cursor-home writes rather than matching text.
+#
+# pty_run <typescript-file> <command-string>
+if script --version >/dev/null 2>&1; then
+    pty_run() { script -qfec "$2" "$1"; }
+else
+    pty_run() { script -qFe "$1" /bin/sh -c "$2"; }
+fi
+
+# Every check below runs the saver under a FAKE HOME so it cannot read or write
+# the real scout state. That collides head-on with any shim-based version
+# manager: asdf resolves `node` by reading $HOME/.tool-versions, so a fake HOME
+# leaves its shim with no version to pick and it exits 126 having printed
+# NOTHING -- not even the "No version is set" it prints interactively, because
+# its own data dir is under $HOME too. The saver then never starts, the pty
+# checks all time out, and the whole thing reports "no banner for a waiting
+# agent", which points at the banner code rather than at the interpreter.
+#
+# So resolve the real interpreter HERE, while HOME is still real, and put its
+# directory first on PATH for the children. Deliberately general rather than
+# asdf-specific: nvm and friends shim the same way, and on a host whose node is
+# an ordinary binary this resolves to the directory it was already found in and
+# changes nothing.
+NODE_BIN=$(asdf which node 2>/dev/null) || NODE_BIN=$(command -v node 2>/dev/null)
+if [ -n "${NODE_BIN:-}" ]; then
+    NODE_DIR=$(dirname "$NODE_BIN")
+else
+    echo "  skip node not found; the saver cannot run"; exit 0
+fi
+
 mkdir -p "$TMPDIR_SELF/.tmux-scout" "$TMPDIR_SELF/.local/state/tmarchy"
 cp "$HOME/.local/state/tmarchy/current.sh" "$TMPDIR_SELF/.local/state/tmarchy/" 2>/dev/null
 
 echo "tmarchy-saver-selftest"
 
 tmux -L "$SOCK" new-session -d -s t -x 100 -y 30 \
-    "HOME=$TMPDIR_SELF $ROOT/bin/tmarchy-saver; sleep 120"
+    "HOME=$TMPDIR_SELF PATH=$NODE_DIR:\$PATH $ROOT/bin/tmarchy-saver; sleep 120"
 SAVERWIN=$(tmux -L "$SOCK" display-message -p -t t '#{window_id}')
 SAVER=$(tmux -L "$SOCK" list-panes -t "$SAVERWIN" -F '#{pane_id}')
 # `-t t:` with the colon, NOT `-t t`. Measured on a scratch server: the bare
@@ -51,7 +94,7 @@ tmux -L "$SOCK" new-window -t t: -n target 'sleep 300'
 TARGETWIN=$(tmux -L "$SOCK" display-message -p -t t:target '#{window_id}')
 TARGET=$(tmux -L "$SOCK" list-panes -t "$TARGETWIN" -F '#{pane_id}')
 
-script -qfc "tmux -L $SOCK attach -t t" /dev/null >/dev/null 2>&1 &
+pty_run /dev/null "tmux -L $SOCK attach -t t" >/dev/null 2>&1 &
 sleep 2
 tmux -L "$SOCK" select-window -t "$SAVERWIN"
 
@@ -266,8 +309,12 @@ fi
 kiosk_frames() { # $1 = flags, $2 = key sent partway through
     local raw="$TMPDIR_SELF/kiosk.raw"
     rm -f "$raw"
+    # env and timeout go INSIDE the pty command rather than wrapping script(1):
+    # pty_run is a shell function, so neither could exec it from outside. This
+    # is also the better place for them -- the timeout now kills the saver
+    # itself instead of killing script and leaving its child behind.
     ( sleep 2; printf '%s' "$2"; sleep 2 ) |
-        env -u TMUX -u TMUX_PANE timeout 12 script -qfec "$ROOT/bin/tmarchy-saver $1" "$raw" \
+        pty_run "$raw" "env -u TMUX -u TMUX_PANE timeout 12 $ROOT/bin/tmarchy-saver $1" \
         >/dev/null 2>&1
     # Count CURSOR ADDRESSES, not cursor-HOME. The renderer used to repaint
     # every row from column 1 and so emitted ESC[1;1H once per frame; it now
