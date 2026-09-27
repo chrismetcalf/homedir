@@ -59,11 +59,17 @@ C_RESET=""
 
 # Read once per invocation, not per row: the picker should follow the theme
 # that prefix + ? -> +Theme last persisted.
+#
+# Through theme_get rather than four `tmux show -gv` calls of its own. Those
+# four cost 89ms here -- twice what it costs to ask tmux for every session,
+# window and pane in the server -- because each one is a fork, and a fork is
+# ~13ms on this Mac. theme_get serves all four from a single batched read.
 load_theme() {
-    C_WAIT=$(ansi_for "$(tmux show -gv @theme-wait 2>/dev/null)")
-    C_BUSY=$(ansi_for "$(tmux show -gv @theme-busy 2>/dev/null)")
-    C_DONE=$(ansi_for "$(tmux show -gv @theme-done 2>/dev/null)")
-    C_DIM=$(ansi_for "$(tmux show -gv @theme-dim 2>/dev/null)")
+    theme_load
+    C_WAIT=$(ansi_for "$(theme_get wait)")
+    C_BUSY=$(ansi_for "$(theme_get busy)")
+    C_DONE=$(ansi_for "$(theme_get done)")
+    C_DIM=$(ansi_for "$(theme_get dim)")
     if [ -n "$C_WAIT$C_BUSY$C_DONE$C_DIM" ]; then C_RESET=$'\033[0m'; else C_RESET=""; fi
 }
 
@@ -82,7 +88,7 @@ state_decor() {
 
 rows_from_lists() {
     local sessions="${1:-}" windows="${2:-}" panes="${3:-}"
-    local name count id sess idx wname state cmd
+    local name count id sess idx wname state cmd i
 
     while IFS=$'\t' read -r name count; do
         [ -n "$name" ] || continue
@@ -100,10 +106,26 @@ rows_from_lists() {
     # Index states by session:window so pane rows can inherit them. scout sets
     # @scout-state per window, but an agent lives in a pane, and the pane row
     # is as likely to be the one you pick.
-    local win_states=""
+    #
+    # Two parallel arrays scanned linearly, NOT a string re-parsed per pane.
+    # This used to be a newline-delimited string and the pane loop below dug a
+    # value out of it with `printf '%s' "$win_states" | awk ...` -- a subshell
+    # and an awk exec PER PANE. At 16 panes that was 756ms of the picker's
+    # 1.5s startup, by far the largest single cost in it, for a lookup over
+    # fifteen keys. Builtins only now: 5ms, byte-for-byte the same output.
+    #
+    # Parallel indexed arrays rather than one associative array, for the reason
+    # in bin/lib/tmux-theme.sh: macOS still ships bash 3.2, where `declare -A`
+    # is a syntax error that would take the whole picker down.
+    #
+    # A linear scan is also what keeps this safe with user-supplied names. A
+    # `case "$win_states" in *"$key"*)` lookup would be fewer lines and would
+    # treat the key as a GLOB, so a session named `*` would match every window.
+    local win_keys=() win_vals=()
     while IFS=$'\t' read -r id sess idx wname state; do
         [ -n "$id" ] || continue
-        win_states="${win_states}${sess}:${idx}"$'\t'"${state}"$'\n'
+        win_keys[${#win_keys[@]}]="${sess}:${idx}"
+        win_vals[${#win_vals[@]}]="${state}"
         state_decor "$state"
         # The id is appended, dimmed, so it can be typed: fzf matches only what
         # it displays. The frecency key is a separate hidden field because the
@@ -117,7 +139,12 @@ rows_from_lists() {
 
     while IFS=$'\t' read -r id sess idx wname cmd; do
         [ -n "$id" ] || continue
-        state=$(printf '%s' "$win_states" | awk -F'\t' -v k="$sess:$idx" '$1==k{print $2; exit}')
+        state=""
+        i=0
+        while [ "$i" -lt "${#win_keys[@]}" ]; do
+            if [ "${win_keys[$i]}" = "${sess}:${idx}" ]; then state="${win_vals[$i]}"; break; fi
+            i=$((i + 1))
+        done
         state_decor "$state"
         printf '%s\tpane\t%s%s [pane] %s:%s %s  %s%s%s  %s%s%s\tpane:%s:%s:%s\n' \
             "$id" "$STATE_COLOUR" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$cmd" \

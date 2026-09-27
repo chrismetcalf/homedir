@@ -226,6 +226,21 @@ assert_eq "pane in an unmarked window stays unmarked" \
     "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh  %%1\tpane:main:homedir:zsh')" \
     "$(printf '%s\n' "$out" | grep -m1 '^%1')"
 
+# Session names are user-supplied and may contain glob characters, so the state
+# lookup compares with = rather than matching the stored key as a shell pattern.
+# Two sessions, both window 1: "a*" is waiting, "ab" is not. Treated as a
+# pattern, the key "a*:1" matches the OTHER session's "ab:1" and hands it a wait
+# it never had -- a red row pointing at a window that wants nothing. The index
+# does not save you here the way it would for a bare "*", which is why the
+# fixture needs two session names rather than two windows.
+GLOBWINS=$'@1\ta*\t1\tone\twait\n@2\tab\t1\ttwo\t'
+GLOBPANES=$'%1\ta*\t1\tone\tclaude\n%2\tab\t1\ttwo\tzsh'
+globout=$(rows_from_lists "" "$GLOBWINS" "$GLOBPANES")
+assert_eq "a glob session name does not smear state onto another session" "0" \
+    "$(printf '%s\n' "$globout" | awk -F'\t' '$2=="pane" && $1=="%2"' | grep -c '󰀦 wait')"
+assert_eq "and the pane that should have it, has it" "1" \
+    "$(printf '%s\n' "$globout" | awk -F'\t' '$2=="pane" && $1=="%1"' | grep -c '󰀦 wait')"
+
 # Tint is theme-driven: set the colour globals and the whole row is wrapped.
 C_WAIT=$(printf '\033[38;2;1;2;3m'); C_RESET=$(printf '\033[0m')
 tinted=$(rows_from_lists "" "$WINS" "" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $3}')

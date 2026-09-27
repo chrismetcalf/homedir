@@ -11,8 +11,70 @@
 
 # The theme is read from tmux at call time, so a theme switch takes effect on
 # the next invocation with nothing to reload.
+#
+# ONE tmux invocation for the whole palette, held for the life of the process.
+# A `tmux show -gv @theme-x` per value is the obvious shape and is what every
+# caller used to do, but a fork costs ~13ms on this Mac (the endpoint-security
+# exec hook taxes every exec), so tmux-goto alone spent 208ms of its startup on
+# twelve of them -- more than it spent asking tmux for every session, window and
+# pane it was about to list. `show -g` returns all 117 global options in 18ms.
+#
+# Per PROCESS, not per call, which is the same contract as before: each picker
+# is a fresh process, so a theme switched between popups is still picked up.
+# Only a switch DURING one popup is missed, and there is no such moment.
+#
+# Keyed by NAME, not read positionally out of chained `show -gqv` calls. That
+# alternative is also one fork and looks tidier, but an unset option prints
+# NOTHING AT ALL -- not even an empty line (verified) -- so a theme missing one
+# key shifts every later value up by one and paints the picker in colours that
+# are wrong rather than absent. Name-keyed, a missing key is simply missing.
+#
+# Parallel indexed arrays rather than one associative array: this repo deploys
+# to macOS, where /bin/bash is still 3.2 and `declare -A` is a syntax error that
+# would take the whole picker down on a host without Homebrew bash. A linear
+# scan over ~14 keys is builtins only and costs nothing next to one fork.
+_THEME_LOADED=""
+_THEME_NAMES=()
+_THEME_VALUES=()
+
+_theme_load() {
+    [ -z "$_THEME_LOADED" ] || return 0
+    _THEME_LOADED=1
+    local line name value
+    # Process substitution, not a pipe: a `while read` on the right of a pipe
+    # runs in a subshell and every array element written here would be lost the
+    # moment the loop ended -- leaving a cache that is refilled on each lookup.
+    while IFS= read -r line; do
+        case "$line" in @theme-*) ;; *) continue ;; esac
+        name=${line%% *}
+        value=${line#* }
+        # An option set to nothing prints as the bare name with no separator.
+        [ "$value" != "$line" ] || value=""
+        # tmux quotes what its own config language would otherwise mangle, which
+        # is every hex colour, since # starts a comment there. jewel's colourNNN
+        # comes back bare, so both forms have to be handled.
+        case "$value" in '"'*'"') value=${value#\"}; value=${value%\"} ;; esac
+        _THEME_NAMES[${#_THEME_NAMES[@]}]="${name#@theme-}"
+        _THEME_VALUES[${#_THEME_VALUES[@]}]="$value"
+    done < <(tmux show -g 2>/dev/null)
+}
+
+# Fill the cache in the CURRENT shell. Callers that are about to read several
+# values should call this first: theme_get is almost always invoked inside a
+# $(...) command substitution, and a cache filled in that subshell dies with it.
+# Calling it here means the subshells inherit a cache that is already warm.
+theme_load() { _theme_load; }
+
 theme_get() {
-    tmux show -gv "@theme-${1:-}" 2>/dev/null
+    local want="${1:-}" i=0
+    _theme_load
+    while [ "$i" -lt "${#_THEME_NAMES[@]}" ]; do
+        if [ "${_THEME_NAMES[$i]}" = "$want" ]; then
+            printf '%s' "${_THEME_VALUES[$i]}"
+            return 0
+        fi
+        i=$((i + 1))
+    done
 }
 
 # tmux colours are #rrggbb in eight of the nine themes but colourNNN in jewel,
@@ -47,6 +109,10 @@ fzf_colour() {
 # rest default.
 fzf_theme_opts() {
     local spec="" bg fg dim accent alt border done_col busy
+
+    # Warm the cache HERE, in this shell, so the eight $(theme_get ...) below
+    # inherit it instead of each filling and discarding its own copy.
+    theme_load
 
     bg=$(fzf_colour "$(theme_get bg)")
     fg=$(fzf_colour "$(theme_get fg)")

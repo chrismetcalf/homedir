@@ -14,6 +14,64 @@ assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
 
 echo "tmux-theme selftest"
 
+echo "theme_get (one batched read, cached per process)"
+# A stubbed tmux, so this needs no server: the point is the PARSE, and the
+# counter proves the batching rather than merely the answers.
+#
+# The call counter is a FILE, not a variable. _theme_load reads its tmux through
+# a process substitution, so the stub runs in a subshell and an incremented
+# variable would die with it -- leaving a counter stuck at 0 that "passes"
+# whether the cache exists or not.
+THEME_TALLY=$(mktemp "${TMPDIR:-/tmp}/tmux-theme-selftest.XXXXXX")
+trap 'rm -f "$THEME_TALLY"' EXIT
+tmux() {
+    printf 'x\n' >> "$THEME_TALLY"
+    cat <<'STUB'
+status-interval 5
+@theme-accent "#7aa2f7"
+@theme-accent-alt "#bb9af7"
+@theme-bat tokyonight_night
+@theme-blank
+@theme-jewel colour214
+@theme-spaced "tokyo night"
+status-right "#{?#{@bar-quota},@theme-decoy #f00,}"
+STUB
+}
+_theme_reset() { _THEME_LOADED=""; _THEME_NAMES=(); _THEME_VALUES=(); : > "$THEME_TALLY"; }
+
+_theme_reset
+assert_eq "a quoted hex loses its quotes"    "#7aa2f7"          "$(theme_get accent)"
+assert_eq "a hyphenated key resolves"        "#bb9af7"          "$(theme_get accent-alt)"
+assert_eq "an unquoted value passes through" "tokyonight_night" "$(theme_get bat)"
+assert_eq "jewel's colourNNN survives"       "colour214"        "$(theme_get jewel)"
+# An option set to nothing prints as the bare name with no separator, so the
+# naive ${line#* } leaves the NAME as the value -- i.e. "@theme-blank".
+assert_eq "an empty option is empty, not its own name" "" "$(theme_get blank)"
+assert_eq "an absent key yields nothing"     ""                 "$(theme_get nope)"
+# @theme-nvim and @theme-bat are theme NAMES, not colours, so a value with a
+# space in it is legal. Splitting on the LAST space instead of the first would
+# return "night" here and still look like a plausible answer.
+assert_eq "a value containing a space survives whole" "tokyo night" "$(theme_get spaced)"
+
+# Note there is deliberately no assertion that a @theme-* reference inside
+# status-right (in the stub above) is ignored. The prefix test is a filter, not
+# a guard: such a line's first token is `status-right`, which survives
+# ${name#@theme-} unchanged and so can never collide with a theme key. An
+# assertion on it passes whether the filter is there or not -- verified by
+# loosening the pattern to *@theme-* and watching nothing fail.
+
+# The whole reason this exists: N lookups must cost ONE tmux invocation, not N.
+# Counting in this shell (no subshell) is what makes the cache observable --
+# theme_get is normally called inside $(...), where a cache filled by the child
+# dies with it, which is why theme_load exists and why fzf_theme_opts calls it.
+_theme_reset
+theme_load
+for k in accent accent-alt bat jewel blank nope accent accent; do theme_get "$k" >/dev/null; done
+assert_eq "eight lookups cost one tmux call" "1" "$(grep -c . "$THEME_TALLY")"
+
+unset -f tmux
+_theme_reset
+
 echo "ansi_for"
 assert_eq "hex becomes truecolor ansi" "$(printf '\033[38;2;122;162;247m')" "$(ansi_for '#7aa2f7')"
 assert_eq "colourNNN becomes 256-colour ansi" "$(printf '\033[38;5;214m')" "$(ansi_for 'colour214')"
