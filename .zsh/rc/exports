@@ -6,7 +6,22 @@ export PAGER="less"
 # Turn on grep coloring
 export GREP_COLOR='1;35'
 
-# Path setup
+# Path setup.
+#
+# typeset -U keeps the path array unique, which CLAUDE.md has claimed for a
+# while but nothing actually set. Every PATH line in this repo -- here, asdf,
+# nvm, .zshrc.local -- PREPENDS, so a nested shell re-runs them over an already
+# populated PATH and the entries accumulate. Measured on this Mac: a clean login
+# shell has 20 entries, the shell Claude Code was running in had 38, with 11
+# distinct paths appearing two or three times over. That is not cosmetic --
+# command resolution stats every earlier entry before the match, and each stat
+# costs real time here, so the duplicates are paid on every command in the
+# shell. Dedupe keeps the FIRST occurrence, which is the precedence PATH means.
+#
+# Set before the prepend rather than after: assigning the attribute dedupes the
+# current value too, so this cleans up whatever the parent handed us as well as
+# everything the fragments below are about to add.
+typeset -U path
 export PATH=$HOME/bin:$PATH
 
 # For recordstream

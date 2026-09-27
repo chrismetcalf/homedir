@@ -49,10 +49,26 @@ fi
 } &>/dev/null &
 disown
 
-PATH="/home/krezel/perl5/bin${PATH:+:${PATH}}"; export PATH;
-PERL5LIB="/home/krezel/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
-PERL_LOCAL_LIB_ROOT="/home/krezel/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
-PERL_MB_OPT="--install_base \"/home/krezel/perl5\""; export PERL_MB_OPT;
-PERL_MM_OPT="INSTALL_BASE=/home/krezel/perl5"; export PERL_MM_OPT;
+# local::lib. Written by its own bootstrap on the Linux box, which hardcoded
+# that box's home directory -- and this file is shared with a Mac, where
+# /home/krezel is not merely absent but ACTIVELY EXPENSIVE: /etc/auto_master
+# maps /home to auto_home, so every stat under it goes through the automounter.
+# Measured here, 29ms for a path that does not exist, against 0.9ms for the same
+# miss under /opt. Sitting first in PATH, that was paid on EVERY command
+# resolution on the machine -- ~72ms of the ~90ms it took to start any
+# `#!/usr/bin/env bash` script, prefix + u included. Exactly the hazard CLAUDE.md
+# records for NFS mounts in PATH, arriving from a direction nothing was watching:
+# a hardcoded Linux path in a file this repo checks in.
+#
+# $HOME rather than the literal: on the Linux host $HOME *is* /home/krezel, so
+# this is byte-identical there. Guarded on the directory existing so a host
+# without a local::lib pays one stat at login rather than one per command.
+if [ -d "$HOME/perl5" ]; then
+  PATH="$HOME/perl5/bin${PATH:+:${PATH}}"; export PATH;
+  PERL5LIB="$HOME/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
+  PERL_LOCAL_LIB_ROOT="$HOME/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
+  PERL_MB_OPT="--install_base \"$HOME/perl5\""; export PERL_MB_OPT;
+  PERL_MM_OPT="INSTALL_BASE=$HOME/perl5"; export PERL_MM_OPT;
+fi
 
 test -e "$HOME/.shellfishrc" && source "$HOME/.shellfishrc"
