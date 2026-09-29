@@ -28,10 +28,14 @@ to_ref() {
             "$cwd"/*) printf '%s' "${path#"$cwd"/}"; return 0 ;;
         esac
     fi
-    case "$path" in
-        "$HOME"/*) printf '~/%s' "${path#"$HOME"/}" ;;
-        *)         printf '%s' "$path" ;;
-    esac
+    # Guarded on non-empty: an empty HOME makes the pattern "/*", which matches
+    # every absolute path on the system and would relativise all of them.
+    if [ -n "$HOME" ]; then
+        case "$path" in
+            "$HOME"/*) printf '~/%s' "${path#"$HOME"/}"; return 0 ;;
+        esac
+    fi
+    printf '%s' "$path"
 }
 
 # Filenames are not trusted input. They come off the filesystem, and this tool's
