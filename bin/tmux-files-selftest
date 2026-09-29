@@ -69,6 +69,18 @@ assert_eq "depth cap limits the walk" "2" "$got"
 assert_eq "a missing root yields nothing" "" "$(file_rows "$FIX/nope")"
 rm -rf "$FIX"
 
+echo "main wiring"
+assert_eq "main is defined" "function" "$(type -t main)"
+assert_eq "sourcing does not run main" "" "${TMUX_FILES_MAIN_RAN:-}"
+
+# Regression pins. These guard properties nothing else can observe from
+# outside the process -- a `-` path reaching send-keys without `--` parses as
+# flags, and -R silently resets the pane's terminal.
+grep -q 'send-keys -t "\$pane" -l --' "$DIR/tmux-files" \
+    && pass "send-keys uses -l and --" || fail "send-keys uses -l and --" "present" "missing"
+grep -q 'ctrl-g:reload' "$DIR/tmux-files" \
+    && pass "re-root keys are bound" || fail "re-root keys are bound" "present" "missing"
+
 echo
 [ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
 exit "$FAILED"

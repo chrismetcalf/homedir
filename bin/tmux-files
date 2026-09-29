@@ -10,6 +10,11 @@
 # main. See bin/tmux-files-selftest.
 set -uo pipefail
 
+# shellcheck source=lib/tmux-theme.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-theme.sh"
+# shellcheck source=lib/tmux-frecency.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
+
 # Absolute path + the cwd Claude resolves @ against -> the text to insert.
 #
 # Three branches, in order. The cwd test is first because a path inside the
@@ -93,5 +98,68 @@ file_rows() {
         find "${args[@]}" -type f -not -path '*/.git/*' 2>/dev/null
     fi
 }
+
+# Rank most-used-first. With an EMPTY query fzf does no scoring at all and
+# shows input order, so sorting the input IS the ranking when the popup opens.
+frecency_key_files() { printf '%s' "${1:-}"; }
+
+main() {
+    local pane cwd root git_root depth rows chosen text err
+    # display-message -p inside a popup returns the pane the popup was launched
+    # OVER -- a popup is not a pane. So this is the target without any
+    # bookkeeping, and it cannot drift the way reading the active pane later
+    # would (a popup is an ordinary client and the active pane can move).
+    pane=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
+    cwd=$(tmux display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
+    [ -d "$cwd" ] || cwd="$PWD"
+    root="$cwd"
+    git_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || git_root="$cwd"
+
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf '  fzf is not installed.\n  Install it, or run homedir-install.\n\n  [q] close  '
+        IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+        exit 1
+    fi
+
+    depth=""
+    rows=$(file_rows "$root" "$depth")
+    rows=$(frecency_sort "$rows" "$(frecency_path files)" frecency_key_files)
+
+    # Re-root from inside the picker rather than choosing a scope up front --
+    # the tmux-goto lesson. HOME passes a depth cap because ~ has no gitignore
+    # and ~/Library is unbounded on macOS; the header says so rather than
+    # quietly returning a short list.
+    # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    chosen=$(printf '%s\n' "$rows" | fzf --ansi --multi --tiebreak=index $(fzf_theme_opts) \
+        --prompt='@file > ' --height=100% --reverse \
+        --header="^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $root" \
+        --bind "ctrl-g:reload(\"$BASH_SOURCE\" --list '$git_root')+change-header(^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $git_root)" \
+        --bind "ctrl-h:reload(\"$BASH_SOURCE\" --list '$HOME' 4)+change-header(^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $HOME)" \
+        --bind "ctrl-u:reload(\"$BASH_SOURCE\" --list '$(dirname "$root")')+change-header(^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $(dirname "$root"))"
+    ) || exit 0
+    [ -n "$chosen" ] || exit 0
+
+    while IFS= read -r p; do
+        [ -n "$p" ] && frecency_record "$(frecency_path files)" "$p"
+    done <<< "$chosen"
+
+    text=$(printf '%s\n' "$chosen" | build_insert "$cwd")
+    [ -n "$text" ] || exit 0
+
+    # `--` matters: a path starting with '-' is otherwise parsed as send-keys
+    # flags, and -R silently resets the pane's terminal. `-l` is literal, so
+    # tmux does not read tokens as key names.
+    if ! err=$(tmux send-keys -t "$pane" -l -- "$text" 2>&1); then
+        printf '\n  insert failed: %s\n\n  [q] close  ' "${err:-send-keys exited non-zero}"
+        IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+        exit 1
+    fi
+}
+
+# fzf's reload() re-invokes this script for a new root.
+if [ "${1:-}" = "--list" ]; then
+    file_rows "${2:-}" "${3:-}"
+    exit 0
+fi
 
 [ "${TMUX_FILES_LIB:-}" = "1" ] || main "$@"
