@@ -70,4 +70,28 @@ build_insert() {
     printf '%s' "$out"
 }
 
+# Candidate paths under a root, absolute, newline-separated.
+#
+# rg is gitignore-aware, which is what makes this sharp inside a repo -- a
+# node_modules or a build directory never reaches the picker. Home has no
+# gitignore and ~/Library is unbounded on macOS, so that root passes a depth
+# cap, stated in the picker's header rather than applied silently.
+#
+# find is the fallback rather than an error: slower and not gitignore-aware,
+# but the picker works on a host without rg.
+file_rows() {
+    local root="${1:-}" depth="${2:-}" args=()
+    [ -d "$root" ] || return 0
+    if command -v rg >/dev/null 2>&1; then
+        args=(--files --hidden --glob '!.git')
+        [ -n "$depth" ] && args+=(--max-depth "$depth")
+        rg "${args[@]}" -- "$root" 2>/dev/null
+    else
+        # -maxdepth must follow the path and precede the tests.
+        args=("$root")
+        [ -n "$depth" ] && args+=(-maxdepth "$depth")
+        find "${args[@]}" -type f -not -path '*/.git/*' 2>/dev/null
+    fi
+}
+
 [ "${TMUX_FILES_LIB:-}" = "1" ] || main "$@"

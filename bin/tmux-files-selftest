@@ -48,6 +48,27 @@ assert_eq "skips an unsafe path but keeps the rest" "@bin/a " \
     "$(printf '/r/bin/a\n/r/bin/\033b\n' | build_insert /r)"
 assert_eq "empty input inserts nothing" "" "$(printf '' | build_insert /r)"
 
+echo "file_rows"
+FIX=$(mktemp -d)
+mkdir -p "$FIX/a/b/c"
+touch "$FIX/top.txt" "$FIX/a/one.txt" "$FIX/a/b/two.txt" "$FIX/a/b/c/three.txt"
+mkdir -p "$FIX/.git" && touch "$FIX/.git/config"
+
+got=$(file_rows "$FIX" | wc -l | tr -d ' ')
+assert_eq "finds every file recursively" "4" "$got"
+file_rows "$FIX" | grep -q '\.git/config' \
+    && fail "excludes .git" "no .git paths" "found .git/config" || pass "excludes .git"
+file_rows "$FIX" | grep -q "^$FIX/top.txt$" \
+    && pass "paths are absolute" || fail "paths are absolute" "$FIX/top.txt" "$(file_rows "$FIX" | head -1)"
+
+# The depth cap is what makes the home root usable: ~ has no gitignore and
+# ~/Library is unbounded on macOS.
+got=$(file_rows "$FIX" 2 | wc -l | tr -d ' ')
+assert_eq "depth cap limits the walk" "2" "$got"
+
+assert_eq "a missing root yields nothing" "" "$(file_rows "$FIX/nope")"
+rm -rf "$FIX"
+
 echo
 [ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
 exit "$FAILED"
