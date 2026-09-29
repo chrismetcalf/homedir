@@ -10,7 +10,7 @@
 set -u
 
 PANE="${TMUX_PANE:-}"
-[ -n "$PANE" ] || exit 0
+[ -n "$PANE" ] || [ "${TMUX_SIDEBAR_LIB:-}" = "1" ] || exit 0
 
 # shellcheck source=lib/tmux-theme.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-theme.sh"
@@ -46,9 +46,118 @@ color_for() {
     esac
 }
 
+# --- changed files -----------------------------------------------------------
+
+# Seconds -> the shortest honest label. Buckets, not rounding: 90s is "1m",
+# because a file touched a minute and a half ago was touched once.
+age_str() {
+    local s="${1:-0}"
+    if   [ "$s" -lt 60 ];    then printf '%ds' "$s"
+    elif [ "$s" -lt 3600 ];  then printf '%dm' "$((s / 60))"
+    elif [ "$s" -lt 86400 ]; then printf '%dh' "$((s / 3600))"
+    else                          printf '%dd' "$((s / 86400))"
+    fi
+}
+
+# Truncate from the LEFT, keeping the basename. The opposite of the window
+# list, and deliberately: for a file the basename identifies it, for a window
+# the prefix does.
+trunc_left() {
+    local s="${1:-}" w="${2:-10}"
+    [ "$w" -lt 2 ] && w=2
+    if [ "${#s}" -le "$w" ]; then printf '%s' "$s"
+    else printf '…%s' "${s: -$((w - 1))}"; fi
+}
+
+# git status --porcelain on stdin -> "state \t relpath". Pure.
+parse_status() {
+    local line xy path
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        xy="${line:0:2}"
+        path="${line:3}"
+        # "R  old -> new": the new name is the one that exists on disk.
+        case "$path" in *" -> "*) path="${path#* -> }" ;; esac
+        case "$xy" in
+            '??') printf 'untracked\t%s\n' "$path" ;;
+            *D*)  printf 'deleted\t%s\n'   "$path" ;;
+            *A*)  printf 'added\t%s\n'     "$path" ;;
+            *)    printf 'modified\t%s\n'  "$path" ;;
+        esac
+    done
+}
+
+# Which colour a row takes. Colour carries RECENCY because that is the
+# headline; the glyph carries git state. @theme-wait is not in this set at
+# any bucket -- red means "an agent needs you" everywhere else here.
+recency_of() {
+    local m="${1:-}" now="${2:-0}" d
+    { [ -n "$m" ] && [ "$m" != "-" ]; } || { printf 'old'; return 0; }
+    d=$((now - m))
+    if   [ "$d" -lt 300 ];  then printf 'now'
+    elif [ "$d" -lt 3600 ]; then printf 'recent'
+    else                         printf 'old'
+    fi
+}
+
+# "mtime \t state \t path" lines -> "recency \t rendered" lines. Pure, so the
+# layout is testable without a repo, a tmux server or a clock.
+changed_rows() {
+    local lines="${1:-}" now="${2:-0}" w="${3:-24}" max="${4:-0}"
+    local mtime state path glyph age name namew pad n=0
+    [ "$max" -gt 0 ] || return 0
+    [ -n "$lines" ] || return 0
+    # gutter(1) + name + gap(1) + age(up to 4)
+    namew=$((w - 6)); [ "$namew" -lt 3 ] && namew=3
+    while IFS=$'\t' read -r mtime state path; do
+        [ -n "$path" ] || continue
+        [ "$n" -ge "$max" ] && break
+        case "$state" in
+            modified)  glyph='●' ;;
+            added)     glyph='+' ;;
+            untracked) glyph='○' ;;
+            deleted)   glyph='−' ;;
+            *)         glyph='·' ;;
+        esac
+        # A deleted path has no mtime -- stat failed on it. An em dash, never
+        # "0s", which would claim it had just been touched.
+        if [ -n "$mtime" ] && [ "$mtime" != "-" ]; then age=$(age_str "$((now - mtime))")
+        else age='—'; fi
+        name=$(trunc_left "$path" "$namew")
+        pad=$((w - 1 - ${#name} - ${#age}))
+        [ "$pad" -lt 1 ] && pad=1
+        printf '%s\t%s%s%*s%s\n' "$(recency_of "$mtime" "$now")" \
+            "$glyph" "$name" "$pad" '' "$age"
+        n=$((n + 1))
+    done <<< "$lines"
+}
+
+# Repo -> "mtime \t state \t path" lines, newest first.
+#
+# --ignore-submodules is MANDATORY, not a tuning knob: measured in this repo
+# it is 305 ms without and 32 ms with, because there are nine submodules. At
+# the sidebar's redraw rate the first number is a third of a core per window,
+# which is the 2026-08-21 fork-storm shape. bin/tmux-sidebar-selftest pins it.
+#
+# ONE stat for every path, never one per file -- a fork per changed file is
+# the cost this design exists to avoid. A deleted path makes stat fail, so its
+# mtime is "-", which sorts last numerically and renders no age.
+git_refresh() {
+    local repo="${1:-}" pairs paths
+    [ -n "$repo" ] || return 0
+    pairs=$(git -C "$repo" status --porcelain --ignore-submodules 2>/dev/null | parse_status)
+    [ -n "$pairs" ] || return 0
+    while IFS=$'\t' read -r state path; do
+        [ -n "$path" ] || continue
+        printf '%s\t%s\t%s\n' "$(_mtime "$repo/$path")" "$state" "$path"
+    done <<< "$pairs" | sort -t$'\t' -k1,1nr
+}
+
+# BSD and GNU stat disagree on every flag. Resolved once, not per call.
+if stat -f '%m' . >/dev/null 2>&1; then _STAT_FMT=(-f '%m'); else _STAT_FMT=(-c '%Y'); fi
+_mtime() { stat "${_STAT_FMT[@]}" "$1" 2>/dev/null || printf '%s' '-'; }
+
 cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
-trap cleanup EXIT INT TERM
-printf '%s[?25l' "$ESC" # hide cursor
 
 lastW=""
 lastTheme=""
@@ -124,14 +233,19 @@ draw() {
 	printf '%s[J' "$ESC"
 }
 
-# Redraw promptly on resize: a no-op WINCH trap interrupts the wait below so the
-# loop repaints immediately (with a full clear) instead of up to a second later.
-trap ':' WINCH
+if [ "${TMUX_SIDEBAR_LIB:-}" != "1" ]; then
+	trap cleanup EXIT INT TERM
+	printf '%s[?25l' "$ESC" # hide cursor
 
-while :; do
-	draw
-	sleep 1 &
-	sp=$!
-	wait "$sp" 2>/dev/null
-	kill "$sp" 2>/dev/null
-done
+	# Redraw promptly on resize: a no-op WINCH trap interrupts the wait below so the
+	# loop repaints immediately (with a full clear) instead of up to a second later.
+	trap ':' WINCH
+
+	while :; do
+		draw
+		sleep 1 &
+		sp=$!
+		wait "$sp" 2>/dev/null
+		kill "$sp" 2>/dev/null
+	done
+fi

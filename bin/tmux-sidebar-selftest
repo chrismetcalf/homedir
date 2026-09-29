@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# tmux-sidebar-selftest — fixture-driven tests for bin/tmux-window-sidebar.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+export TMUX_SIDEBAR_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-window-sidebar"
+
+echo "tmux-window-sidebar selftest"
+
+echo "age_str"
+assert_eq "59s"   "59s" "$(age_str 59)"
+assert_eq "60s"   "1m"  "$(age_str 60)"
+assert_eq "3599s" "59m" "$(age_str 3599)"
+assert_eq "3600s" "1h"  "$(age_str 3600)"
+assert_eq "86399s" "23h" "$(age_str 86399)"
+assert_eq "86400s" "1d"  "$(age_str 86400)"
+# Buckets, not rounding: 90s is one minute ago, it has not been touched twice.
+assert_eq "90s buckets down" "1m" "$(age_str 90)"
+
+echo "trunc_left"
+assert_eq "short path is untouched" "bin/g" "$(trunc_left bin/g 12)"
+# The basename is what identifies a file -- the opposite of the window list.
+assert_eq "keeps the basename" "…lib/theme.sh" "$(trunc_left bin/lib/theme.sh 13)"
+assert_eq "exact fit is untouched" "abcde" "$(trunc_left abcde 5)"
+
+echo "parse_status"
+IN=$(printf ' M bin/a\n?? new.txt\n D gone.txt\nA  added.txt\nR  old.txt -> new-name.txt\n')
+OUT=$(printf '%s\n' "$IN" | parse_status)
+assert_eq "modified" "modified"  "$(printf '%s\n' "$OUT" | grep 'bin/a' | cut -f1)"
+assert_eq "untracked" "untracked" "$(printf '%s\n' "$OUT" | grep 'new.txt$' | cut -f1)"
+assert_eq "deleted"  "deleted"   "$(printf '%s\n' "$OUT" | grep 'gone.txt' | cut -f1)"
+assert_eq "added"    "added"     "$(printf '%s\n' "$OUT" | grep 'added.txt' | cut -f1)"
+# A rename reports "old -> new"; the new name is the one that exists on disk.
+assert_eq "rename keeps the new name" "new-name.txt" "$(printf '%s\n' "$OUT" | grep 'new-name' | cut -f2)"
+
+echo "recency_of"
+assert_eq "just now"  "now"    "$(recency_of 1000 1010)"
+assert_eq "this hour" "recent" "$(recency_of 1000 1400)"
+assert_eq "older"     "old"    "$(recency_of 1000 90000)"
+assert_eq "no mtime is old" "old" "$(recency_of - 1000)"
+
+echo "changed_rows"
+NOW=1000000
+L=$(printf '%s\t%s\t%s\n' \
+    999988 modified bin/a \
+    999940 added    bin/b \
+    -      deleted  bin/gone)
+R=$(changed_rows "$L" "$NOW" 24 10)
+assert_eq "one row per file" "3" "$(printf '%s\n' "$R" | wc -l | tr -d ' ')"
+printf '%s\n' "$R" | head -1 | cut -f2 | grep -q '●' && pass "modified glyph" || fail "modified glyph" "●" "$(printf '%s\n' "$R" | head -1 | cut -f2)"
+printf '%s\n' "$R" | sed -n 2p | cut -f2 | grep -q '+' && pass "added glyph" || fail "added glyph" "+" "$(printf '%s\n' "$R" | sed -n 2p | cut -f2)"
+printf '%s\n' "$R" | head -1 | cut -f2 | grep -q '12s' && pass "age is rendered" || fail "age is rendered" "12s" "$(printf '%s\n' "$R" | head -1 | cut -f2)"
+# A deleted file has no mtime: stat failed on it. An em dash, never "0s" --
+# that would claim the file was touched a moment ago.
+printf '%s\n' "$R" | tail -1 | cut -f2 | grep -q '—' && pass "deleted shows no age" || fail "deleted shows no age" "—" "$(printf '%s\n' "$R" | tail -1 | cut -f2)"
+assert_eq "max caps the rows" "2" "$(changed_rows "$L" "$NOW" 24 2 | wc -l | tr -d ' ')"
+assert_eq "zero max yields nothing" "" "$(changed_rows "$L" "$NOW" 24 0)"
+
+echo "regression pins"
+# 305 ms vs 32 ms in this nine-submodule repo. Nothing else would catch its
+# removal: the sidebar would still be correct, just a third of a core.
+grep -q 'ignore-submodules' "$DIR/tmux-window-sidebar" \
+    && pass "git status ignores submodules" || fail "git status ignores submodules" "present" "missing"
+
+# Red means "an agent needs you". Not a deleted file, not an old one.
+# Verify recency_of never returns 'wait', which would map to @theme-wait.
+allvals=""
+for delta in 0 100 500 1000 5000 10000 100000; do
+    allvals="$allvals $(recency_of $((1000000 - delta)) 1000000)"
+done
+printf '%s\n' "$allvals" | grep -qw 'wait' \
+    && fail "recency_of must never return 'wait'" "only now/recent/old" "found wait" \
+    || pass "recency_of never returns 'wait'"
+
+echo
+[ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
+exit "$FAILED"
