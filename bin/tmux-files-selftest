@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# tmux-files-selftest — fixture-driven tests for bin/tmux-files.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_ok() { if "${@:2}"; then pass "$1"; else fail "$1" "exit 0" "exit $?"; fi; }
+assert_no() { if "${@:2}"; then fail "$1" "non-zero" "exit 0"; else pass "$1"; fi; }
+
+export TMUX_FILES_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-files"
+
+echo "tmux-files selftest"
+
+echo "to_ref"
+HOME=/Users/x
+assert_eq "under cwd is relative"  "bin/g"              "$(to_ref /Users/x/.homedir/bin/g /Users/x/.homedir)"
+assert_eq "under HOME is ~-prefixed" "~/other/f"        "$(to_ref /Users/x/other/f /Users/x/.homedir)"
+assert_eq "outside HOME is absolute" "/opt/otto/run.sh" "$(to_ref /opt/otto/run.sh /Users/x/.homedir)"
+# A sibling directory sharing the cwd's prefix must NOT be treated as inside it.
+assert_eq "sibling prefix is not inside" "~/.homedir-old/f" "$(to_ref /Users/x/.homedir-old/f /Users/x/.homedir)"
+# An empty cwd would make the pattern "/*", which matches every absolute path.
+assert_eq "empty cwd falls through" "~/.homedir/bin/g"  "$(to_ref /Users/x/.homedir/bin/g '')"
+assert_eq "trailing slash on cwd"   "bin/g"             "$(to_ref /Users/x/.homedir/bin/g /Users/x/.homedir/)"
+
+echo "safe_ref"
+assert_no "rejects newline" safe_ref "$(printf 'a\nb')"
+assert_no "rejects CR"      safe_ref "$(printf 'a\rb')"
+assert_no "rejects ESC"     safe_ref "$(printf 'a\033b')"
+assert_no "rejects empty"   safe_ref ""
+assert_ok "accepts a plain path"      safe_ref "bin/tmux-goto"
+assert_ok "accepts a leading dash"    safe_ref "-weird-name"
+assert_ok "accepts spaces and UTF-8"  safe_ref "my dir/naïve file.md"
+
+echo "build_insert"
+assert_eq "joins with one trailing space" "@bin/a @bin/b " \
+    "$(printf '/r/bin/a\n/r/bin/b\n' | build_insert /r)"
+assert_eq "skips an unsafe path but keeps the rest" "@bin/a " \
+    "$(printf '/r/bin/a\n/r/bin/\033b\n' | build_insert /r)"
+assert_eq "empty input inserts nothing" "" "$(printf '' | build_insert /r)"
+
+echo
+[ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
+exit "$FAILED"

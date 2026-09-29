@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# tmux-files — fuzzy-pick files and insert them as @<path> references at the
+# calling pane's prompt, without running anything.
+#
+# Bound to `prefix + f`, which takes over tmux's own find-window; `prefix + u`
+# (tmux-goto) already lists every window with fuzzy matching, a scout tint and
+# frecency order, so find-window had nothing left to do.
+#
+# Sourceable for tests: TMUX_FILES_LIB=1 defines the functions without running
+# main. See bin/tmux-files-selftest.
+set -uo pipefail
+
+# Absolute path + the cwd Claude resolves @ against -> the text to insert.
+#
+# Three branches, in order. The cwd test is first because a path inside the
+# session's own directory should read the way you would have typed it.
+to_ref() {
+    local path="${1:-}" cwd="${2:-}"
+    [ -n "$path" ] || return 0
+    # Strip a trailing slash so the pattern below cannot double the separator.
+    cwd="${cwd%/}"
+    # Guarded on non-empty: an empty cwd makes the pattern "/*", which matches
+    # every absolute path on the system and would relativise all of them.
+    if [ -n "$cwd" ]; then
+        case "$path" in
+            # The literal / in the pattern is what stops a sibling directory
+            # sharing the prefix (.homedir-old vs .homedir) from matching.
+            "$cwd"/*) printf '%s' "${path#"$cwd"/}"; return 0 ;;
+        esac
+    fi
+    case "$path" in
+        "$HOME"/*) printf '~/%s' "${path#"$HOME"/}" ;;
+        *)         printf '%s' "$path" ;;
+    esac
+}
+
+# Filenames are not trusted input. They come off the filesystem, and this tool's
+# entire job is putting them on a shell prompt.
+#
+# Reject any control byte, not just newline: CR submits a line exactly like
+# Enter, and an ESC byte reaches readline's dispatcher, where ESC then C-e
+# performs command substitution with no keypress and no visible trace. Same
+# gate as bin/tmux-gen, for the same reason.
+safe_ref() {
+    case "${1-}" in
+        "")            return 1 ;;
+        *[[:cntrl:]]*) return 1 ;;
+        *)             return 0 ;;
+    esac
+}
+
+# Newline-separated absolute paths on stdin -> the string to insert.
+#
+# A filename containing a newline cannot survive fzf's default output at all,
+# so it is already unreachable here; the gate is for every other control byte
+# and for the day this stops reading line-oriented input.
+build_insert() {
+    local cwd="${1:-}" path ref out=""
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        safe_ref "$path" || continue
+        ref=$(to_ref "$path" "$cwd")
+        safe_ref "$ref" || continue
+        out="${out}@${ref} "
+    done
+    printf '%s' "$out"
+}
+
+[ "${TMUX_FILES_LIB:-}" = "1" ] || main "$@"
