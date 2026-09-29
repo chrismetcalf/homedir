@@ -50,24 +50,30 @@ color_for() {
 
 # Seconds -> the shortest honest label. Buckets, not rounding: 90s is "1m",
 # because a file touched a minute and a half ago was touched once.
+# Assigns result to _ret global to avoid subshell fork.
 age_str() {
     local s="${1:-0}"
-    if   [ "$s" -lt 60 ];    then printf '%ds' "$s"
-    elif [ "$s" -lt 3600 ];  then printf '%dm' "$((s / 60))"
-    elif [ "$s" -lt 86400 ]; then printf '%dh' "$((s / 3600))"
-    else                          printf '%dd' "$((s / 86400))"
+    if   [ "$s" -lt 60 ];    then _ret="${s}s"
+    elif [ "$s" -lt 3600 ];  then _ret="$((s / 60))m"
+    elif [ "$s" -lt 86400 ]; then _ret="$((s / 3600))h"
+    else                          _ret="$((s / 86400))d"
     fi
 }
+# Wrapper for tests that expect output
+age_str_print() { age_str "$@"; printf '%s' "$_ret"; }
 
 # Truncate from the LEFT, keeping the basename. The opposite of the window
 # list, and deliberately: for a file the basename identifies it, for a window
 # the prefix does.
+# Assigns result to _ret global to avoid subshell fork.
 trunc_left() {
     local s="${1:-}" w="${2:-10}"
     [ "$w" -lt 2 ] && w=2
-    if [ "${#s}" -le "$w" ]; then printf '%s' "$s"
-    else printf '…%s' "${s: -$((w - 1))}"; fi
+    if [ "${#s}" -le "$w" ]; then _ret="$s"
+    else _ret="…${s: -$((w - 1))}"; fi
 }
+# Wrapper for tests that expect output
+trunc_left_print() { trunc_left "$@"; printf '%s' "$_ret"; }
 
 # git status --porcelain on stdin -> "state \t relpath". Pure.
 parse_status() {
@@ -90,21 +96,24 @@ parse_status() {
 # Which colour a row takes. Colour carries RECENCY because that is the
 # headline; the glyph carries git state. @theme-wait is not in this set at
 # any bucket -- red means "an agent needs you" everywhere else here.
+# Assigns result to _ret global to avoid subshell fork.
 recency_of() {
     local m="${1:-}" now="${2:-0}" d
-    { [ -n "$m" ] && [ "$m" != "-" ]; } || { printf 'old'; return 0; }
+    if { [ -z "$m" ] || [ "$m" = "-" ]; }; then _ret='old'; return 0; fi
     d=$((now - m))
-    if   [ "$d" -lt 300 ];  then printf 'now'
-    elif [ "$d" -lt 3600 ]; then printf 'recent'
-    else                         printf 'old'
+    if   [ "$d" -lt 300 ];  then _ret='now'
+    elif [ "$d" -lt 3600 ]; then _ret='recent'
+    else                         _ret='old'
     fi
 }
+# Wrapper for tests that expect output
+recency_of_print() { recency_of "$@"; printf '%s' "$_ret"; }
 
 # "mtime \t state \t path" lines -> "recency \t rendered" lines. Pure, so the
 # layout is testable without a repo, a tmux server or a clock.
 changed_rows() {
     local lines="${1:-}" now="${2:-0}" w="${3:-24}" max="${4:-0}"
-    local mtime state path glyph age name namew pad n=0
+    local mtime state path glyph age name namew pad n=0 recency
     [ "$max" -gt 0 ] || return 0
     [ -n "$lines" ] || return 0
     # gutter(1) + name + gap(1) + age(up to 4)
@@ -121,12 +130,19 @@ changed_rows() {
         esac
         # A deleted path has no mtime -- stat failed on it. An em dash, never
         # "0s", which would claim it had just been touched.
-        if [ -n "$mtime" ] && [ "$mtime" != "-" ]; then age=$(age_str "$((now - mtime))")
-        else age='—'; fi
-        name=$(trunc_left "$path" "$namew")
+        if [ -n "$mtime" ] && [ "$mtime" != "-" ]; then
+            age_str "$((now - mtime))"
+            age="$_ret"
+        else
+            age='—'
+        fi
+        trunc_left "$path" "$namew"
+        name="$_ret"
+        recency_of "$mtime" "$now"
+        recency="$_ret"
         pad=$((w - 1 - ${#name} - ${#age}))
         [ "$pad" -lt 1 ] && pad=1
-        printf '%s\t%s%s%*s%s\n' "$(recency_of "$mtime" "$now")" \
+        printf '%s\t%s%s%*s%s\n' "$recency" \
             "$glyph" "$name" "$pad" '' "$age"
         n=$((n + 1))
     done <<< "$lines"
@@ -143,19 +159,42 @@ changed_rows() {
 # the cost this design exists to avoid. A deleted path makes stat fail, so its
 # mtime is "-", which sorts last numerically and renders no age.
 git_refresh() {
-    local repo="${1:-}" pairs paths
+    local repo="${1:-}" pairs paths state path line mtime name
+    local -a path_array
     [ -n "$repo" ] || return 0
     pairs=$(git -C "$repo" status --porcelain --ignore-submodules 2>/dev/null | parse_status)
     [ -n "$pairs" ] || return 0
+
+    # Collect all paths for batched stat
     while IFS=$'\t' read -r state path; do
         [ -n "$path" ] || continue
-        printf '%s\t%s\t%s\n' "$(_mtime "$repo/$path")" "$state" "$path"
+        path_array+=("$repo/$path")
+    done <<< "$pairs"
+
+    # ONE stat call for all paths. Deleted paths are absent from output (stat
+    # fails on them). Parse by NAME, never by index -- an index-based pairing
+    # would shift every file after a deleted one onto the wrong mtime.
+    declare -A mtime_map
+    if [ "${#path_array[@]}" -gt 0 ]; then
+        while IFS= read -r line; do
+            # Parse: mtime up to first space, remainder is name
+            mtime="${line%% *}"
+            name="${line#* }"
+            mtime_map["$name"]="$mtime"
+        done < <(stat "${_STAT_FMT[@]}" "${path_array[@]}" 2>/dev/null || true)
+    fi
+
+    # Pair each file with its mtime (or "-" if deleted)
+    while IFS=$'\t' read -r state path; do
+        [ -n "$path" ] || continue
+        mtime="${mtime_map["$repo/$path"]:-"-"}"
+        printf '%s\t%s\t%s\n' "$mtime" "$state" "$path"
     done <<< "$pairs" | sort -t$'\t' -k1,1nr
 }
 
 # BSD and GNU stat disagree on every flag. Resolved once, not per call.
-if stat -f '%m' . >/dev/null 2>&1; then _STAT_FMT=(-f '%m'); else _STAT_FMT=(-c '%Y'); fi
-_mtime() { stat "${_STAT_FMT[@]}" "$1" 2>/dev/null || printf '%s' '-'; }
+# Format includes filename so batched stat can pair results by name.
+if stat -f '%m %N' . >/dev/null 2>&1; then _STAT_FMT=(-f '%m %N'); else _STAT_FMT=(-c '%Y %n'); fi
 
 cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
 
