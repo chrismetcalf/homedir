@@ -12,25 +12,38 @@ set -u
 PANE="${TMUX_PANE:-}"
 [ -n "$PANE" ] || exit 0
 
+# shellcheck source=lib/tmux-theme.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-theme.sh"
+
 ESC=$'\033'
 RESET="${ESC}[0m"
 
-# Subagents get their OWN colour rather than sharing the row's state colour.
-# The four state colours already mean specific things (203 needs you, 214
-# working, 78 done, 245 idle) and a window can be in any of them while running
-# subagents -- the two are independent facts, so one colour cannot carry both.
-# 44 is deliberately outside that set: distinct at a glance, and not a red or an
-# amber, because subagents running is activity rather than a problem.
-SUBCOL=44
+# The theme is read once per draw, not per row: theme_load caches one
+# `tmux show -g` in the calling shell and theme_get scans it with builtins.
+# Twelve `tmux show -gv` forks per redraw is what made prefix + u take 2s.
+#
+# Subagents keep their OWN colour rather than sharing the row's state colour.
+# The four state colours already mean specific things, and a window can be in
+# any of them WHILE running subagents -- two independent facts, so one colour
+# cannot carry both. @theme-info is the secondary data colour, deliberately
+# neither a red nor an amber: subagents running is activity, not a problem.
+theme_colours() {
+    C_WAIT=$(ansi_for "$(theme_get wait)")
+    C_BUSY=$(ansi_for "$(theme_get busy)")
+    C_DONE=$(ansi_for "$(theme_get done)")
+    C_IDLE=$(ansi_for "$(theme_get dim)")
+    C_NAME=$(ansi_for "$(theme_get fg)")
+    C_HEAD=$(ansi_for "$(theme_get accent)")
+    C_SUB=$(ansi_for "$(theme_get info)")
+}
 
-# tmux-scout state -> 256-color foreground (matches the powerline theme tint)
 color_for() {
-	case "$1" in
-	wait) printf '203' ;;
-	busy) printf '214' ;;
-	done) printf '78' ;;
-	*) printf '245' ;; # idle / none
-	esac
+    case "$1" in
+    wait) printf '%s' "$C_WAIT" ;;
+    busy) printf '%s' "$C_BUSY" ;;
+    done) printf '%s' "$C_DONE" ;;
+    *)    printf '%s' "$C_IDLE" ;;
+    esac
 }
 
 cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
@@ -39,6 +52,7 @@ printf '%s[?25l' "$ESC" # hide cursor
 
 lastW=""
 draw() {
+	theme_load; theme_colours
 	local info W NP namew active idx scout name col nm plain pad ln
 	# Dimensions + pane count. If we're the only pane left (the main shell
 	# exited), self-destruct so the window doesn't linger as a lone sidebar.
@@ -52,7 +66,7 @@ draw() {
 	[ "$namew" -lt 3 ] && namew=3
 
 	local lines=()
-	lines+=("${ESC}[1;38;5;67m WINDOWS${RESET}")
+	lines+=("${C_HEAD} WINDOWS${RESET}")
 	lines+=("")
 	# `subs` is @scout-subagents, written per window by tmarchy-tick: how many
 	# Task subagents that window's agents have running. Rendered as a suffix on
@@ -75,18 +89,13 @@ draw() {
 		nm="$name"
 		[ "${#nm}" -gt "$avail" ] && nm="${nm:0:$((avail - 1))}…"
 		# The tag is coloured SEPARATELY from the name, so it is built as its own
-		# escape run rather than concatenated into $nm. `plain` still counts the
-		# visible characters -- padding the active row by the escaped length
-		# would push it metres past the pane edge.
+		# escape run rather than concatenated into $nm.
 		tagpart=""
-		[ -n "$tag" ] && tagpart=" ${ESC}[38;5;${SUBCOL}m${tag}"
+		[ -n "$tag" ] && tagpart=" ${C_SUB}${tag}"
 		if [ "$active" = "1" ]; then
-			plain=">${idx} ${nm}${tag:+ $tag}"
-			pad=$((W - ${#plain}))
-			[ "$pad" -lt 0 ] && pad=0
-			lines+=("${ESC}[48;5;236m${ESC}[1;38;5;${col}m>${idx} ${nm}${tagpart}$(printf '%*s' "$pad" '')${RESET}")
+			lines+=("${C_HEAD}▌${RESET}${col}${idx} ${nm}${tagpart}${RESET}")
 		else
-			lines+=(" ${ESC}[38;5;${col}m${idx}${RESET} ${ESC}[38;5;250m${nm}${tagpart}${RESET}")
+			lines+=(" ${col}${idx}${RESET} ${C_NAME}${nm}${tagpart}${RESET}")
 		fi
 	done < <(tmux list-windows -t "$PANE" \
 		-F '#{window_active} #{window_index} #{?@scout-state,#{@scout-state},none} #{?@scout-subagents,#{@scout-subagents},0} #{window_name}' 2>/dev/null)
