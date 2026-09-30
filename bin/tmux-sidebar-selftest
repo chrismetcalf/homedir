@@ -144,6 +144,47 @@ TMPD2=$(mktemp -d)
 )
 rm -rf "$TMPD2"
 
+# Pin no subshell spawning in the pairing loop (the lookup_mtime call site).
+# A $(lookup_mtime ...) fork per file would cancel most of the batching win.
+# We detect this by wrapping bash itself and counting executions.
+TMPD_SUBSHELL=$(mktemp -d)
+BASHBIN="$TMPD_SUBSHELL/bin"
+mkdir -p "$BASHBIN"
+# Find the real bash (not our wrapper)
+REAL_BASH=$(command -v bash)
+cat > "$BASHBIN/bash" << BASHEOF
+#!/bin/sh
+# Only count non-login, non-interactive subshells (command substitution)
+# and only after COUNTING_SUBSHELLS is set
+if [ "\$COUNTING_SUBSHELLS" = "1" ] && [ "\$1" = "-c" ]; then
+    echo "1" >> "\$SUBSHELL_LOG"
+fi
+exec "$REAL_BASH" "\$@"
+BASHEOF
+chmod +x "$BASHBIN/bash"
+
+export SUBSHELL_LOG="$TMPD_SUBSHELL/subshell-count"
+(
+    cd "$TMPD_SUBSHELL"
+    git init -q
+    for i in a b c d e; do echo "\$i" > "\$i.txt"; done
+    git add .
+    git commit -q -m "initial"
+    for i in a b c d e; do echo "\${i}\${i}" >> "\$i.txt"; done
+
+    # Source the script normally, then enable counting and run git_refresh
+    env PATH="$BASHBIN:\$PATH" SUBSHELL_LOG="$SUBSHELL_LOG" COUNTING_SUBSHELLS=0 TMUX_SIDEBAR_LIB=1 bash -c \
+        '. '"$DIR"'/tmux-window-sidebar; COUNTING_SUBSHELLS=1 git_refresh . >/dev/null'
+)
+
+if [ -f "$SUBSHELL_LOG" ]; then
+    SUBSHELL_COUNT=$(wc -l < "$SUBSHELL_LOG" | tr -d ' ')
+else
+    SUBSHELL_COUNT=0
+fi
+rm -rf "$TMPD_SUBSHELL"
+assert_eq "no subshell per file in pairing loop (5 files)" "0" "$SUBSHELL_COUNT"
+
 echo "regression pins"
 # 305 ms vs 32 ms in this nine-submodule repo. Nothing else would catch its
 # removal: the sidebar would still be correct, just a third of a core.
