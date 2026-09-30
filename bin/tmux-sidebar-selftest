@@ -160,6 +160,61 @@ printf '%s\n' "$allvals" | grep -qw 'wait' \
     && fail "recency_of must never return 'wait'" "only now/recent/old" "found wait" \
     || pass "recency_of never returns 'wait'"
 
+# Bash 3.2 compatibility check. This repo deploys to macOS without Homebrew,
+# where /usr/bin/env bash resolves to /bin/bash 3.2.57. The selftest must
+# exercise that explicitly, or a compat constraint nothing executes is not a
+# constraint. Run the pure-function and git_refresh tests under /bin/bash 3.2
+# when present, in addition to the default interpreter above.
+if [ -x /bin/bash ]; then
+    BASH32_VER=$(/bin/bash --version 2>&1 | head -1)
+    if printf '%s\n' "$BASH32_VER" | grep -q 'version 3\.2'; then
+        echo
+        echo "bash 3.2 compatibility ($(printf '%s' "$BASH32_VER" | sed 's/.*version //' | cut -d'(' -f1))"
+
+        # Pure functions
+        B32_AGE=$(/bin/bash -c '. '"$DIR"'/tmux-window-sidebar; age_str_print 3600')
+        assert_eq "age_str under 3.2" "1h" "$B32_AGE"
+
+        B32_TRUNC=$(/bin/bash -c '. '"$DIR"'/tmux-window-sidebar; trunc_left_print bin/lib/theme.sh 13')
+        assert_eq "trunc_left under 3.2" "…lib/theme.sh" "$B32_TRUNC"
+
+        B32_RECENCY=$(/bin/bash -c '. '"$DIR"'/tmux-window-sidebar; recency_of_print 1000 90000')
+        assert_eq "recency_of under 3.2" "old" "$B32_RECENCY"
+
+        # git_refresh with deletion (the critical one)
+        TMPD3=$(mktemp -d)
+        OLDPWD="$PWD"
+        cd "$TMPD3"
+        git init -q
+        echo a > a.txt
+        echo b > b.txt
+        git add .
+        git commit -q -m "initial"
+        echo aa >> a.txt
+        echo bb >> b.txt
+        rm b.txt
+
+        B32_OUT=$(/bin/bash -c 'TMUX_SIDEBAR_LIB=1 . '"$DIR"'/tmux-window-sidebar; git_refresh .')
+
+        B32_A_MTIME=$(printf '%s\n' "$B32_OUT" | grep 'a.txt$' | cut -f1)
+        [ "$B32_A_MTIME" != "-" ] && [ "$B32_A_MTIME" -gt 0 ] 2>/dev/null && \
+            pass "git_refresh under 3.2: a.txt has numeric mtime" || \
+            fail "git_refresh under 3.2: a.txt has numeric mtime" "numeric > 0" "$B32_A_MTIME"
+
+        B32_B_MTIME=$(printf '%s\n' "$B32_OUT" | grep 'b.txt$' | cut -f1)
+        assert_eq "git_refresh under 3.2: b.txt deleted" "-" "$B32_B_MTIME"
+
+        cd "$OLDPWD"
+        rm -rf "$TMPD3"
+    else
+        echo
+        echo "bash 3.2 compatibility: SKIPPED ($(printf '%s' "$BASH32_VER" | sed 's/.*version //' | cut -d'(' -f1) is not 3.2)"
+    fi
+else
+    echo
+    echo "bash 3.2 compatibility: SKIPPED (/bin/bash not present)"
+fi
+
 echo
 [ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
 exit "$FAILED"

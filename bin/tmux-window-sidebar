@@ -171,23 +171,46 @@ git_refresh() {
         path_array+=("$repo/$path")
     done <<< "$pairs"
 
-    # ONE stat call for all paths. Deleted paths are absent from output (stat
-    # fails on them). Parse by NAME, never by index -- an index-based pairing
-    # would shift every file after a deleted one onto the wrong mtime.
-    declare -A mtime_map
-    if [ "${#path_array[@]}" -gt 0 ]; then
-        while IFS= read -r line; do
-            # Parse: mtime up to first space, remainder is name
-            mtime="${line%% *}"
-            name="${line#* }"
-            mtime_map["$name"]="$mtime"
-        done < <(stat "${_STAT_FMT[@]}" "${path_array[@]}" 2>/dev/null || true)
+    # ONE stat call for all paths. Partition first: deleted paths get mtime "-"
+    # and never reach stat, so stat output is 1:1 with its input and the pairing
+    # is by position. Verify with the filename in the format -- parse by name,
+    # never trust index blindly. This is correct under deletion because [ -e ]
+    # partitions before stat runs: a deleted path is detected as deleted, never
+    # passed to stat where it would silently shift everything after it.
+    existing_paths=()
+    deleted_paths=()
+    for p in "${path_array[@]}"; do
+        if [ -e "$p" ]; then
+            existing_paths+=("$p")
+        else
+            deleted_paths+=("$p")
+        fi
+    done
+
+    # Stat the existing paths once. Format includes filename for verification.
+    stat_output=""
+    if [ "${#existing_paths[@]}" -gt 0 ]; then
+        stat_output=$(stat "${_STAT_FMT[@]}" "${existing_paths[@]}" 2>/dev/null || true)
     fi
+
+    # Build mtime lookup. Bash 3.2 has no associative arrays, so linear search
+    # per file. With typical file counts (~3-10) this costs nothing measurable.
+    lookup_mtime() {
+        local target="$1" line mtime name
+        while IFS= read -r line; do
+            [ -z "$line" ] || {
+                mtime="${line%% *}"
+                name="${line#* }"
+                [ "$name" = "$target" ] && { printf '%s' "$mtime"; return; }
+            }
+        done <<< "$stat_output"
+        printf '%s' "-"
+    }
 
     # Pair each file with its mtime (or "-" if deleted)
     while IFS=$'\t' read -r state path; do
         [ -n "$path" ] || continue
-        mtime="${mtime_map["$repo/$path"]:-"-"}"
+        mtime=$(lookup_mtime "$repo/$path")
         printf '%s\t%s\t%s\n' "$mtime" "$state" "$path"
     done <<< "$pairs" | sort -t$'\t' -k1,1nr
 }
