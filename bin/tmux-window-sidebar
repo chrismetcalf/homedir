@@ -59,8 +59,6 @@ age_str() {
     else                          _ret="$((s / 86400))d"
     fi
 }
-# Wrapper for tests that expect output
-age_str_print() { age_str "$@"; printf '%s' "$_ret"; }
 
 # Truncate from the LEFT, keeping the basename. The opposite of the window
 # list, and deliberately: for a file the basename identifies it, for a window
@@ -72,18 +70,35 @@ trunc_left() {
     if [ "${#s}" -le "$w" ]; then _ret="$s"
     else _ret="…${s: -$((w - 1))}"; fi
 }
-# Wrapper for tests that expect output
-trunc_left_print() { trunc_left "$@"; printf '%s' "$_ret"; }
 
-# git status --porcelain on stdin -> "state \t relpath". Pure.
+# `git status --porcelain -z` on stdin -> "state \t relpath" lines. Pure.
+#
+# -z, NOT plain --porcelain: v1 QUOTES any path containing a space, a tab, a
+# newline, a quote, or (under the default core.quotePath=true) a non-ASCII
+# byte -- and nothing downstream un-quotes it. `"with space.txt"` then never
+# matches on disk, so it never reaches stat: the row gets mtime "-", sorts to
+# the bottom with the deleted files, renders an em dash instead of an age, and
+# buckets as `old`, drawing a file touched ten seconds ago in the oldest
+# colour. Three wrong behaviours at once, all silent, on an everyday filename.
+# core.quotePath=false is NOT a fix -- it only stops the octal escaping; a
+# space-containing path is still quoted (verified).
+#
+# -z is also what removes the tab/newline field-splitting hazard from this
+# parse, since records are NUL-framed rather than newline-framed.
+#
+# Under -z a rename or copy is TWO records -- "R  <new>" then "<old>" -- not
+# the "old -> new" of v1. The second record is consumed and discarded here:
+# left in the stream it would be read as a separate, still-present file.
 parse_status() {
-    local line xy path
-    while IFS= read -r line; do
-        [ -n "$line" ] || continue
-        xy="${line:0:2}"
-        path="${line:3}"
-        # "R  old -> new": the new name is the one that exists on disk.
-        case "$path" in *" -> "*) path="${path#* -> }" ;; esac
+    local rec xy path old
+    while IFS= read -r -d '' rec; do
+        [ -n "$rec" ] || continue
+        xy="${rec:0:2}"
+        path="${rec:3}"
+        # R/C in EITHER column (index or worktree) carries the origin record.
+        case "$xy" in
+            R*|C*|?R|?C) IFS= read -r -d '' old || true ;;
+        esac
         case "$xy" in
             '??') printf 'untracked\t%s\n' "$path" ;;
             *D*)  printf 'deleted\t%s\n'   "$path" ;;
@@ -106,8 +121,6 @@ recency_of() {
     else                         _ret='old'
     fi
 }
-# Wrapper for tests that expect output
-recency_of_print() { recency_of "$@"; printf '%s' "$_ret"; }
 
 # Stat output lookup. Bash 3.2 has no associative arrays, so linear search per
 # file. With typical file counts (~3-10) this costs nothing measurable.
@@ -131,8 +144,6 @@ changed_rows() {
     local mtime state path glyph age name namew pad n=0 recency
     [ "$max" -gt 0 ] || return 0
     [ -n "$lines" ] || return 0
-    # gutter(1) + name + gap(1) + age(up to 4)
-    namew=$((w - 6)); [ "$namew" -lt 3 ] && namew=3
     while IFS=$'\t' read -r mtime state path; do
         [ -n "$path" ] || continue
         [ "$n" -ge "$max" ] && break
@@ -151,6 +162,14 @@ changed_rows() {
         else
             age='—'
         fi
+        # The name budget is computed AFTER the age, not from a fixed
+        # allowance of four. age_str's days branch is unbounded, and a
+        # 5-character age against a hard `w - 6` overflowed the row: at w=24 a
+        # 1000-day file rendered 26 visible columns, wrapped, and shifted every
+        # row below it. (Not hypothetical -- a submodule in this repo is at
+        # 942d.) The name shrinks instead, so the row is always exactly w wide.
+        # gutter(1) + name + gap(>=1) + age
+        namew=$((w - 2 - ${#age})); [ "$namew" -lt 3 ] && namew=3
         trunc_left "$path" "$namew"
         name="$_ret"
         recency_of "$mtime" "$now"
@@ -168,17 +187,19 @@ changed_rows() {
 # --ignore-submodules is MANDATORY, not a tuning knob: measured in this repo
 # it is 305 ms without and 32 ms with, because there are nine submodules. At
 # the sidebar's redraw rate the first number is a third of a core per window,
-# which is the 2026-08-21 fork-storm shape. bin/tmux-sidebar-selftest pins it.
+# which is the 2026-08-21 fork-storm shape. bin/tmux-sidebar-selftest pins it
+# BEHAVIOURALLY (a fixture repo with a dirty submodule), not by grepping this
+# file -- a grep for the flag name is satisfied by this very comment.
 #
 # ONE stat for every path, never one per file -- a fork per changed file is
 # the cost this design exists to avoid. A deleted path makes stat fail, so its
 # mtime is "-", which sorts last numerically and renders no age.
 git_refresh() {
-    local repo="${1:-}" pairs state path line mtime
+    local repo="${1:-}" pairs state path mtime
     local -a path_array existing_paths
     local stat_output p
     [ -n "$repo" ] || return 0
-    pairs=$(git -C "$repo" status --porcelain --ignore-submodules 2>/dev/null | parse_status)
+    pairs=$(git -C "$repo" status --porcelain -z --ignore-submodules 2>/dev/null | parse_status)
     [ -n "$pairs" ] || return 0
 
     # Collect all paths for batched stat
@@ -190,12 +211,20 @@ git_refresh() {
     # ONE stat call for all paths. Partition first: deleted paths get mtime "-"
     # and never reach stat, so stat output is 1:1 with its input and the pairing
     # is by position. Verify with the filename in the format -- parse by name,
-    # never trust index blindly. This is correct under deletion because [ -e ]
-    # partitions before stat runs: a deleted path is detected as deleted, never
-    # passed to stat where it would silently shift everything after it.
+    # never trust index blindly. This is correct under deletion because the
+    # existence test partitions before stat runs: a deleted path is detected as
+    # deleted, never passed to stat where it would silently shift everything
+    # after it.
+    #
+    # The ${#} guard is not decoration: under `set -u` bash 3.2 treats
+    # "${path_array[@]}" on an empty array as an unbound variable and EXITS --
+    # and this runs in the sidebar daemon, so the pane would die.
     existing_paths=()
+    [ "${#path_array[@]}" -gt 0 ] || return 0
     for p in "${path_array[@]}"; do
-        [ -e "$p" ] && existing_paths+=("$p")
+        # -L as well as -e: -e is FALSE for a broken symlink, so a changed
+        # dangling link would be misreported as deleted.
+        { [ -e "$p" ] || [ -L "$p" ]; } && existing_paths+=("$p")
     done
 
     # Stat the existing paths once. Format includes filename for verification.
