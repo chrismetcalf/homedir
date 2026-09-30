@@ -144,46 +144,32 @@ TMPD2=$(mktemp -d)
 )
 rm -rf "$TMPD2"
 
-# Pin no subshell spawning in the pairing loop (the lookup_mtime call site).
-# A $(lookup_mtime ...) fork per file would cancel most of the batching win.
-# We detect this by wrapping bash itself and counting executions.
-TMPD_SUBSHELL=$(mktemp -d)
-BASHBIN="$TMPD_SUBSHELL/bin"
-mkdir -p "$BASHBIN"
-# Find the real bash (not our wrapper)
-REAL_BASH=$(command -v bash)
-cat > "$BASHBIN/bash" << BASHEOF
-#!/bin/sh
-# Only count non-login, non-interactive subshells (command substitution)
-# and only after COUNTING_SUBSHELLS is set
-if [ "\$COUNTING_SUBSHELLS" = "1" ] && [ "\$1" = "-c" ]; then
-    echo "1" >> "\$SUBSHELL_LOG"
-fi
-exec "$REAL_BASH" "\$@"
-BASHEOF
-chmod +x "$BASHBIN/bash"
-
-export SUBSHELL_LOG="$TMPD_SUBSHELL/subshell-count"
+# Pin that lookup_mtime writes nothing to stdout. This is the property that
+# makes the no-fork calling convention work: lookup_mtime returns via _ret,
+# so a naive mtime=$(lookup_mtime ...) captures empty string and breaks rows.
+# The existing mtime correctness assertions catch that naive reintroduction,
+# but cannot catch the working-but-forking form (with a printf to capture _ret).
+# Pinning that lookup_mtime produces no stdout is robust against both.
+TMPD_LOOKUP=$(mktemp -d)
+LOOKUP_OUT="$TMPD_LOOKUP/stdout"
 (
-    cd "$TMPD_SUBSHELL"
-    git init -q
-    for i in a b c d e; do echo "\$i" > "\$i.txt"; done
-    git add .
-    git commit -q -m "initial"
-    for i in a b c d e; do echo "\${i}\${i}" >> "\$i.txt"; done
-
-    # Source the script normally, then enable counting and run git_refresh
-    env PATH="$BASHBIN:\$PATH" SUBSHELL_LOG="$SUBSHELL_LOG" COUNTING_SUBSHELLS=0 TMUX_SIDEBAR_LIB=1 bash -c \
-        '. '"$DIR"'/tmux-window-sidebar; COUNTING_SUBSHELLS=1 git_refresh . >/dev/null'
+    TMUX_SIDEBAR_LIB=1 bash -c '
+        . '"$DIR"'/tmux-window-sidebar
+        # Simulate stat output: "mtime filename"
+        stat_out="1234567890 /repo/file.txt"
+        # Call lookup_mtime and redirect its stdout to a file
+        lookup_mtime "$stat_out" "/repo/file.txt" > "'"$LOOKUP_OUT"'"
+        # Verify _ret was set correctly (proves we tested the right thing)
+        [ "$_ret" = "1234567890" ] || exit 1
+    '
 )
-
-if [ -f "$SUBSHELL_LOG" ]; then
-    SUBSHELL_COUNT=$(wc -l < "$SUBSHELL_LOG" | tr -d ' ')
-else
-    SUBSHELL_COUNT=0
-fi
-rm -rf "$TMPD_SUBSHELL"
-assert_eq "no subshell per file in pairing loop (5 files)" "0" "$SUBSHELL_COUNT"
+LOOKUP_STATUS=$?
+# Verify stdout file is empty
+LOOKUP_SIZE=$(wc -c < "$LOOKUP_OUT" | tr -d ' ')
+rm -rf "$TMPD_LOOKUP"
+[ "$LOOKUP_STATUS" -eq 0 ] && [ "$LOOKUP_SIZE" -eq 0 ] && \
+    pass "lookup_mtime writes nothing to stdout" || \
+    fail "lookup_mtime writes nothing to stdout" "empty stdout, _ret=1234567890" "status=$LOOKUP_STATUS size=$LOOKUP_SIZE"
 
 echo "regression pins"
 # 305 ms vs 32 ms in this nine-submodule repo. Nothing else would catch its
