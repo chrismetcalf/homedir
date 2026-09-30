@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+# Checks for bin/obsidian-vault, the per-host vault resolver behind
+# `prefix + ? -> +Agents -> New vault session`.
+#
+# Every case runs against a FAKE HOME under a scratch directory, because the
+# whole point of the script is to read the real one -- a test that let it see
+# the operator's actual ~ would pass on this host and prove nothing about any
+# other, which is the exact failure the script exists to fix.
+#
+# Each assertion names the sabotage that makes it fail.
+set -u
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+BIN="$ROOT/bin/obsidian-vault"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/obsidian-vault-selftest-XXXXXX")
+FAIL=0
+cleanup() { [ -n "${TMP:-}" ] && [ -d "$TMP" ] && find "$TMP" -mindepth 1 -delete 2>/dev/null; [ -d "$TMP" ] && rmdir "$TMP" 2>/dev/null; }
+trap cleanup EXIT
+
+ok()   { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL + 1)); }
+
+# A real vault is a directory containing .obsidian/ -- Obsidian's own marker.
+mkvault() { mkdir -p "$1/.obsidian"; }
+
+# Run the resolver with a controlled environment. HOME is the fake one, and the
+# conf path is pinned so a stray ~/.obsidian-vault on the test machine cannot
+# reach in.
+run() { env HOME="$HOME_DIR" OBSIDIAN_VAULT="${VAULT_ENV:-}" \
+             OBSIDIAN_VAULT_CONF="${CONF:-$HOME_DIR/.obsidian-vault}" "$BIN" "$@"; }
+
+echo "obsidian-vault-selftest"
+
+# --- the scan ---------------------------------------------------------------
+
+# Sabotage: in candidates() drop the `$HOME/Obsidian/Metcalf` line -- the scan
+# no longer finds a vault in the commonest location and this fails.
+HOME_DIR="$TMP/h1"; VAULT_ENV=""; CONF=""
+mkvault "$HOME_DIR/Obsidian/Metcalf"
+got=$(run 2>/dev/null)
+if [ "$got" = "$HOME_DIR/Obsidian/Metcalf" ]; then
+    ok "the scan finds a vault in a home-directory location"
+else
+    fail "scan returned '$got', wanted $HOME_DIR/Obsidian/Metcalf"
+fi
+
+# The trap this rule exists for: on the server the vault sits beside `config`,
+# `ssl` and `node_modules_metcalf`, all of which are plausible-looking
+# directories and none of which are vaults. Matching on the name alone would
+# pick one of those on some other host.
+#
+# Sabotage: in is_vault() test `[ -d "$1" ]` instead of `[ -d "$1/.obsidian" ]`
+# -- the decoy is accepted and this fails.
+HOME_DIR="$TMP/h2"; VAULT_ENV=""; CONF=""
+mkdir -p "$HOME_DIR/Obsidian/Metcalf"          # exists, but NOT a vault
+got=$(run 2>/dev/null)
+if [ -n "$got" ]; then
+    fail "a directory with no .obsidian/ was accepted as a vault: '$got'"
+else
+    ok "a directory without .obsidian/ is not a vault"
+fi
+
+# Nothing anywhere is a clean failure, not an empty success: the menu entry
+# branches on the answer, so "" and "no vault" must be distinguishable.
+# Sabotage: in resolve() end with `return 0` -- exit status goes to 0 and this
+# fails.
+HOME_DIR="$TMP/h3"; VAULT_ENV=""; CONF=""
+mkdir -p "$HOME_DIR"
+if run >/dev/null 2>&1; then
+    fail "resolving nothing exited 0"
+else
+    ok "resolving nothing exits non-zero"
+fi
+
+# --- the per-host override file ---------------------------------------------
+
+# The file is the mechanism that actually makes this host-dependent for tmux --
+# see the script's header on why the env var cannot be relied on there.
+#
+# Sabotage: in resolve() delete the from_file() branch -- the override is
+# ignored, the scan wins, and this fails.
+HOME_DIR="$TMP/h4"; VAULT_ENV=""; CONF="$TMP/h4/conf"
+mkvault "$HOME_DIR/Obsidian/Metcalf"           # the scan would find this
+mkvault "$TMP/elsewhere/Notes"                 # the file points here instead
+printf '%s\n' "$TMP/elsewhere/Notes" > "$CONF"
+got=$(run 2>/dev/null)
+if [ "$got" = "$TMP/elsewhere/Notes" ]; then
+    ok "the override file beats the scan"
+else
+    fail "override file ignored: got '$got'"
+fi
+
+# A hand-written config file is exactly where someone writes `~/...`, and a
+# path that silently fails to resolve is worse than one that errors.
+# Sabotage: in from_file() return the line unchanged instead of expanding `~`
+# -- the tilde reaches is_vault(), does not exist, and this fails.
+HOME_DIR="$TMP/h5"; VAULT_ENV=""; CONF="$TMP/h5/conf"
+mkdir -p "$HOME_DIR"; mkvault "$HOME_DIR/MyVault"
+printf '%s\n' '~/MyVault' > "$CONF"
+got=$(run 2>/dev/null)
+if [ "$got" = "$HOME_DIR/MyVault" ]; then
+    ok "a tilde in the override file is expanded"
+else
+    fail "tilde not expanded: got '$got'"
+fi
+
+# Comments and blank lines, because a config file people edit by hand gets
+# both. Sabotage: in from_file() drop the sed/grep filtering and take `head -1`
+# straight -- the comment becomes the path and this fails.
+HOME_DIR="$TMP/h6"; VAULT_ENV=""; CONF="$TMP/h6/conf"
+mkdir -p "$HOME_DIR"; mkvault "$TMP/h6/real"
+printf '# where the vault lives\n\n%s   # trailing note\n' "$TMP/h6/real" > "$CONF"
+got=$(run 2>/dev/null)
+if [ "$got" = "$TMP/h6/real" ]; then
+    ok "comments and blank lines in the override file are skipped"
+else
+    fail "override parsing mishandled comments: got '$got'"
+fi
+
+# --- the environment variable -----------------------------------------------
+
+# Sabotage: in resolve() move the OBSIDIAN_VAULT branch below from_file() --
+# the file wins and this fails.
+HOME_DIR="$TMP/h7"; CONF="$TMP/h7/conf"
+mkdir -p "$HOME_DIR"; mkvault "$TMP/h7/fromenv"; mkvault "$TMP/h7/fromfile"
+printf '%s\n' "$TMP/h7/fromfile" > "$CONF"
+VAULT_ENV="$TMP/h7/fromenv"
+got=$(run 2>/dev/null)
+if [ "$got" = "$TMP/h7/fromenv" ]; then
+    ok "the environment variable outranks the override file"
+else
+    fail "env did not win: got '$got'"
+fi
+
+# A stale variable pointing at something that is no longer a vault must fall
+# THROUGH rather than win, or a moved vault breaks the menu with no clue why.
+# Sabotage: in resolve() drop the `is_vault "$OBSIDIAN_VAULT"` term -- the dead
+# path is returned and this fails.
+HOME_DIR="$TMP/h8"; CONF="$TMP/h8/conf"
+mkdir -p "$HOME_DIR/gone"; mkvault "$TMP/h8/good"
+printf '%s\n' "$TMP/h8/good" > "$CONF"
+VAULT_ENV="$HOME_DIR/gone"
+got=$(run 2>/dev/null)
+if [ "$got" = "$TMP/h8/good" ]; then
+    ok "a stale environment variable falls through to the next source"
+else
+    fail "stale env was trusted: got '$got'"
+fi
+
+# --- --set-tmux -------------------------------------------------------------
+
+# The menu entry tests `#{@vault-path}` for emptiness, so the no-vault case has
+# to SET the option empty rather than leave whatever a previous host's reload
+# put there. Sabotage: in the --set-tmux branch skip the tmux call when resolve
+# fails -- a stale value survives and this fails.
+if command -v tmux >/dev/null 2>&1; then
+    SOCK="obsidian-vault-selftest-$$"
+    tmux -L "$SOCK" new-session -d -s t 'sleep 60' 2>/dev/null
+    tmux -L "$SOCK" set -g @vault-path "/stale/from/another/host" 2>/dev/null
+
+    # ⚠ NOT via `tmux run-shell`. run-shell executes on the SERVER, in the
+    # environment the server captured at start, so an `env HOME=...` in front
+    # of the tmux client never reaches the script -- the first version of these
+    # three checks did exactly that and measured this host's real vault instead
+    # of the fixture. That is the same trap CLAUDE.md records for PATH.
+    #
+    # Instead the script is run directly with a controlled environment, and
+    # pointed at the scratch server through $TMUX, which is how `tmux set`
+    # finds a socket. Without this it would target the DEFAULT socket and write
+    # @vault-path onto the operator's live session.
+    SOCKPATH=$(tmux -L "$SOCK" display-message -p '#{socket_path}' 2>/dev/null)
+    if [ -z "$SOCKPATH" ]; then
+        fail "setup: could not find the scratch server's socket path"
+    fi
+    set_tmux() {  # $1 = HOME, $2 = conf path
+        env HOME="$1" OBSIDIAN_VAULT= OBSIDIAN_VAULT_CONF="$2" \
+            TMUX="$SOCKPATH,0,0" "$BIN" --set-tmux
+    }
+
+    HOME_DIR="$TMP/h9"; VAULT_ENV=""; CONF="$TMP/h9/conf"
+    mkdir -p "$HOME_DIR"
+    set_tmux "$HOME_DIR" "$CONF"
+    got=$(tmux -L "$SOCK" show -gv @vault-path 2>/dev/null)
+    if [ -z "$got" ]; then
+        ok "--set-tmux clears the option when this host has no vault"
+    else
+        fail "--set-tmux left '$got' when there was no vault"
+    fi
+
+    HOME_DIR="$TMP/h10"; CONF="$TMP/h10/conf"
+    mkdir -p "$HOME_DIR"; mkvault "$TMP/h10/v"
+    printf '%s\n' "$TMP/h10/v" > "$CONF"
+    set_tmux "$HOME_DIR" "$CONF"
+    got=$(tmux -L "$SOCK" show -gv @vault-path 2>/dev/null)
+    if [ "$got" = "$TMP/h10/v" ]; then
+        ok "--set-tmux publishes the resolved vault"
+    else
+        fail "--set-tmux set '$got', wanted $TMP/h10/v"
+    fi
+
+    # The menu command itself, run the way the palette runs commands: written to
+    # a file and sourced. That is not incidental -- a bare #{...} in such a file
+    # would be a COMMENT, which is the trap CLAUDE.md records for tmux-cmd, so
+    # this is the path where a quoting mistake would actually show up.
+    cmds="$TMP/menu.tmux"
+    printf '%s\n' 'if -F "#{@vault-path}" { new-window -c "#{@vault-path}" -n "vaulttest" "sleep 30" } { display-message -p "NOVAULT" }' > "$cmds"
+    tmux -L "$SOCK" source-file "$cmds" 2>/dev/null
+    sleep 0.3
+    cwd=$(tmux -L "$SOCK" list-windows -t t -F '#{window_name} #{pane_current_path}' 2>/dev/null | awk '$1=="vaulttest" {print $2}')
+    if [ "$cwd" = "$TMP/h10/v" ]; then
+        ok "the menu command opens a window IN the resolved vault"
+    else
+        fail "menu command opened in '$cwd', wanted $TMP/h10/v"
+    fi
+
+    tmux -L "$SOCK" set -g @vault-path "" 2>/dev/null
+    out=$(tmux -L "$SOCK" source-file "$cmds" 2>&1)
+    before=$(tmux -L "$SOCK" list-windows -t t 2>/dev/null | wc -l)
+    if [ "$before" -eq 2 ]; then
+        ok "with no vault the menu command opens nothing"
+    else
+        fail "a window was opened with no vault set ($before windows)"
+    fi
+    tmux -L "$SOCK" kill-server 2>/dev/null
+else
+    printf '  skip --set-tmux checks (tmux not installed)\n'
+fi
+
+if [ "$FAIL" -eq 0 ]; then echo "all passed"; else echo "$FAIL failed"; fi
+exit $((FAIL > 0))

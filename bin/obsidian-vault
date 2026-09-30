@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# Where the Obsidian vault lives ON THIS HOST.
+#
+# The vault is synced, not shared: the same notes sit at
+# /opt/docker-config/obsidian/Metcalf on the server, somewhere under
+# ~/Library/Mobile Documents on a Mac, and wherever a given box happened to
+# clone it. Anything in this repo that wants the vault therefore has to ask
+# rather than assume -- `prefix + ? -> +Agents -> New vault session` had the
+# server's path baked in, which made that menu entry do nothing useful
+# anywhere else.
+#
+#   obsidian-vault                 print the vault path, or exit 1
+#   obsidian-vault --doctor        report every source that was tried
+#   obsidian-vault --set-tmux      set @vault-path on the running server
+#
+# Resolution order, first hit wins:
+#
+#   1. $OBSIDIAN_VAULT
+#   2. ~/.obsidian-vault           one line, a path; out of repo, per host
+#   3. a scan of the usual locations
+#
+# ⚠ For anything invoked BY TMUX, treat the env var as unreliable and use the
+# file. The tmux server captures its environment once at start, before
+# .zshrc.local has run, so a variable exported by a login shell is invisible to
+# a binding or a menu -- the same trap that ran a stale `claude` out of
+# /usr/local/bin for months (see CLAUDE.md, "PATH ⚠ tmux caches its own"). The
+# file is read fresh on every call and has no such problem.
+#
+# A vault is identified by containing `.obsidian/`, which is Obsidian's own
+# marker rather than a guess about naming. That matters for the scan: several
+# sibling directories here (`config`, `ssl`, `node_modules_metcalf`) look
+# plausible and are not vaults.
+set -u
+
+CONF="${OBSIDIAN_VAULT_CONF:-$HOME/.obsidian-vault}"
+
+# EVERY CANDIDATE IS UNDER $HOME, and that is a rule rather than a coincidence.
+# An absolute path here would be one host's layout smuggled into the scan: the
+# first draft listed /opt/docker-config/obsidian/Metcalf, which meant the
+# resolver found this server's vault no matter whose HOME it was given --
+# host-INDEPENDENT, which is the opposite of the point, and untestable besides
+# (the selftest caught it by resolving a vault inside a fake home that
+# contained none). A vault somewhere unusual is what ~/.obsidian-vault is for.
+#
+# Ordered by specificity, not by likelihood. Names carrying the vault's own
+# name come before bare `Obsidian` parents, so a box holding several vaults
+# still lands on this one.
+candidates() {
+    cat <<EOF
+$HOME/Obsidian/Metcalf
+$HOME/Documents/Obsidian/Metcalf
+$HOME/vaults/Metcalf
+$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/Metcalf
+$HOME/Metcalf
+$HOME/Obsidian
+$HOME/Documents/Obsidian
+EOF
+}
+
+is_vault() { [ -n "${1:-}" ] && [ -d "$1/.obsidian" ]; }
+
+# The file's first non-blank, non-comment line. `~` is expanded because a
+# hand-written config file is exactly where someone writes it, and a path that
+# silently does not resolve is worse than one that errors.
+from_file() {
+    [ -r "$CONF" ] || return 1
+    local line
+    line=$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$CONF" | grep -v '^[[:space:]]*$' | head -1)
+    [ -n "$line" ] || return 1
+    printf '%s\n' "${line/#\~/$HOME}"
+}
+
+resolve() {
+    if [ -n "${OBSIDIAN_VAULT:-}" ] && is_vault "$OBSIDIAN_VAULT"; then
+        printf '%s\n' "$OBSIDIAN_VAULT"; return 0
+    fi
+    local f
+    if f=$(from_file) && is_vault "$f"; then
+        printf '%s\n' "$f"; return 0
+    fi
+    local c
+    while IFS= read -r c; do
+        if is_vault "$c"; then printf '%s\n' "$c"; return 0; fi
+    done < <(candidates)
+    return 1
+}
+
+case "${1:-}" in
+--doctor)
+    printf 'obsidian-vault\n\n'
+    printf '  $OBSIDIAN_VAULT   %s\n' "${OBSIDIAN_VAULT:-(unset)}"
+    if [ -n "${OBSIDIAN_VAULT:-}" ]; then
+        is_vault "$OBSIDIAN_VAULT" && printf '                    is a vault\n' \
+            || printf '                    NOT a vault (no .obsidian/ inside)\n'
+    fi
+    printf '  %-17s %s\n' "$CONF" "$([ -r "$CONF" ] && echo present || echo '(absent)')"
+    if f=$(from_file); then
+        is_vault "$f" && printf '                    -> %s  is a vault\n' "$f" \
+            || printf '                    -> %s  NOT a vault\n' "$f"
+    fi
+    printf '\n  scan:\n'
+    while IFS= read -r c; do
+        if is_vault "$c"; then printf '    vault   %s\n' "$c"
+        elif [ -d "$c" ]; then printf '    dir     %s  (no .obsidian/, so not a vault)\n' "$c"
+        else printf '    absent  %s\n' "$c"; fi
+    done < <(candidates)
+    printf '\n'
+    if v=$(resolve); then
+        printf '  resolved: %s\n' "$v"
+    else
+        printf '  resolved: NOTHING\n'
+        printf '  fix: put the path in %s, or set $OBSIDIAN_VAULT\n' "$CONF"
+    fi
+    ;;
+--set-tmux)
+    # Called from .tmux.conf at load. Sets the option to the vault path, or to
+    # the EMPTY STRING when there is none -- which is what the menu entry tests,
+    # so a host with no vault gets a message saying so rather than a window
+    # opened in whatever directory tmux fell back to.
+    command -v tmux >/dev/null 2>&1 || exit 0
+    tmux set -g @vault-path "$(resolve || true)" 2>/dev/null || true
+    ;;
+'')
+    resolve
+    ;;
+*)
+    printf 'usage: obsidian-vault [--doctor|--set-tmux]\n' >&2
+    exit 2
+    ;;
+esac

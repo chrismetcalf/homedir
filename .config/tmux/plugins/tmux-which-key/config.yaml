@@ -484,4 +484,4 @@ items:
       # single-quoted, so a `'%1'` in here would close it and break the parse.
       - name: New vault session
         key: V
-        command: 'command-prompt -I vault -p "vault session name:" { new-window -c /opt/docker-config/obsidian/Metcalf -n "%1" "claude --remote-control %1" }'
+        command: 'command-prompt -I vault -p "vault session name:" { if -F "#{@vault-path}" { new-window -c "#{@vault-path}" -n "%1" "claude --remote-control %1" } { display-message "no Obsidian vault on this host -- run obsidian-vault --doctor" } }'
