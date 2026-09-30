@@ -92,6 +92,26 @@ assert_eq "no origin record leaks through as a row" \
     "added.txt bin/a fresh.txt gone.txt rn-new.txt wt-new.txt" \
     "$(printf '%s\n' "$OUT" | cut -f2 | LC_ALL=C sort | tr '\n' ' ' | sed 's/ *$//')"
 
+echo "parse_status unmerged"
+# `*D*` used to match before `*A*` and there was no unmerged case at all, so
+# DU/UD -- "deleted by us"/"deleted by them", conflicts in which the worktree
+# DOES contain a file awaiting resolution -- were labelled `deleted`. The
+# existence partition is independent of the state string, so the row then also
+# got a real mtime and rendered `- del-us.txt  4s`: a deletion glyph with a
+# fresh timestamp, for the single most action-requiring state a working tree
+# can be in. AA (both added) was swallowed by `*A*` the same way.
+#
+# DD (both deleted) is genuinely gone and must KEEP falling through to *D*.
+UOUT=$(printf 'UU both.txt\0AA addadd.txt\0DU del-us.txt\0UD del-them.txt\0DD del-both.txt\0AU add-us.txt\0UA add-them.txt\0' | parse_status)
+ustate() { printf '%s\n' "$UOUT" | awk -F'\t' -v p="$1" '$2 == p { print $1 }'; }
+assert_eq "UU (both modified) is unmerged"    "unmerged" "$(ustate both.txt)"
+assert_eq "AA (both added) is unmerged"       "unmerged" "$(ustate addadd.txt)"
+assert_eq "DU (deleted by us) is unmerged"    "unmerged" "$(ustate del-us.txt)"
+assert_eq "UD (deleted by them) is unmerged"  "unmerged" "$(ustate del-them.txt)"
+assert_eq "AU (added by us) is unmerged"      "unmerged" "$(ustate add-us.txt)"
+assert_eq "UA (added by them) is unmerged"    "unmerged" "$(ustate add-them.txt)"
+assert_eq "DD (both deleted) stays deleted"   "deleted"  "$(ustate del-both.txt)"
+
 echo "recency_of"
 recency_of 1000 1010;  assert_eq "just now"  "now"    "$_ret"
 recency_of 1000 1400;  assert_eq "this hour" "recent" "$_ret"
@@ -114,6 +134,13 @@ printf '%s\n' "$R" | head -1 | cut -f2 | grep -q '12s' && pass "age is rendered"
 # that would claim the file was touched a moment ago.
 printf '%s\n' "$R" | tail -1 | cut -f2 | grep -q '—' && pass "deleted shows no age" || fail "deleted shows no age" "—" "$(printf '%s\n' "$R" | tail -1 | cut -f2)"
 assert_eq "max caps the rows" "2" "$(changed_rows "$L" "$NOW" 24 2 | wc -l | tr -d ' ')"
+# TWO guards enforce this and they MASK EACH OTHER: `[ "$max" -gt 0 ] || return
+# 0` at the top of changed_rows and `[ "$n" -ge "$max" ] && break` in the loop,
+# which fires immediately at 0 >= 0. Removing either one ALONE leaves the other
+# holding and this assertion still passes, so a single-guard sabotage of it is
+# vacuous. To verify it, delete BOTH -- the same treatment, for the same
+# reason, that tmarchy/test/saver-graph.test.js gives its band bound. The
+# defence in depth is worth keeping: `max` reaches here from a tmux option.
 assert_eq "zero max yields nothing" "" "$(changed_rows "$L" "$NOW" 24 0)"
 
 # Field 1 is the recency class the caller paints the row with. It is a separate
@@ -131,6 +158,23 @@ printf '%s\n' "$R2" | head -1 | cut -f2 | grep -q '○' && pass "untracked glyph
 printf '%s\n' "$R2" | tail -1 | cut -f2 | grep -q '·' && pass "unknown state falls back to ·" || fail "unknown state falls back to ·" "·" "$(printf '%s\n' "$R2" | tail -1 | cut -f2)"
 assert_eq "recency field: an hour-old mtime is old" "old" "$(printf '%s\n' "$R2" | sed -n 2p | cut -f1)"
 
+# An unmerged file EXISTS, so it has a real mtime and a real age -- what it
+# must not have is the deletion glyph. Pinned both ways round: the conflict
+# glyph is present AND the deletion glyph is not, since a fallthrough to the
+# `*)` case would drop the deletion glyph too and a one-sided assertion would
+# not tell those apart.
+L3=$(printf '%s\t%s\t%s\n' 999988 unmerged bin/conflicted)
+R3=$(changed_rows "$L3" "$NOW" 24 10 | cut -f2)
+printf '%s\n' "$R3" | grep -q '≠' && pass "unmerged glyph" || fail "unmerged glyph" "≠" "$R3"
+printf '%s\n' "$R3" | grep -q '−' \
+    && fail "unmerged is not drawn as a deletion" "no − glyph" "$R3" \
+    || pass "unmerged is not drawn as a deletion"
+printf '%s\n' "$R3" | grep -q '·' \
+    && fail "unmerged has its own glyph, not the unknown-state fallback" "no · glyph" "$R3" \
+    || pass "unmerged has its own glyph, not the unknown-state fallback"
+printf '%s\n' "$R3" | grep -q '12s' \
+    && pass "unmerged keeps its real age" || fail "unmerged keeps its real age" "12s" "$R3"
+
 # The name budget is computed AFTER the age string, not from a fixed allowance
 # of four characters. age_str's days branch is unbounded, so a five-character
 # age ("1000d" -- a submodule in this repo is already at 942d) against a hard
@@ -144,6 +188,31 @@ if [ "$UTF8_CTYPE" = "1" ]; then
     assert_eq "w=24 row with a 5-char age is exactly 24 columns" "24" "${#RW_TEXT}"
 else
     echo "  SKIP w=24 row with a 5-char age is exactly 24 columns (LC_CTYPE is not UTF-8; \${#s} counts bytes)"
+fi
+
+# The gap clamp -- `[ "$pad" -lt 1 ] && pad=1` -- is LIVE, but only in a
+# one-column band, which is why deleting it used to pass the whole suite. It
+# matters exactly at `w == 4 + ${#age}` with a name that has been truncated to
+# its 3-character floor: there pad computes to 0 and the unclamped printf emits
+# NO separator, so the row reads `●…/a12s` with the name and the age run
+# together. One column narrower, at pad == -1, `%*s` with a negative width
+# left-justifies in a single column and emits the same space the clamp would --
+# so a sabotage tested at any other width is indistinguishable from correct
+# code. w=7 against a three-character age is the band.
+#
+# @sidebar-width is user-settable and nothing rejects a small value, so this is
+# reachable. The row over-runs w by one column here; that is the documented
+# contract in changed_rows (an unreadable row is worse than a wrapped one).
+PC=$(changed_rows "$(printf '%s\t%s\t%s\n' 999988 modified bin/a)" "$NOW" 7 10 | cut -f2)
+case "$PC" in
+    *' 12s') pass "the name and the age never abut (w=7, the pad-clamp band)" ;;
+    *)       fail "the name and the age never abut (w=7, the pad-clamp band)" \
+                  "a space before the age" "$PC" ;;
+esac
+if [ "$UTF8_CTYPE" = "1" ]; then
+    assert_eq "below the fit width the row over-runs rather than losing the gap" "8" "${#PC}"
+else
+    echo "  SKIP below the fit width the row over-runs rather than losing the gap (LC_CTYPE is not UTF-8)"
 fi
 
 echo "git_refresh batching"
@@ -286,6 +355,26 @@ Z_LINK=$(printf '%s\n' "$ZOUT" | grep 'dangling$' | cut -f1)
     pass "broken symlink gets a real mtime" || \
     fail "broken symlink gets a real mtime" "numeric > 0" "${Z_LINK:-<no row>}"
 
+echo "lookup_mtime cursor walk"
+# lookup_mtime STEPS a cursor through _STAT_LINES instead of scanning the whole
+# stat output per path (which was O(n^2) over a refresh -- see the timing pin
+# below). Both halves of that need pinning separately, because an
+# implementation can be fast and wrong or correct and quadratic.
+stat_split "$(printf '111 /r/a\n222 /r/b\n333 /r/c\n')"
+assert_eq "stat_split splits once into an array" "3" "$_STAT_N"
+lookup_mtime /r/a; assert_eq "cursor step 1" "111" "$_ret"
+assert_eq "the cursor advanced" "1" "$_STAT_I"
+lookup_mtime /r/b; assert_eq "cursor step 2" "222" "$_ret"
+# The position is VERIFIED, never trusted. Asking out of step must return the
+# queried path's own mtime, not whatever sits under the cursor -- an
+# index-blind implementation would answer 111 here.
+_STAT_I=0
+lookup_mtime /r/c; assert_eq "out-of-step query resyncs by name, not by index" "333" "$_ret"
+assert_eq "the resync moved the cursor past the match" "3" "$_STAT_I"
+# A path stat never reported (a deletion) must not borrow a neighbour's mtime.
+_STAT_I=0
+lookup_mtime /r/absent; assert_eq "a path absent from the stat output gets -" "-" "$_ret"
+
 # Pin that lookup_mtime writes nothing to stdout. This is the property that
 # makes the no-fork calling convention work: lookup_mtime returns via _ret,
 # so a naive mtime=$(lookup_mtime ...) captures empty string and breaks rows.
@@ -296,10 +385,10 @@ LOOKUP_OUT="$TMPROOT/lookup-stdout"
 (
     TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c '
         . '"$DIR"'/tmux-window-sidebar
-        # Simulate stat output: "mtime filename"
-        stat_out="1234567890 /repo/file.txt"
+        # Simulate one batched stat output: "mtime filename" per line.
+        stat_split "1234567890 /repo/file.txt"
         # Call lookup_mtime and redirect its stdout to a file
-        lookup_mtime "$stat_out" "/repo/file.txt" > "'"$LOOKUP_OUT"'"
+        lookup_mtime "/repo/file.txt" > "'"$LOOKUP_OUT"'"
         # Verify _ret was set correctly (proves we tested the right thing)
         [ "$_ret" = "1234567890" ] || exit 1
     '
@@ -310,6 +399,165 @@ LOOKUP_SIZE=$(wc -c < "$LOOKUP_OUT" | tr -d ' ')
 [ "$LOOKUP_STATUS" -eq 0 ] && [ "$LOOKUP_SIZE" -eq 0 ] && \
     pass "lookup_mtime writes nothing to stdout" || \
     fail "lookup_mtime writes nothing to stdout" "empty stdout, _ret=1234567890" "status=$LOOKUP_STATUS size=$LOOKUP_SIZE"
+
+echo "git_refresh conflict"
+# The unmerged codes above, produced by a REAL merge rather than by hand-built
+# -z records -- so this also pins that git still spells them that way and that
+# the worktree really does contain the DU file. `git rm` on our side plus a
+# modification on theirs is what produces DU; the reverse produces UD.
+CFD="$TMPROOT/conflict"
+mkdir -p "$CFD"
+gitq -C "$CFD" init -q
+printf 'base\n' > "$CFD/both.txt"
+printf 'base\n' > "$CFD/victim.txt"
+gitq -C "$CFD" add -A
+gitq -C "$CFD" commit -q -m base
+gitq -C "$CFD" checkout -q -b side
+printf 'side\n' > "$CFD/both.txt"
+printf 'side\n' > "$CFD/victim.txt"
+gitq -C "$CFD" commit -q -am side
+gitq -C "$CFD" checkout -q main
+printf 'main\n' > "$CFD/both.txt"
+gitq -C "$CFD" rm -q victim.txt
+# `add -A` as well as the `git rm`: `commit -m` without it would leave the
+# both.txt edit uncommitted, and the merge would then decline rather than
+# conflict -- which is how the first version of this fixture reported ` M`.
+gitq -C "$CFD" add -A
+gitq -C "$CFD" commit -q -m main
+gitq -C "$CFD" merge side >/dev/null 2>&1   # expected to conflict
+
+# Precondition: the fixture must actually be in the state this is about, or a
+# passing assertion below means nothing.
+CF_CODES=$(git -C "$CFD" status --porcelain -z 2>/dev/null | tr '\0' '\n' \
+    | awk 'NF { printf "%s:%s ", substr($0,1,2), substr($0,4) }' | sed 's/ *$//')
+if [ "$CF_CODES" = "UU:both.txt DU:victim.txt" ] && [ -f "$CFD/victim.txt" ]; then
+    CFOUT=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c '. '"$DIR"'/tmux-window-sidebar; git_refresh "$1"' _ "$CFD")
+    assert_eq "a real UU conflict is unmerged" "unmerged" \
+        "$(printf '%s\n' "$CFOUT" | awk -F'\t' '$3 == "both.txt" { print $2 }')"
+    # The whole point of I3: the file is ON DISK, so labelling it deleted gave
+    # it a deletion glyph next to a real, fresh timestamp.
+    assert_eq "a real DU conflict is unmerged, not deleted" "unmerged" \
+        "$(printf '%s\n' "$CFOUT" | awk -F'\t' '$3 == "victim.txt" { print $2 }')"
+    CF_MTIME=$(printf '%s\n' "$CFOUT" | awk -F'\t' '$3 == "victim.txt" { print $1 }')
+    [ -n "$CF_MTIME" ] && [ "$CF_MTIME" != "-" ] && [ "$CF_MTIME" -gt 0 ] 2>/dev/null \
+        && pass "the DU file is present on disk and gets a real mtime" \
+        || fail "the DU file is present on disk and gets a real mtime" "numeric > 0" "${CF_MTIME:-<no row>}"
+    # End to end: the rendered row must not carry the deletion glyph.
+    CF_ROW=$(changed_rows "$(printf '%s\n' "$CFOUT")" "$(date +%s)" 24 10 \
+        | awk -F'\t' '/victim/ { print $2 }')
+    printf '%s\n' "$CF_ROW" | grep -q '−' \
+        && fail "the rendered DU row is not a deletion" "no − glyph" "$CF_ROW" \
+        || pass "the rendered DU row is not a deletion"
+    printf '%s\n' "$CF_ROW" | grep -q '≠' \
+        && pass "the rendered DU row carries the conflict glyph" \
+        || fail "the rendered DU row carries the conflict glyph" "≠" "$CF_ROW"
+else
+    fail "conflict fixture is in the expected state" \
+        "UU:both.txt DU:victim.txt with victim.txt on disk" \
+        "$CF_CODES (victim.txt on disk: $([ -f "$CFD/victim.txt" ] && echo yes || echo no))"
+fi
+
+echo "git_refresh ordering"
+# "Newest first" is not decoration: it is the load-bearing input to
+# changed_rows's `max` truncation. Unsorted, the CHANGED section shows an
+# arbitrary subset of a busy repo rather than what you just touched, and the
+# deleted rows (mtime "-", which sorts as 0 and therefore last under -r) float
+# to the TOP. Nothing errors; the section just lies.
+#
+# This was entirely unpinned: deleting ` | sort -t$'\t' -k1,1nr` outright, and
+# reversing it to -k1,1n, both passed the whole suite. The two set-comparison
+# assertions that look like they might have caught it pipe through their own
+# LC_ALL=C sort before comparing, so they are order-blind BY CONSTRUCTION --
+# they test set membership on purpose and are left that way.
+#
+# The names are chosen so neither defect form can pass by accident: git status
+# lists these alphabetically (gone, mid, new, old), which is neither the
+# expected order nor its reverse.
+OD="$TMPROOT/ordering"
+mkdir -p "$OD"
+gitq -C "$OD" init -q
+for f in old mid new gone; do printf 'a\n' > "$OD/$f.txt"; done
+gitq -C "$OD" add -A
+gitq -C "$OD" commit -q -m initial
+for f in old mid new; do printf 'b\n' >> "$OD/$f.txt"; done
+rm "$OD/gone.txt"
+# Staggered by years, so a coarse filesystem timestamp cannot collapse them.
+touch -t 202001010000 "$OD/old.txt"
+touch -t 202101010000 "$OD/mid.txt"
+touch -t 202201010000 "$OD/new.txt"
+OOUT=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c '. '"$DIR"'/tmux-window-sidebar; git_refresh "$1"' _ "$OD")
+# Precondition: four rows, or "the order is right" is a claim about nothing.
+assert_eq "ordering fixture yields four rows" "4" \
+    "$(printf '%s\n' "$OOUT" | wc -l | tr -d ' ')"
+assert_eq "git_refresh orders newest first" "new.txt mid.txt old.txt" \
+    "$(printf '%s\n' "$OOUT" | grep -v '^-' | cut -f3 | tr '\n' ' ' | sed 's/ *$//')"
+assert_eq "the deleted row sorts last, never first" "gone.txt" \
+    "$(printf '%s\n' "$OOUT" | tail -1 | cut -f3)"
+assert_eq "the deleted row is the one with no mtime" "-" \
+    "$(printf '%s\n' "$OOUT" | tail -1 | cut -f1)"
+
+echo "git_refresh timing"
+# lookup_mtime used to linear-scan the whole stat output once per changed
+# path, which is O(n^2) over a refresh. Measured on this host under /bin/bash
+# 3.2.57 -- the interpreter the bash-3.2 constraint exists to protect -- at 36
+# ms for 5 changed files, 165 ms for 40 and 843 ms for 160, against a ~45 ms
+# budget, and Task 6 drives git_refresh at 1 Hz. Nothing in this suite would
+# have caught it: correctness was unaffected, only cost.
+#
+# Two compounding costs, both specific to 3.2: the scan itself, and a TEMP
+# FILE per changed path, because bash backs `<<<` with a $TMPDIR file until
+# 5.1 (`stat -f '%HT' /dev/fd/0 <<< hi` reports `Regular File` under 3.2.57
+# and `Fifo File` under 5.3.15). Neither dominates -- measured at 150 files
+# under 3.2, the per-path here-string form costs 736 ms and the same scan over
+# a pre-split array costs 401 ms, so the temp file is roughly 45% of it.
+#
+# WHY 300 FILES AND 400 ms. Measured here, ms per refresh at 300 changed
+# files, 3 iterations after a warm-up:
+#
+#                                  /bin/bash 3.2   homebrew 5.3
+#   cursor walk (correct)                    127             98
+#   per-path scan over the array            1368           1115
+#   per-path here-string scan (the
+#     exact pre-fix code)                   2578           2180
+#
+# So the ceiling sits 3.1x above the slowest passing case and 2.8x below the
+# fastest failing one, on both interpreters. At 150 files it does not: the
+# array-scan form measures 312 ms under 5.3 there, only 22% under a 400 ms
+# ceiling, which is not a margin a timing assertion can be trusted with. The
+# fixture is 300 rather than 150 for that reason alone.
+#
+# The ceiling is deliberately NOT a proxy for the ~45 ms budget. It is a pin
+# against the COMPLEXITY CLASS, which is the thing that regresses silently;
+# the budget is a separate question and a slow host would make a budget-sized
+# ceiling flap.
+#
+# BSD date has no %N, so this times with TIMEFORMAT rather than two clock reads.
+TD="$TMPROOT/timing"
+mkdir -p "$TD"
+gitq -C "$TD" init -q
+ti=0
+while [ "$ti" -lt 300 ]; do printf 'a\n' > "$TD/f$ti.txt"; ti=$((ti + 1)); done
+gitq -C "$TD" add -A
+gitq -C "$TD" commit -q -m initial
+ti=0
+while [ "$ti" -lt 300 ]; do printf 'b\n' >> "$TD/f$ti.txt"; ti=$((ti + 1)); done
+
+# Precondition FIRST: a git_refresh that returned nothing would be instant and
+# would sail through the ceiling below.
+TIMING_ROWS=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c \
+    '. '"$DIR"'/tmux-window-sidebar; git_refresh "$1"' _ "$TD" | wc -l | tr -d ' ')
+assert_eq "timing fixture really has 300 changed files" "300" "$TIMING_ROWS"
+
+TIMING_S=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c '
+    . '"$DIR"'/tmux-window-sidebar
+    git_refresh "$1" >/dev/null     # warm the git index and the page cache
+    TIMEFORMAT=%R
+    { time git_refresh "$1" >/dev/null ; } 2>&1
+' _ "$TD" | tail -1)
+TIMING_MS=$(awk -v t="$TIMING_S" 'BEGIN{printf "%d", t * 1000}' 2>/dev/null)
+[ -n "$TIMING_MS" ] && [ "$TIMING_MS" -gt 0 ] 2>/dev/null && [ "$TIMING_MS" -lt 400 ] 2>/dev/null \
+    && pass "git_refresh over 300 changed files is under 400 ms (${TIMING_MS} ms)" \
+    || fail "git_refresh over 300 changed files is under 400 ms" "1..399 ms" "${TIMING_MS:-<no measurement>} ms"
 
 echo "regression pins"
 # --ignore-submodules is 305 ms vs 32 ms in this nine-submodule repo. Nothing

@@ -83,8 +83,19 @@ trunc_left() {
 # core.quotePath=false is NOT a fix -- it only stops the octal escaping; a
 # space-containing path is still quoted (verified).
 #
-# -z is also what removes the tab/newline field-splitting hazard from this
-# parse, since records are NUL-framed rather than newline-framed.
+# -z makes the INPUT unambiguous: records are NUL-framed, so a tab or a
+# newline inside a path cannot end a record. It does NOT make the whole
+# pipeline safe, and it would be worse than useless to claim it does --
+#   * TABS survive end to end. This function's output is "state<TAB>path", and
+#     every consumer reads it with `read -r state path`, which puts the whole
+#     remainder (embedded tabs included) in $path. Verified.
+#   * NEWLINES are a known, accepted break. Output here is newline-framed, and
+#     so is everything downstream (`<<< "$pairs"`, `<<< "$lines"`), so a file
+#     named `nl<LF>here.txt` splits into a phantom row `-  modified  nl` with
+#     the `here.txt` half silently gone. Measured. Fixing it means NUL-framing
+#     this function's output and every reader of it; newlines in filenames are
+#     rare enough that the cost is not worth paying, but a reader of this code
+#     must not believe the hazard is gone.
 #
 # Under -z a rename or copy is TWO records -- "R  <new>" then "<old>" -- not
 # the "old -> new" of v1. The second record is consumed and discarded here:
@@ -99,11 +110,22 @@ parse_status() {
         case "$xy" in
             R*|C*|?R|?C) IFS= read -r -d '' old || true ;;
         esac
+        # UNMERGED IS MATCHED FIRST, and specifically before *D*. `DU` and `UD`
+        # -- "deleted by us"/"deleted by them" -- are conflicts in which the
+        # worktree DOES contain a file awaiting resolution, so `*D*` claimed
+        # them and the row rendered a deletion glyph next to a real, fresh
+        # mtime: `- del-us.txt  4s`, for the single most action-requiring state
+        # a working tree can be in. `AA` (both added) was likewise swallowed by
+        # `*A*`. The unmerged set that a real merge produces is UU/AA/DU/UD/AU/UA.
+        #
+        # `DD` (both deleted) is NOT in this set and must keep falling through
+        # to `*D*`: the file really is gone from the worktree.
         case "$xy" in
-            '??') printf 'untracked\t%s\n' "$path" ;;
-            *D*)  printf 'deleted\t%s\n'   "$path" ;;
-            *A*)  printf 'added\t%s\n'     "$path" ;;
-            *)    printf 'modified\t%s\n'  "$path" ;;
+            '??')     printf 'untracked\t%s\n' "$path" ;;
+            *U*|AA)   printf 'unmerged\t%s\n'  "$path" ;;
+            *D*)      printf 'deleted\t%s\n'   "$path" ;;
+            *A*)      printf 'added\t%s\n'     "$path" ;;
+            *)        printf 'modified\t%s\n'  "$path" ;;
         esac
     done
 }
@@ -122,18 +144,63 @@ recency_of() {
     fi
 }
 
-# Stat output lookup. Bash 3.2 has no associative arrays, so linear search per
-# file. With typical file counts (~3-10) this costs nothing measurable.
-# Assigns result to _ret global to avoid subshell fork.
+# Split one batched stat output into _STAT_LINES / _STAT_N and rewind the
+# cursor _STAT_I. Called ONCE per refresh, never per file.
+#
+# bash 3.2 has no `mapfile`, so this is the read loop -- but the point is that
+# there is exactly one of them. The previous design held the stat output as a
+# string and re-scanned it with `<<< "$stat_output"` once per changed path,
+# which cost a TEMP FILE per file as well as the scan: bash backs a here-string
+# with a $TMPDIR file until 5.1, measured here as `stat -f '%HT' /dev/fd/0 <<<
+# hi` reporting `Regular File` under 3.2.57 and `Fifo File` under 5.3.15. On a
+# Linux host that lands in /tmp, which this repo's CLAUDE.md already documents
+# as a directory where temp-file operations go O(n) under bloat.
+# Assigns _STAT_LINES/_STAT_N/_STAT_I; writes nothing to stdout.
+stat_split() {
+    local out="${1:-}" line
+    _STAT_LINES=()
+    _STAT_I=0
+    if [ -n "$out" ]; then
+        while IFS= read -r line; do
+            [ -n "$line" ] && _STAT_LINES+=("$line")
+        done <<< "$out"
+    fi
+    _STAT_N=${#_STAT_LINES[@]}
+}
+
+# One step of the stat-output walk: the mtime for $1, or "-".
+#
+# O(1) amortised, NOT a scan. The old version linear-scanned the entire stat
+# output per path, which is O(n^2) over a refresh -- measured under /bin/bash
+# 3.2.57 at 36 ms for 5 changed files, 165 ms for 40 and 843 ms for 160,
+# against a ~45 ms budget, and the Task 6 renderer drives this at 1 Hz.
+#
+# The position is STEPPED, never TRUSTED. stat output is 1:1 with its input
+# because deleted paths are partitioned off before stat runs and are never
+# looked up here at all, so the cursor and the pairs advance together -- but
+# every step still compares the stat line's own %N against the path it is
+# supposed to be, and a disagreement resyncs by scanning FORWARD from the
+# cursor rather than accepting the wrong mtime. Forward is sufficient because
+# the stat output is in the order existing_paths was built in, and it means a
+# genuine desync (stat failing on one file mid-batch, say) costs one scan to
+# recover from instead of one scan per remaining file.
+# Assigns _ret and advances _STAT_I; writes nothing to stdout.
 lookup_mtime() {
-    local stat_output="$1" target="$2" line mtime name
-    while IFS= read -r line; do
-        [ -z "$line" ] || {
-            mtime="${line%% *}"
-            name="${line#* }"
-            [ "$name" = "$target" ] && { _ret="$mtime"; return; }
-        }
-    done <<< "$stat_output"
+    local target="${1:-}" j
+    if [ "$_STAT_I" -lt "$_STAT_N" ] && [ "${_STAT_LINES[$_STAT_I]#* }" = "$target" ]; then
+        _ret="${_STAT_LINES[$_STAT_I]%% *}"
+        _STAT_I=$((_STAT_I + 1))
+        return
+    fi
+    j=$_STAT_I
+    while [ "$j" -lt "$_STAT_N" ]; do
+        if [ "${_STAT_LINES[$j]#* }" = "$target" ]; then
+            _ret="${_STAT_LINES[$j]%% *}"
+            _STAT_I=$((j + 1))
+            return
+        fi
+        j=$((j + 1))
+    done
     _ret="-"
 }
 
@@ -152,6 +219,15 @@ changed_rows() {
             added)     glyph='+' ;;
             untracked) glyph='○' ;;
             deleted)   glyph='−' ;;
+            # A conflict is its own thing, and it used to borrow the deletion
+            # glyph (see parse_status). U+2260 NOT EQUAL TO: the two sides
+            # disagree and nobody has decided yet. Chosen from the maths
+            # operators block, which is what the narrow-width allowlist in
+            # tmarchy/lib/agents.js permits and where U+2212 above already
+            # lives -- a better-matching glyph from an unlisted block would be
+            # a guess about width. NOT red: @theme-wait means "an agent needs
+            # you", and colour here carries recency regardless.
+            unmerged)  glyph='≠' ;;
             *)         glyph='·' ;;
         esac
         # A deleted path has no mtime -- stat failed on it. An em dash, never
@@ -169,11 +245,28 @@ changed_rows() {
         # row below it. (Not hypothetical -- a submodule in this repo is at
         # 942d.) The name shrinks instead, so the row is always exactly w wide.
         # gutter(1) + name + gap(>=1) + age
+        #
+        # WIDTH CONTRACT. The row is exactly `w` columns while `w >= 5 + ${#age}`
+        # -- one gutter, a three-character minimum name, one gap, the age.
+        # Below that there is no layout that fits, and the two clamps below
+        # choose deliberately: the name stops shrinking at 3 and the gap stops
+        # shrinking at 1, so the row OVER-RUNS by the shortfall rather than
+        # rendering `…ab20726d` with the name and the age run together. An
+        # unreadable row is worse than a wrapped one. @sidebar-width is
+        # user-settable and nothing rejects a small value, so this is a
+        # reachable path, not a theoretical one.
         namew=$((w - 2 - ${#age})); [ "$namew" -lt 3 ] && namew=3
         trunc_left "$path" "$namew"
         name="$_ret"
         recency_of "$mtime" "$now"
         recency="$_ret"
+        # The gap clamp is LIVE, not dead, and it is live in a narrow band:
+        # exactly at `w == 4 + ${#age}` with a truncated name, where pad
+        # computes to 0 and the unclamped printf emits no separator at all.
+        # One column either side of that band it makes no difference -- at
+        # pad == -1, `%*s` with a negative width left-justifies in one column
+        # and emits the same single space the clamp would. That is why a
+        # sabotage of this line only shows up against a w=4+len(age) fixture.
         pad=$((w - 1 - ${#name} - ${#age}))
         [ "$pad" -lt 1 ] && pad=1
         printf '%s\t%s%s%*s%s\n' "$recency" \
@@ -194,37 +287,57 @@ changed_rows() {
 # ONE stat for every path, never one per file -- a fork per changed file is
 # the cost this design exists to avoid. A deleted path makes stat fail, so its
 # mtime is "-", which sorts last numerically and renders no age.
+#
+# The trailing `sort -t$'\t' -k1,1nr` IS THE PRODUCT, not tidiness. It is the
+# load-bearing input to changed_rows's `max` truncation: unsorted, a busy repo
+# shows an arbitrary subset rather than what you just touched, and "-" (which
+# sorts as 0, hence last under -r) floats to the TOP, so the section leads with
+# deleted files. Nothing errors -- the section simply lies. Deleting the sort,
+# or flipping it to -k1,1n, used to pass the entire suite; bin/tmux-sidebar-
+# selftest now pins the order against a staggered `touch -t` fixture.
 git_refresh() {
     local repo="${1:-}" pairs state path mtime
-    local -a path_array existing_paths
-    local stat_output p
+    local -a path_array existing_paths path_exists
+    local stat_output p i n
     [ -n "$repo" ] || return 0
     pairs=$(git -C "$repo" status --porcelain -z --ignore-submodules 2>/dev/null | parse_status)
     [ -n "$pairs" ] || return 0
 
-    # Collect all paths for batched stat
+    # One pass over the pairs: the absolute path AND whether it exists, both
+    # recorded in step. The existence flag is RECORDED rather than re-derived
+    # in the pairing loop below so that the partition which built the stat
+    # argv is byte-for-byte the partition the pairing uses -- a file deleted
+    # between the two passes cannot be tested one way here and the other way
+    # there, which would desync the walk.
+    path_array=()
+    path_exists=()
     while IFS=$'\t' read -r state path; do
         [ -n "$path" ] || continue
-        path_array+=("$repo/$path")
+        p="$repo/$path"
+        path_array+=("$p")
+        # -L as well as -e: -e is FALSE for a broken symlink, so a changed
+        # dangling link would be misreported as deleted.
+        if [ -e "$p" ] || [ -L "$p" ]; then path_exists+=(1); else path_exists+=(0); fi
     done <<< "$pairs"
 
     # ONE stat call for all paths. Partition first: deleted paths get mtime "-"
     # and never reach stat, so stat output is 1:1 with its input and the pairing
-    # is by position. Verify with the filename in the format -- parse by name,
-    # never trust index blindly. This is correct under deletion because the
-    # existence test partitions before stat runs: a deleted path is detected as
-    # deleted, never passed to stat where it would silently shift everything
-    # after it.
+    # is by position. The position is still verified against the filename in
+    # the format -- see lookup_mtime. This is correct under deletion because
+    # the existence test partitions before stat runs: a deleted path is
+    # detected as deleted, never passed to stat where it would silently shift
+    # everything after it.
     #
     # The ${#} guard is not decoration: under `set -u` bash 3.2 treats
     # "${path_array[@]}" on an empty array as an unbound variable and EXITS --
     # and this runs in the sidebar daemon, so the pane would die.
-    existing_paths=()
     [ "${#path_array[@]}" -gt 0 ] || return 0
-    for p in "${path_array[@]}"; do
-        # -L as well as -e: -e is FALSE for a broken symlink, so a changed
-        # dangling link would be misreported as deleted.
-        { [ -e "$p" ] || [ -L "$p" ]; } && existing_paths+=("$p")
+    n=${#path_array[@]}
+    existing_paths=()
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        [ "${path_exists[$i]}" = "1" ] && existing_paths+=("${path_array[$i]}")
+        i=$((i + 1))
     done
 
     # Stat the existing paths once. Format includes filename for verification.
@@ -232,12 +345,31 @@ git_refresh() {
     if [ "${#existing_paths[@]}" -gt 0 ]; then
         stat_output=$(stat "${_STAT_FMT[@]}" "${existing_paths[@]}" 2>/dev/null || true)
     fi
+    stat_split "$stat_output"
 
-    # Pair each file with its mtime (or "-" if deleted)
+    # Pair each file with its mtime (or "-" if deleted). A known-deleted path
+    # is short-circuited rather than looked up: it is guaranteed absent from
+    # the stat output, so a lookup could only ever run lookup_mtime's forward
+    # resync scan to the end -- which would put the O(n^2) straight back for
+    # any repo with deletions in it.
+    #
+    # `i` indexes path_exists BY POSITION, so this loop and the one that built
+    # path_exists must filter identically -- both skip on `[ -n "$path" ]` and
+    # nothing else. Change one without the other and the flags desync, which
+    # under `set -u` is an unbound array element and a dead sidebar pane. No
+    # default is given here on purpose: the two loops read the same string with
+    # the same IFS, so a mismatch is a code error to fix, not a value to paper
+    # over with a silent "-" on every row.
+    i=0
     while IFS=$'\t' read -r state path; do
         [ -n "$path" ] || continue
-        lookup_mtime "$stat_output" "$repo/$path"
-        mtime="$_ret"
+        if [ "${path_exists[$i]}" = "1" ]; then
+            lookup_mtime "$repo/$path"
+            mtime="$_ret"
+        else
+            mtime="-"
+        fi
+        i=$((i + 1))
         printf '%s\t%s\t%s\n' "$mtime" "$state" "$path"
     done <<< "$pairs" | sort -t$'\t' -k1,1nr
 }
@@ -245,6 +377,12 @@ git_refresh() {
 # BSD and GNU stat disagree on every flag. Resolved once, not per call.
 # Format includes filename so batched stat can pair results by name.
 if stat -f '%m %N' . >/dev/null 2>&1; then _STAT_FMT=(-f '%m %N'); else _STAT_FMT=(-c '%Y %n'); fi
+
+# The stat-output walk's state, initialised at load so `set -u` cannot trip a
+# caller that reaches lookup_mtime before the first stat_split.
+_STAT_LINES=()
+_STAT_N=0
+_STAT_I=0
 
 cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
 
