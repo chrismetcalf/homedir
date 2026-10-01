@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# The tmarchy wordmark, in whatever theme is current.
+#
+# Printed by `.zsh/rc/splash` on a LOGIN shell that is not inside tmux, and
+# runnable by hand any time. Why that gate rather than "every new shell":
+# tmux here has an empty `default-command`, so it spawns `$SHELL -l` and every
+# pane IS a login shell -- measured, a default-spawned pane reports
+# `[[ -o login ]]` true. Gating on login alone would put this in all forty
+# panes and above every agent's output, which is how a splash becomes
+# wallpaper. `-z $TMUX` is the half that makes it mean "I just arrived".
+#
+#   tmarchy-splash            draw it
+#   tmarchy-splash --wide     force the full wordmark
+#   tmarchy-splash --narrow   force the one-line form
+#
+# Colours come from ~/.local/state/tmarchy/current.sh -- the same generated
+# file bat, nvim and the prompt read, so this follows a theme switch with
+# nothing to reload. It is sourced HERE rather than inherited from the shell:
+# .zsh/rc/bat happens to source it too, but depending on another fragment's
+# leftovers would make this work only when loaded in a particular order and
+# break when run by hand.
+#
+# No forks in the drawing: the wordmark is literal text and the colours are
+# shell arithmetic. The facts line reads /proc, and omits what it cannot get
+# rather than shelling out for it -- a splash is not worth a subprocess.
+set -u
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy/current.sh"
+[ -r "$STATE" ] && . "$STATE"
+
+# Tokyo Night, which is also tmarchy's default theme. The same bargain
+# .p10k.zsh makes: a host that has never run tmarchy still renders correctly
+# rather than rendering colourless.
+ACCENT="${TMARCHY_ACCENT:-#7aa2f7}"
+ACCENT_ALT="${TMARCHY_ACCENT_ALT:-#bb9af7}"
+INFO="${TMARCHY_INFO:-#73daca}"
+DIM="${TMARCHY_DIM:-#565f89}"
+FG="${TMARCHY_FG:-#c0caf5}"
+THEME="${TMARCHY_THEME:-tokyo-night}"
+
+R=$'\033[0m'
+
+# Both spellings tmarchy themes use, exactly as bin/lib/tmux-theme.sh's
+# ansi_for does: eight themes are #rrggbb, jewel is 256-colour colourNNN.
+# Anything else yields NO escape rather than a broken one -- a splash that
+# prints raw escape bytes on an odd theme is worse than a plain one.
+sgr() {
+    local v="${1:-}"
+    case "$v" in
+        \#[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
+            printf '\033[38;2;%d;%d;%dm' \
+                "$((16#${v:1:2}))" "$((16#${v:3:2}))" "$((16#${v:5:2}))" ;;
+        colour[0-9]*|color[0-9]*) printf '\033[38;5;%dm' "${v##*[a-z]}" ;;
+        *) printf '' ;;
+    esac
+}
+
+# NO_COLOR is a convention worth honouring in something whose entire output is
+# decoration: with it set, the shape still reads and nothing is emitted that a
+# log or a pipe would have to strip.
+if [ -n "${NO_COLOR:-}" ]; then
+    sgr() { printf ''; }
+    R=''
+fi
+
+# Hand-built because this host has neither figlet nor toilet, and a splash
+# should not depend on a package that may not be installed. Half-blocks only
+# (U+2580/2584/2588 and their partners), which every monospace font has --
+# unlike the Nerd Font glyphs the bar and the pickers use, this has to render
+# on a bare terminal too.
+#
+# Written as three WHOLE ROWS rather than per-letter cells: the rows have to be
+# the same length or the wordmark shears, and keeping them as literals makes
+# that checkable by eye instead of by arithmetic over glyph widths.
+ROW1='▀█▀ █▄ ▄█ ▄▀▀▄ █▀▀▄ ▄▀▀▄ █  █ █  █'
+ROW2=' █  █ ▀ █ █▀▀█ █▀▀▄ █    █▀▀█ ▀▄▄█'
+ROW3=' ▀  ▀   ▀ ▀  ▀ ▀  ▀  ▀▀▀ ▀  ▀  ▄▄▀'
+ART_W=35                      # the rows' own width, plus the two-space indent
+
+cols() {
+    if [ -n "${COLUMNS:-}" ]; then printf '%s' "$COLUMNS"; return; fi
+    local c
+    c=$(tput cols 2>/dev/null) && [ -n "$c" ] && { printf '%s' "$c"; return; }
+    printf '80'
+}
+
+# host, theme, and uptime if this kernel will say. /proc only: macOS would need
+# a sysctl fork, and a splash is not worth one -- the line simply carries one
+# fact fewer there, the same way the screensaver's panel renders `--` for what
+# it cannot portably read.
+facts() {
+    local host="${HOST:-${HOSTNAME:-$(uname -n 2>/dev/null)}}"
+    local out="${host%%.*} · ${THEME}"
+    if [ -r /proc/uptime ]; then
+        local up d h
+        read -r up _ < /proc/uptime
+        up=${up%%.*}
+        d=$((up / 86400)); h=$(((up % 86400) / 3600))
+        if [ "$d" -gt 0 ]; then out="$out · up ${d}d${h}h"; else out="$out · up ${h}h"; fi
+    fi
+    printf '%s' "$out"
+}
+
+mode="auto"
+case "${1:-}" in
+    --wide) mode=wide ;;
+    --narrow) mode=narrow ;;
+    '') ;;
+    *) printf 'usage: tmarchy-splash [--wide|--narrow]\n' >&2; exit 2 ;;
+esac
+if [ "$mode" = auto ]; then
+    [ "$(cols)" -ge "$((ART_W + 4))" ] && mode=wide || mode=narrow
+fi
+
+if [ "$mode" = narrow ]; then
+    # One line, for a phone. The bar makes the same call at the same kind of
+    # width: on 50 columns the chrome has to earn its place.
+    printf '%s▞ %stmarchy%s  %s%s%s\n\n' \
+        "$(sgr "$ACCENT")" "$(sgr "$FG")" "$R" "$(sgr "$DIM")" "$(facts)" "$R"
+    exit 0
+fi
+
+# A gradient down the rows rather than across the letters: three rows means
+# three colours, which is a ramp you can actually see, where per-letter would
+# be a fork's worth of arithmetic for a shimmer nobody reads.
+printf '\n'
+printf '  %s%s%s\n' "$(sgr "$ACCENT")" "$ROW1" "$R"
+printf '  %s%s%s\n' "$(sgr "$ACCENT_ALT")" "$ROW2" "$R"
+printf '  %s%s%s\n' "$(sgr "$INFO")" "$ROW3" "$R"
+printf '\n'
+printf '  %s%s%s\n\n' "$(sgr "$DIM")" "$(facts)" "$R"

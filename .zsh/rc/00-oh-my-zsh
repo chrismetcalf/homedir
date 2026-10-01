@@ -33,6 +33,34 @@ ZSH_DISABLE_COMPFIX="true"
 # For Jira
 JIRA_URL="https://amperity.atlassian.net/"
 
+# The tmarchy wordmark. ABOVE the instant prompt block, and that placement is
+# the whole trick -- see p10k's own note immediately below about what must go
+# above it.
+#
+# Instant prompt replaces stdout during initialization so it can capture
+# console output. Measured from inside a real tmux pane: `[[ -t 1 ]]` is FALSE
+# while .zsh/rc/* are being sourced and true by the time the first prompt runs.
+# So a splash printed from an ordinary fragment is simply swallowed -- it
+# renders, nothing reaches the screen, and p10k goes on to complain about
+# "console output during zsh initialization". Deferring it to a precmd hook
+# does not help either: instant prompt's redraw erases what is above it. The
+# only place it works is here, before the block exists.
+#
+# That cost a long debugging round. The tell was that the output appeared under
+# `zsh -x` and nowhere else, which is timing, not logic.
+#
+# Called by ABSOLUTE PATH because `.zsh/rc/exports` has not run yet at this
+# point, so ~/bin is not on $PATH and `command -v tmarchy-splash` would find
+# nothing. The -x test doubles as the fresh-checkout guard: before `gitfix`
+# links ~/bin there is nothing to run and nothing to report.
+#
+# -o interactive, because a script sourcing .zshrc must not get a banner in the
+# middle of its output -- .zshrc.local records Tabby's "env-probe shell"
+# breaking an earlier feature exactly that way. $TMARCHY_NO_SPLASH turns it off.
+if [[ -o interactive && -z ${TMARCHY_NO_SPLASH:-} && -t 1 && -x $HOME/bin/tmarchy-splash ]]; then
+	$HOME/bin/tmarchy-splash
+fi
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block, everything else may go below.

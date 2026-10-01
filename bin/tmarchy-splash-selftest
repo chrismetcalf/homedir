@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# Checks for bin/tmarchy-splash and the .zsh/rc/splash gate.
+#
+# The gate cases need a REAL pty running a REAL interactive login zsh, because
+# `-o interactive`, `-o login` and `-t 1` are all properties of how the shell
+# was started and none of them can be faked from a subshell. Each is driven by
+# feeding `exit` on stdin under a hard timeout, so a shell that decides to wait
+# for input fails the test instead of hanging the suite.
+#
+# Each assertion names the sabotage that makes it fail.
+set -u
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+BIN="$ROOT/bin/tmarchy-splash"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/tmarchy-splash-selftest-XXXXXX")
+FAIL=0
+cleanup() { [ -d "$TMP" ] && { find "$TMP" -mindepth 1 -delete 2>/dev/null; rmdir "$TMP" 2>/dev/null; }; }
+trap cleanup EXIT
+
+ok()   { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL + 1)); }
+plain() { sed -e 's/\x1b\[[0-9;]*m//g'; }
+
+echo "tmarchy-splash-selftest"
+
+# --- the wordmark -----------------------------------------------------------
+
+# Three rows of different length shear the wordmark into something that reads
+# as a rendering bug. They are literals, so this is the only thing standing
+# between a careless edit and a crooked logo.
+#
+# Sabotage: delete one character from ROW2 -- the widths diverge and this fails.
+widths=$(COLUMNS=100 "$BIN" --wide | plain | sed -n '2,4p' | awk '{print length($0)}' | sort -u | wc -l)
+if [ "$widths" -eq 1 ]; then
+    ok "the wordmark's three rows are the same width"
+else
+    fail "the wordmark rows have $widths different widths -- it will shear"
+fi
+
+# 30 columns, not 40: the wordmark is 37 cells including its indent, so a
+# 40-column terminal legitimately takes the WIDE path -- which is why the phone
+# at 52 columns still gets the full logo. Testing at 40 and expecting narrow was
+# a wrong expectation about the threshold, not a bug in it.
+#
+# Sabotage: in the auto branch compare against `ART_W + 40` -- a 60-column
+# terminal drops to the one-line form and the wide assertion fails.
+narrow_lines=$(COLUMNS=30 "$BIN" | plain | grep -c '▀█▀' || true)
+wide_lines=$(COLUMNS=100 "$BIN" | plain | grep -c '▀█▀' || true)
+if [ "$narrow_lines" -eq 0 ] && [ "$wide_lines" -eq 1 ]; then
+    ok "a narrow terminal gets the one-line form, a wide one the wordmark"
+else
+    fail "width switch wrong: narrow showed $narrow_lines wordmark rows, wide showed $wide_lines"
+fi
+
+# Whatever the width, the name has to be legible -- the narrow form spells it
+# out because 35 columns of block letters will not fit.
+# Sabotage: drop `tmarchy` from the narrow printf -- this fails.
+if COLUMNS=30 "$BIN" | plain | grep -q 'tmarchy'; then
+    ok "the narrow form still says tmarchy"
+else
+    fail "the narrow form does not name tmarchy"
+fi
+
+# --- colours --------------------------------------------------------------
+
+mkstate() {  # $1 = dir, rest = lines for current.sh
+    mkdir -p "$1/tmarchy"
+    shift_dir=$1; shift
+    printf '%s\n' "$@" > "$shift_dir/tmarchy/current.sh"
+}
+
+# The theme is read from the generated state file, which is what makes the
+# splash follow a theme switch with nothing to reload.
+# Sabotage: in the script, stop sourcing $STATE -- the fallback Tokyo Night
+# accent is emitted instead of the fixture's and this fails.
+mkstate "$TMP/s1" "TMARCHY_ACCENT='#010203'" "TMARCHY_THEME='fixture'"
+out=$(XDG_STATE_HOME="$TMP/s1" COLUMNS=100 "$BIN" --wide)
+if printf '%s' "$out" | grep -q '38;2;1;2;3m'; then
+    ok "colours come from the generated theme state"
+else
+    fail "the fixture's accent never reached the output"
+fi
+if printf '%s' "$out" | plain | grep -q 'fixture'; then
+    ok "the theme's name is shown"
+else
+    fail "the theme name is missing from the facts line"
+fi
+
+# jewel is 256-colour, so it has no hex to parse. It is the one theme that
+# would silently lose its colours -- or emit a broken escape -- if only the
+# #rrggbb spelling were handled, exactly as bin/lib/tmux-theme.sh documents for
+# fzf. Sabotage: delete the `colour[0-9]*` case from sgr() -- no escape is
+# emitted and this fails.
+mkstate "$TMP/s2" "TMARCHY_ACCENT='colour214'" "TMARCHY_THEME='jewel'"
+if XDG_STATE_HOME="$TMP/s2" COLUMNS=100 "$BIN" --wide | grep -q '38;5;214m'; then
+    ok "a 256-colour theme value becomes a 256-colour escape"
+else
+    fail "colourNNN was not translated -- jewel would render colourless or broken"
+fi
+
+# A value in neither spelling must produce NO escape rather than a malformed
+# one: raw escape bytes on screen are worse than a plain wordmark.
+# Sabotage: make sgr()'s default case print `\033[38;2;${v}m` -- the junk
+# reaches the output and this fails.
+mkstate "$TMP/s3" "TMARCHY_ACCENT='not-a-colour'" "TMARCHY_THEME='broken'"
+out=$(XDG_STATE_HOME="$TMP/s3" COLUMNS=100 "$BIN" --wide)
+if printf '%s' "$out" | grep -q 'not-a-colour'; then
+    fail "an unparseable theme value leaked into the output"
+else
+    ok "an unparseable theme value yields no escape at all"
+fi
+
+# Sabotage: remove the NO_COLOR block -- escapes survive and this fails.
+if [ -z "$(NO_COLOR=1 XDG_STATE_HOME="$TMP/s1" COLUMNS=100 "$BIN" --wide | grep -c $'\033' || true)" ] \
+   || [ "$(NO_COLOR=1 XDG_STATE_HOME="$TMP/s1" COLUMNS=100 "$BIN" --wide | grep -c $'\033' || true)" -eq 0 ]; then
+    ok "NO_COLOR emits no escapes"
+else
+    fail "NO_COLOR still emitted escape sequences"
+fi
+
+# A host that has never run tmarchy must still render -- the same bargain
+# .p10k.zsh makes with its fallback palette.
+# Sabotage: drop the `${TMARCHY_ACCENT:-#7aa2f7}` defaults -- the wordmark
+# comes out with no colour at all and this fails.
+if XDG_STATE_HOME="$TMP/nonexistent" COLUMNS=100 "$BIN" --wide | grep -q '38;2;'; then
+    ok "with no theme state at all it still renders in the fallback palette"
+else
+    fail "no theme state produced a colourless wordmark"
+fi
+
+# --- the gate ---------------------------------------------------------------
+
+# The gate lives in .zsh/rc/00-oh-my-zsh, ABOVE p10k's instant prompt block,
+# and it has to: instant prompt replaces stdout during initialization, so
+# `[[ -t 1 ]]` is false while the other fragments are sourced and anything
+# printed there is swallowed. A precmd hook does not rescue it either --
+# instant prompt's redraw erases what is above it. These cases therefore run a
+# REAL shell; there is no way to fake the condition that actually broke it.
+if ! command -v tmux >/dev/null 2>&1 || ! command -v zsh >/dev/null 2>&1; then
+    printf '  skip gate checks (need tmux and zsh)\n'
+else
+    # A tmux pane, which is the main path now that the splash is wanted in
+    # panes. Driven through tmux rather than script(1) because this is exactly
+    # the environment the bug lived in -- p10k behaves differently under a
+    # plain pty, and testing the easy environment would have proved nothing.
+    pane_shows() {  # $@ = env assignments for the pane's shell
+        local sock="tmarchy-splash-selftest-$$-$RANDOM"
+        tmux -L "$sock" kill-server 2>/dev/null
+        if [ "$#" -gt 0 ]; then
+            tmux -L "$sock" new-session -d -s t -x 100 -y 30 "env $* zsh -i" 2>/dev/null
+        else
+            tmux -L "$sock" new-session -d -s t -x 100 -y 30 2>/dev/null
+        fi
+        sleep 5
+        local n
+        n=$(tmux -L "$sock" capture-pane -p -S - -t t 2>/dev/null | grep -c '▀█▀' || true)
+        tmux -L "$sock" kill-server 2>/dev/null
+        printf '%s' "${n:-0}"
+    }
+
+    # The POSITIVE case first. Without it every negative below would pass just
+    # as happily if the splash never worked at all -- which is precisely the
+    # state this suite was in for several rounds.
+    if [ "$(pane_shows)" -ge 1 ]; then
+        ok "a new tmux pane shows the splash"
+    else
+        fail "no splash in a new pane (every check below is now meaningless)"
+    fi
+
+    # Sabotage: remove the `-z ${TMARCHY_NO_SPLASH:-}` term from the gate in
+    # .zsh/rc/00-oh-my-zsh -- this fails.
+    if [ "$(pane_shows TMARCHY_NO_SPLASH=1)" -eq 0 ]; then
+        ok "TMARCHY_NO_SPLASH turns it off"
+    else
+        fail "TMARCHY_NO_SPLASH did not suppress the splash"
+    fi
+
+    # A non-interactive shell is what a script sourcing .zshrc looks like, and
+    # a banner there lands in the middle of that script's own output.
+    # Sabotage: remove `-o interactive` from the gate -- this fails.
+    n=$(zsh -l -c 'true' 2>&1 | grep -ac '▀█▀' || true)
+    if [ "${n:-0}" -eq 0 ]; then
+        ok "a non-interactive shell shows nothing"
+    else
+        fail "a non-interactive shell printed the splash into its own output"
+    fi
+
+    # The placement itself, asserted structurally. A future edit that moves the
+    # call below the instant prompt block would leave every behavioural check
+    # above still passing on THIS host while quietly breaking -- the output
+    # would be swallowed only once p10k's cache exists, which it does not on a
+    # fresh account. So pin the order in the file.
+    f="$ROOT/.zsh/rc/00-oh-my-zsh"
+    sp=$(grep -n 'bin/tmarchy-splash' "$f" | head -1 | cut -d: -f1)
+    ip=$(grep -n 'p10k-instant-prompt' "$f" | head -1 | cut -d: -f1)
+    if [ -n "$sp" ] && [ -n "$ip" ] && [ "$sp" -lt "$ip" ]; then
+        ok "the splash call sits above the instant prompt block (line $sp < $ip)"
+    else
+        fail "splash at line ${sp:-?}, instant prompt at ${ip:-?} -- output will be swallowed"
+    fi
+fi
+
+if [ "$FAIL" -eq 0 ]; then echo "all passed"; else echo "$FAIL failed"; fi
+exit $((FAIL > 0))
