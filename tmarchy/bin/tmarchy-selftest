@@ -433,4 +433,71 @@ done
 
 assert_eq "nine themes are installed" "9" "$(ls -1 "$DIR"/themes/*.conf | wc -l | tr -d ' ')"
 
+# --- segment dividers -------------------------------------------------------
+# One thin divider between the right-hand segments, and deliberately nothing
+# else. The first attempt here was full powerline -- angled separators and a
+# filled chip for the active tab -- and it read as decoration rather than
+# information. These checks pin the quiet version in place.
+
+# Asserted by CODEPOINT. A stripped or mistyped glyph yields an empty option,
+# which renders as the old flat spacing rather than as an error -- so a broken
+# divider looks exactly like the `none` style and nothing complains. That is not
+# hypothetical: six literal glyphs were silently dropped in transit while the
+# loud version was being written, every one arriving as an empty string.
+divider_codepoint() { # style -> the U+XXXX of @bar-divider under that style
+  tmux -L "$SOCK" set -g @bar-separators "$1" 2>/dev/null
+  tmux -L "$SOCK" source-file "$DIR/bar.conf" 2>/dev/null
+  tmux -L "$SOCK" show -gv @bar-divider 2>/dev/null |
+    python3 -c 'import sys; v=sys.stdin.read().rstrip("\n"); print("".join(f"U+{ord(c):04X}" for c in v) or "EMPTY")'
+}
+assert_eq "line style uses U+2502"           "U+2502" "$(divider_codepoint line)"
+assert_eq "none style has no divider"        "EMPTY"  "$(divider_codepoint none)"
+assert_eq "an unset style defaults to line"  "U+2502" "$(tmux -L "$SOCK" set -gu @bar-separators 2>/dev/null; tmux -L "$SOCK" source-file "$DIR/bar.conf" 2>/dev/null; tmux -L "$SOCK" show -gv @bar-divider | python3 -c 'import sys; v=sys.stdin.read().rstrip("\n"); print("".join(f"U+{ord(c):04X}" for c in v) or "EMPTY")')"
+
+# The gap itself, EXTRACTED FROM bar.conf and then expanded. status-right as a
+# whole cannot be rendered here: it is wrapped in a
+# `#{?#{e|<:#{client_width},80},...}` width branch, so with no client attached
+# there is no client_width and the entire thing expands to nothing -- which an
+# earlier version of these checks dutifully reported as "no divider" and "no
+# gap", both true statements about an empty string and neither about dividers.
+# Attaching a real client here did not work either, so this takes the template
+# out of the file and expands just that.
+#
+# Grepped rather than retyped on purpose: a reconstruction would keep passing
+# after bar.conf's gap changed shape, which is the one thing it is here to
+# notice. No match at all is a failure.
+GAP=$(grep -o '#\[default\]  #\[fg=#{@theme-border}\]#{@bar-divider}#\[default\] ' "$DIR/bar.conf" | head -1)
+if [ -z "$GAP" ]; then
+  fail "the right-hand gap template is still recognisable" "a gap template" "none found in bar.conf"
+else
+  expand_gap() { # style -> the gap as rendered, between markers
+    tmux -L "$SOCK" set -g @bar-separators "$1" 2>/dev/null
+    tmux -L "$SOCK" source-file "$DIR/bar.conf" 2>/dev/null
+    tmux -L "$SOCK" display-message -p "A${GAP}B" 2>/dev/null | sed -e 's/#\[[^]]*\]//g'
+  }
+  # `none` must be byte-for-byte the spacing the bar had before dividers
+  # existed, because "put it back how it was" is the whole point of that style.
+  # The template is written `  #{@bar-divider} ` precisely so that an empty
+  # glyph leaves three spaces; this catches any change to that arithmetic.
+  assert_eq "none keeps the original three-space gap" "A   B" "$(expand_gap none)"
+  assert_eq "line puts a divider in the gap"          "A  │ B" "$(expand_gap line)"
+fi
+
+# The ACTIVE TAB MUST STAY FLAT. The loud version made it a filled chip whose
+# background carried the scout state; it looked like a different bar. A `bg=` in
+# that format is the signature of it creeping back, and the tab would stop
+# matching its neighbours without anything else failing.
+case "$(grep '^set -g window-status-current-format' "$DIR/bar.conf")" in
+  *bg=*) fail "the active tab stays flat, with no background" "no bg=" "a bg= appeared" ;;
+  *) pass "the active tab stays flat, with no background" ;;
+esac
+
+# THE GOVERNING INVARIANT. bar.conf is allowed exactly one shell-out -- the tick
+# guard -- and everything else must be a pure format. Counted on NON-COMMENT
+# lines only: the first version of this check used a plain `grep -c '#('` and
+# reported FOUR, because the file explains its one shell-out three times in
+# prose, so it would have failed forever while the invariant was intact.
+assert_eq "bar.conf still shells out exactly once" "1" \
+  "$(grep -v '^[[:space:]]*#' "$DIR/bar.conf" | grep -o '#(' | wc -l | tr -d ' ')"
+
 exit "$FAILED"
