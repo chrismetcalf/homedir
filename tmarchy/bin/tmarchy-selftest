@@ -460,27 +460,43 @@ assert_eq "an unset style defaults to line"  "U+2502" "$(tmux -L "$SOCK" set -gu
 # there is no client_width and the entire thing expands to nothing -- which an
 # earlier version of these checks dutifully reported as "no divider" and "no
 # gap", both true statements about an empty string and neither about dividers.
-# Attaching a real client here did not work either, so this takes the template
-# out of the file and expands just that.
 #
 # Grepped rather than retyped on purpose: a reconstruction would keep passing
 # after bar.conf's gap changed shape, which is the one thing it is here to
 # notice. No match at all is a failure.
-GAP=$(grep -o '#\[default\]  #\[fg=#{@theme-border}\]#{@bar-divider}#\[default\] ' "$DIR/bar.conf" | head -1)
+# The gap template, grepped EXACTLY and then expanded. Two different guards,
+# and it is worth being clear about which does what, because an earlier version
+# of this section had three assertions that could not fail:
+#
+#   the grep is the guard against EDITS. The exact string encodes both things
+#   that went wrong in the first divider attempt -- the gap was asymmetric (two
+#   spaces before the divider, one after, so every segment looked like it had
+#   more room on its right) and a column wider than the spacing it replaced,
+#   which on a bar that already truncates its window list means four columns
+#   taken from the tabs. Any change to either fails this.
+#
+#   the expansion below is the guard against tmux. It checks that
+#   `#{?#{@bar-divider},...}` really does pick the branch we assume for an
+#   empty option -- the grep says nothing about that.
+#
+# A LOOSER grep was tried, to let the two be independent, and it does not work:
+# the template contains commas of its own, so `[^,]*` truncates it mid-format
+# and the expansion then fails against correct code. The honest arrangement is
+# the exact grep plus one expansion check, not three checks that only ever ran
+# when the grep already matched.
+GAP=$(grep -o '#\[default\]#\[fg=#{@theme-border}\]#{?#{@bar-divider}, #{@bar-divider} ,   }#\[default\]' "$DIR/bar.conf" | head -1)
 if [ -z "$GAP" ]; then
-  fail "the right-hand gap template is still recognisable" "a gap template" "none found in bar.conf"
+  fail "the right-hand gap is the exact symmetric 3-column template" \
+       "the template" "bar.conf no longer contains it"
 else
+  pass "the right-hand gap is the exact symmetric 3-column template"
   expand_gap() { # style -> the gap as rendered, between markers
     tmux -L "$SOCK" set -g @bar-separators "$1" 2>/dev/null
     tmux -L "$SOCK" source-file "$DIR/bar.conf" 2>/dev/null
     tmux -L "$SOCK" display-message -p "A${GAP}B" 2>/dev/null | sed -e 's/#\[[^]]*\]//g'
   }
-  # `none` must be byte-for-byte the spacing the bar had before dividers
-  # existed, because "put it back how it was" is the whole point of that style.
-  # The template is written `  #{@bar-divider} ` precisely so that an empty
-  # glyph leaves three spaces; this catches any change to that arithmetic.
-  assert_eq "none keeps the original three-space gap" "A   B" "$(expand_gap none)"
-  assert_eq "line puts a divider in the gap"          "A  │ B" "$(expand_gap line)"
+  assert_eq "it expands symmetrically with a divider" "A │ B" "$(expand_gap line)"
+  assert_eq "and to the original three spaces without one" "A   B" "$(expand_gap none)"
 fi
 
 # The ACTIVE TAB MUST STAY FLAT. The loud version made it a filled chip whose
