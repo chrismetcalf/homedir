@@ -86,9 +86,22 @@ trunc_left() {
 # -z makes the INPUT unambiguous: records are NUL-framed, so a tab or a
 # newline inside a path cannot end a record. It does NOT make the whole
 # pipeline safe, and it would be worse than useless to claim it does --
-#   * TABS survive end to end. This function's output is "state<TAB>path", and
-#     every consumer reads it with `read -r state path`, which puts the whole
-#     remainder (embedded tabs included) in $path. Verified.
+#   * INTERIOR TABS survive end to end. This function's output is
+#     "state<TAB>path", and every consumer reads it with `read -r state path`,
+#     which puts the whole remainder in $path -- so `a<TAB>b.txt` arrives
+#     intact. Measured.
+#   * A LEADING OR TRAILING TAB IS LOST, and that is this parse's other known
+#     break. `read` with IFS=$'\t' treats tab as IFS *whitespace*, so it strips
+#     leading and trailing runs of it: a file named `<TAB>lead.txt` emits
+#     "state<TAB><TAB>lead.txt" and reads back as `lead.txt`, which is not on
+#     disk, so the row gets no mtime, renders an em dash and buckets `old`.
+#     Measured. No desync results -- both loops in git_refresh read
+#     identically, so path_exists stays in step -- and the cost is one row of
+#     one pathological filename, which is why this is documented rather than
+#     fixed. An earlier version of this comment claimed tabs survived outright
+#     and ended in "Verified."; it was right about the interior case and wrong
+#     about the edges, which in a file whose comments are the primary defence
+#     is worse than saying nothing.
 #   * NEWLINES are a known, accepted break. Output here is newline-framed, and
 #     so is everything downstream (`<<< "$pairs"`, `<<< "$lines"`), so a file
 #     named `nl<LF>here.txt` splits into a phantom row `-  modified  nl` with
@@ -172,8 +185,12 @@ stat_split() {
 #
 # O(1) amortised, NOT a scan. The old version linear-scanned the entire stat
 # output per path, which is O(n^2) over a refresh -- measured under /bin/bash
-# 3.2.57 at 36 ms for 5 changed files, 165 ms for 40 and 843 ms for 160,
-# against a ~45 ms budget, and the Task 6 renderer drives this at 1 Hz.
+# 3.2.57 at 119 ms for 300 changed files against 966 ms for the same refresh
+# with the per-path scan restored, on a ~45 ms budget, with the Task 6
+# renderer driving this at 1 Hz. The suite pins the scaling as a RATIO
+# (t(300)/t(40) under 6) rather than a millisecond ceiling; see the long
+# comment on the timing pin in bin/tmux-sidebar-selftest for why an absolute
+# bound cannot be made safe for this.
 #
 # The position is STEPPED, never TRUSTED. stat output is 1:1 with its input
 # because deleted paths are partitioned off before stat runs and are never

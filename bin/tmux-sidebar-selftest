@@ -361,7 +361,11 @@ echo "lookup_mtime cursor walk"
 # below). Both halves of that need pinning separately, because an
 # implementation can be fast and wrong or correct and quadratic.
 stat_split "$(printf '111 /r/a\n222 /r/b\n333 /r/c\n')"
-assert_eq "stat_split splits once into an array" "3" "$_STAT_N"
+# Counts the lines, which catches a split that drops or merges them. It does
+# NOT test the "once" half -- that there is one split per refresh rather than
+# one per path is carried entirely by the timing pin below, which is why both
+# exist.
+assert_eq "stat_split yields one array element per stat line" "3" "$_STAT_N"
 lookup_mtime /r/a; assert_eq "cursor step 1" "111" "$_ret"
 assert_eq "the cursor advanced" "1" "$_STAT_I"
 lookup_mtime /r/b; assert_eq "cursor step 2" "222" "$_ret"
@@ -374,6 +378,32 @@ assert_eq "the resync moved the cursor past the match" "3" "$_STAT_I"
 # A path stat never reported (a deletion) must not borrow a neighbour's mtime.
 _STAT_I=0
 lookup_mtime /r/absent; assert_eq "a path absent from the stat output gets -" "-" "$_ret"
+
+# A MISS MUST LEAVE THE CURSOR WHERE IT WAS. This is the third property the
+# O(n) design rests on and the only one that was unpinned: the two assertions
+# above cover resync-by-name and the "-" return, but nothing performed a
+# successful lookup AFTER a failed one, so the recovery path was half-tested.
+#
+# The defect form is one line -- setting _STAT_I=$_STAT_N before returning "-",
+# on the reasoning that the scan reached the end so the cursor may as well
+# record it. Verified invisible: applied to a copy, the ENTIRE suite passed,
+# 0 FAIL, exit 0 on both interpreters. What it costs in production is that one
+# file losing its stat line (racing the -e test, or an unreadable parent) makes
+# every SUBSEQUENT row in that refresh render "-" and bucket `old` -- the same
+# three-wrong-behaviours-at-once failure the -z comment block exists to
+# prevent, arriving by a different door, and at 1 Hz in Task 6 that is the
+# whole section flickering to "nothing here is recent".
+#
+# So the fixture has a HOLE: stat reported /r/a and /r/c but not /r/b, exactly
+# as a mid-batch stat failure leaves it. Walking a, b, c in order must yield
+# 111, -, 333 -- the sabotage yields 111, -, - instead.
+assert_eq "a miss leaves the cursor unmoved" "0" "$_STAT_I"
+stat_split "$(printf '111 /r/a\n333 /r/c\n')"
+lookup_mtime /r/a; HOLE="$_ret"
+lookup_mtime /r/b; HOLE="$HOLE $_ret"
+lookup_mtime /r/c; HOLE="$HOLE $_ret"
+assert_eq "a dropped stat line costs only its own row, not every row after it" \
+    "111 - 333" "$HOLE"
 
 # Pin that lookup_mtime writes nothing to stdout. This is the property that
 # makes the no-fork calling convention work: lookup_mtime returns via _ret,
@@ -443,6 +473,13 @@ if [ "$CF_CODES" = "UU:both.txt DU:victim.txt" ] && [ -f "$CFD/victim.txt" ]; th
         && pass "the DU file is present on disk and gets a real mtime" \
         || fail "the DU file is present on disk and gets a real mtime" "numeric > 0" "${CF_MTIME:-<no row>}"
     # End to end: the rendered row must not carry the deletion glyph.
+    #
+    # The negative and the positive below are a PAIR and neither is redundant.
+    # The negative alone passes vacuously on empty input -- if the awk pattern
+    # ever stopped matching (a longer fixture path truncated past `victim` at
+    # w=24) CF_ROW would be empty, grep would find no deletion glyph, and the
+    # assertion would report success having tested nothing. The positive is
+    # what proves a row was found at all. Do not delete either as duplicative.
     CF_ROW=$(changed_rows "$(printf '%s\n' "$CFOUT")" "$(date +%s)" 24 10 \
         | awk -F'\t' '/victim/ { print $2 }')
     printf '%s\n' "$CF_ROW" | grep -q '−' \
@@ -498,66 +535,111 @@ assert_eq "the deleted row is the one with no mtime" "-" \
 
 echo "git_refresh timing"
 # lookup_mtime used to linear-scan the whole stat output once per changed
-# path, which is O(n^2) over a refresh. Measured on this host under /bin/bash
-# 3.2.57 -- the interpreter the bash-3.2 constraint exists to protect -- at 36
-# ms for 5 changed files, 165 ms for 40 and 843 ms for 160, against a ~45 ms
-# budget, and Task 6 drives git_refresh at 1 Hz. Nothing in this suite would
-# have caught it: correctness was unaffected, only cost.
+# path, which is O(n^2) over a refresh. Nothing else in this suite would have
+# caught it: correctness was unaffected, only cost -- and Task 6 drives
+# git_refresh at 1 Hz against a ~45 ms budget.
 #
-# Two compounding costs, both specific to 3.2: the scan itself, and a TEMP
-# FILE per changed path, because bash backs `<<<` with a $TMPDIR file until
-# 5.1 (`stat -f '%HT' /dev/fd/0 <<< hi` reports `Regular File` under 3.2.57
-# and `Fifo File` under 5.3.15). Neither dominates -- measured at 150 files
-# under 3.2, the per-path here-string form costs 736 ms and the same scan over
-# a pre-split array costs 401 ms, so the temp file is roughly 45% of it.
+# Two compounding costs, both specific to 3.2 -- the interpreter the bash-3.2
+# constraint exists to protect: the scan itself, and a TEMP FILE per changed
+# path, because bash backs `<<<` with a $TMPDIR file until 5.1 (`stat -f
+# '%HT' /dev/fd/0 <<< hi` reports `Regular File` under 3.2.57 and `Fifo File`
+# under 5.3.15). Neither dominates -- measured at 150 files under 3.2, the
+# per-path here-string form costs 736 ms and the same scan over a pre-split
+# array costs 401 ms, so the temp file is roughly 45% of the excess.
 #
-# WHY 300 FILES AND 400 ms. Measured here, ms per refresh at 300 changed
-# files, 3 iterations after a warm-up:
+# WHY A RATIO AND NOT A CEILING. This pin asserts t(300)/t(40), not a
+# millisecond bound, and that is a correction of an earlier version of this
+# file rather than a free choice. The ceiling was 400 ms with a comment
+# claiming it sat "3.1x above the slowest passing case and 2.8x below the
+# fastest failing one". Re-measured twice independently, the failing side was
+# never anywhere near that. Min of 3 after a warm-up, idle host:
 #
 #                                  /bin/bash 3.2   homebrew 5.3
-#   cursor walk (correct)                    127             98
-#   per-path scan over the array            1368           1115
-#   per-path here-string scan (the
-#     exact pre-fix code)                   2578           2180
+#   cursor walk (correct)                    119             88
+#   per-path scan over the array             966            661
 #
-# So the ceiling sits 3.1x above the slowest passing case and 2.8x below the
-# fastest failing one, on both interpreters. At 150 files it does not: the
-# array-scan form measures 312 ms under 5.3 there, only 22% under a 400 ms
-# ceiling, which is not a margin a timing assertion can be trusted with. The
-# fixture is 300 rather than 150 for that reason alone.
+# So the real headroom above a 400 ms ceiling was 1.65x, not 2.8x -- and that
+# is the dangerous direction: a host 1.65x faster than this M-series Mac puts
+# the QUADRATIC form under the ceiling and the pin passes against the very
+# defect it exists to catch, silently and forever. An absolute bound cannot
+# be made safe here, because the thing being pinned is a complexity class and
+# the bound is in units of host speed.
 #
-# The ceiling is deliberately NOT a proxy for the ~45 ms budget. It is a pin
-# against the COMPLEXITY CLASS, which is the thing that regresses silently;
-# the budget is a separate question and a slow host would make a budget-sized
-# ceiling flap.
+# A ratio has no such dependence. Measured t(300)/t(40):
+#
+#                                  /bin/bash 3.2   homebrew 5.3
+#   cursor walk (correct)                   2.70           2.67
+#   per-path scan over the array           18.2           15.4
+#
+# Linear work is ~2.7x for 7.5x the files (the per-refresh floor -- one git,
+# one stat, one sort -- does not grow), quadratic work is 15-18x. A threshold
+# of 6 clears both sides by more than 2x on both interpreters.
+#
+# The residual risk inverts usefully, which is the other reason to prefer it:
+# a load spike landing on the DENOMINATOR produces a falsely LOW ratio, i.e. a
+# false pass. For a regression pin that is the right way round to fail.
+#
+# Both measurements take the min of 3 runs. A single sample of the 300-file
+# case measured 242 ms under synthetic load against 113 ms idle, so one
+# sample of each would flap on a busy host for no reason connected to the
+# property being tested.
+#
+# This is deliberately NOT a proxy for the ~45 ms budget. It pins the
+# COMPLEXITY CLASS, which is the thing that regresses silently; the budget is
+# a separate question that no timing assertion can own portably.
 #
 # BSD date has no %N, so this times with TIMEFORMAT rather than two clock reads.
+# Two fixtures, because the pin is a ratio between them.
+build_timing_repo() {   # $1 = dir, $2 = file count
+    local d="$1" n="$2" i=0
+    mkdir -p "$d"
+    gitq -C "$d" init -q
+    while [ "$i" -lt "$n" ]; do printf 'a\n' > "$d/f$i.txt"; i=$((i + 1)); done
+    gitq -C "$d" add -A
+    gitq -C "$d" commit -q -m initial
+    i=0
+    while [ "$i" -lt "$n" ]; do printf 'b\n' >> "$d/f$i.txt"; i=$((i + 1)); done
+}
+
+# Min of 3 timed refreshes, in ms. BSD date has no %N, so this times with
+# TIMEFORMAT rather than two clock reads.
+time_refresh_ms() {     # $1 = repo dir
+    TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c '
+        . '"$DIR"'/tmux-window-sidebar
+        git_refresh "$1" >/dev/null     # warm the git index and the page cache
+        TIMEFORMAT=%R
+        best=""
+        for _k in 1 2 3; do
+            t=$( { time git_refresh "$1" >/dev/null ; } 2>&1 | tail -1 )
+            ms=$(awk -v v="$t" "BEGIN{printf \"%d\", v * 1000}")
+            if [ -z "$best" ] || [ "$ms" -lt "$best" ]; then best=$ms; fi
+        done
+        printf "%s\n" "$best"
+    ' _ "$1"
+}
+
 TD="$TMPROOT/timing"
-mkdir -p "$TD"
-gitq -C "$TD" init -q
-ti=0
-while [ "$ti" -lt 300 ]; do printf 'a\n' > "$TD/f$ti.txt"; ti=$((ti + 1)); done
-gitq -C "$TD" add -A
-gitq -C "$TD" commit -q -m initial
-ti=0
-while [ "$ti" -lt 300 ]; do printf 'b\n' >> "$TD/f$ti.txt"; ti=$((ti + 1)); done
+TD40="$TMPROOT/timing40"
+build_timing_repo "$TD" 300
+build_timing_repo "$TD40" 40
 
 # Precondition FIRST: a git_refresh that returned nothing would be instant and
 # would sail through the ceiling below.
 TIMING_ROWS=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c \
     '. '"$DIR"'/tmux-window-sidebar; git_refresh "$1"' _ "$TD" | wc -l | tr -d ' ')
 assert_eq "timing fixture really has 300 changed files" "300" "$TIMING_ROWS"
+TIMING_ROWS40=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c \
+    '. '"$DIR"'/tmux-window-sidebar; git_refresh "$1"' _ "$TD40" | wc -l | tr -d ' ')
+assert_eq "the ratio's denominator fixture really has 40 changed files" "40" "$TIMING_ROWS40"
 
-TIMING_S=$(TMUX_SIDEBAR_LIB=1 "$SELF_BASH" -c '
-    . '"$DIR"'/tmux-window-sidebar
-    git_refresh "$1" >/dev/null     # warm the git index and the page cache
-    TIMEFORMAT=%R
-    { time git_refresh "$1" >/dev/null ; } 2>&1
-' _ "$TD" | tail -1)
-TIMING_MS=$(awk -v t="$TIMING_S" 'BEGIN{printf "%d", t * 1000}' 2>/dev/null)
-[ -n "$TIMING_MS" ] && [ "$TIMING_MS" -gt 0 ] 2>/dev/null && [ "$TIMING_MS" -lt 400 ] 2>/dev/null \
-    && pass "git_refresh over 300 changed files is under 400 ms (${TIMING_MS} ms)" \
-    || fail "git_refresh over 300 changed files is under 400 ms" "1..399 ms" "${TIMING_MS:-<no measurement>} ms"
+T300=$(time_refresh_ms "$TD")
+T40=$(time_refresh_ms "$TD40")
+# x100 so the ratio can be compared with shell integer arithmetic.
+TIMING_RATIO=$(awk -v a="$T300" -v b="$T40" 'BEGIN{ if (b+0 <= 0) print -1; else printf "%d", (a / b) * 100 }' 2>/dev/null)
+[ -n "$TIMING_RATIO" ] && [ "$TIMING_RATIO" -gt 0 ] 2>/dev/null && [ "$TIMING_RATIO" -lt 600 ] 2>/dev/null \
+    && pass "git_refresh scales linearly, not quadratically (t300/t40 = $(awk -v r="$TIMING_RATIO" 'BEGIN{printf "%.2f", r/100}'), ${T300}/${T40} ms)" \
+    || fail "git_refresh scales linearly, not quadratically" "t300/t40 under 6.00" \
+        "$(awk -v r="${TIMING_RATIO:-0}" 'BEGIN{printf "%.2f", r/100}') (${T300:-?}/${T40:-?} ms)"
 
 echo "regression pins"
 # --ignore-submodules is 305 ms vs 32 ms in this nine-submodule repo. Nothing
