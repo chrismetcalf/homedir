@@ -641,6 +641,16 @@ TIMING_RATIO=$(awk -v a="$T300" -v b="$T40" 'BEGIN{ if (b+0 <= 0) print -1; else
     || fail "git_refresh scales linearly, not quadratically" "t300/t40 under 6.00" \
         "$(awk -v r="${TIMING_RATIO:-0}" 'BEGIN{printf "%.2f", r/100}') (${T300:-?}/${T40:-?} ms)"
 
+echo "budget"
+# WINDOWS takes what it NEEDS, up to half the pane -- not half unconditionally.
+budget 40 3; assert_eq "few windows take few rows" "3" "$_BUDGET_W"
+budget 40 30; assert_eq "many windows cap at half"  "20" "$_BUDGET_W"
+budget 40 3; assert_eq "changed gets the remainder" "33" "$_BUDGET_C"
+# A heading with nothing under it reads as broken rather than absent, so the
+# section goes header and all. This is the screensaver panel's rule.
+budget 9 4; assert_eq "changed is dropped entirely when it cannot fit" "0" "$_BUDGET_C"
+budget 9 4; assert_eq "windows still render in a tiny pane" "4" "$_BUDGET_W"
+
 echo "regression pins"
 # --ignore-submodules is 305 ms vs 32 ms in this nine-submodule repo. Nothing
 # else would catch its removal: the sidebar would still be correct, just a
@@ -683,8 +693,8 @@ else
         || fail "git status ignores submodules (command-string grep)" "present" "missing"
 fi
 
-# Red means "an agent needs you". Not a deleted file, not an old one.
-# Verify recency_of never returns 'wait', which would map to @theme-wait.
+# Red means "an agent needs you". Not a deleted file, not an old one, not a
+# conflict. Verify recency_of never returns 'wait', which would map to @theme-wait.
 allvals=""
 for delta in 0 100 500 1000 5000 10000 100000; do
     recency_of $((1000000 - delta)) 1000000
@@ -697,6 +707,26 @@ assert_eq "recency_of returned a value for every delta" "7" "$(printf '%s\n' $al
 printf '%s\n' "$allvals" | grep -qw 'wait' \
     && fail "recency_of must never return 'wait'" "only now/recent/old" "found wait" \
     || pass "recency_of never returns 'wait'"
+
+# Pin that no RENDERED row in any recency class carries @theme-wait (red). This
+# is the constraint on file state: red is reserved for "an agent needs you".
+# The renderer maps recency to colour (`now`→C_HEAD, `recent`→C_NAME, `old`→C_IDLE),
+# which are accent/fg/dim, never wait. Test all three buckets.
+RENDER_PIN=$(printf '%s\t%s\t%s\n' \
+    999988 modified bin/now \
+    999600 modified bin/recent \
+    900000 modified bin/old)
+RENDER_OUT=$(changed_rows "$RENDER_PIN" 1000000 24 10)
+# The integration is in draw(), which paints based on the recency field (field 1).
+# Verify the three expected classes appear, so a renderer that silently dropped
+# field 1 cannot pass this.
+assert_eq "the fixture yields all three recency classes" "now old recent" \
+    "$(printf '%s\n' "$RENDER_OUT" | cut -f1 | LC_ALL=C sort | tr '\n' ' ' | sed 's/ *$//')"
+# None of those three can map to 'wait' in any integration -- draw() is the only
+# thing that reads field 1, and it is tested here by what changed_rows PRODUCES.
+printf '%s\n' "$RENDER_OUT" | cut -f1 | grep -qw 'wait' \
+    && fail "no file recency class is 'wait'" "only now/recent/old" "found wait in output" \
+    || pass "no file recency class is 'wait'"
 
 # --- bash 3.2 -----------------------------------------------------------------
 # This repo deploys to macOS boxes without Homebrew, where /usr/bin/env bash is
