@@ -381,9 +381,12 @@ pick_pane_path() {
 
 # Repo -> "mtime \t state \t path" lines, newest first.
 #
-# --ignore-submodules is MANDATORY, not a tuning knob: measured in this repo
-# it is 305 ms without and 32 ms with, because there are nine submodules. At
-# the sidebar's redraw rate the first number is a third of a core per window,
+# --ignore-submodules is MANDATORY, not a tuning knob: measured in this repo,
+# median of 11 warm runs, it is 207 ms without and 20 ms with -- ten times --
+# because there are ten submodules. (An earlier draft of this comment said
+# 305/32 from a single cold run; the ratio held, the absolutes did not, so the
+# method is stated here to make the number reproducible.) At the sidebar's
+# redraw rate the first number is a third of a core per window,
 # which is the 2026-08-21 fork-storm shape. bin/tmux-sidebar-selftest pins it
 # BEHAVIOURALLY (a fixture repo with a dirty submodule), not by grepping this
 # file -- a grep for the flag name is satisfied by this very comment.
