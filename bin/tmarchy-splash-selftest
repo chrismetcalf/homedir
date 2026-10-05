@@ -25,11 +25,41 @@ echo "tmarchy-splash-selftest"
 
 # --- the wordmark -----------------------------------------------------------
 
-# Three rows of different length shear the wordmark into something that reads
-# as a rendering bug. They are literals, so this is the only thing standing
-# between a careless edit and a crooked logo.
+# --- the font ---------------------------------------------------------------
+
+# The glyph table is data, and its failure mode is a SHEARED word rather than
+# an error, so it is checked mechanically. Two specs shipped malformed while
+# this was being written -- `-` and `.` carried a stray dot and split into six
+# pixel rows instead of five, drawing the wrong shape with nothing complaining.
 #
-# Sabotage: delete one character from ROW2 -- the widths diverge and this fails.
+# Sabotage: put a stray `/` in any glyph spec -- --selfcheck reports the row
+# count and exits non-zero, and this fails.
+if "$BIN" --selfcheck >/dev/null 2>&1; then
+    ok "every glyph is five pixel rows of equal width"
+else
+    fail "the font failed its own structural check: $("$BIN" --selfcheck 2>&1 | head -2)"
+fi
+
+# THE HEADLINE IS THE HOSTNAME, not a fixed wordmark. Proved by rendering two
+# different names and requiring the block rows to differ while the subtitle
+# stays the same -- which a hardcoded logo could not do, and which does not
+# depend on knowing what this particular host is called.
+a=$(COLUMNS=120 "$BIN" --host aaaa --wide | plain | sed -n '2,4p')
+b=$(COLUMNS=120 "$BIN" --host zzzz --wide | plain | sed -n '2,4p')
+if [ "$a" != "$b" ]; then
+    ok "the block headline tracks the hostname"
+else
+    fail "two different hostnames rendered identically -- the headline is not the host"
+fi
+if COLUMNS=120 "$BIN" --host aaaa --wide | plain | grep -q 'tmarchy ·'; then
+    ok "tmarchy is the subtitle"
+else
+    fail "the subtitle no longer names tmarchy"
+fi
+
+# Three rows of different length shear the word into something that reads as a
+# rendering bug. Sabotage: widen one pixel row of any glyph -- the rendered
+# rows diverge and this fails.
 widths=$(COLUMNS=100 "$BIN" --wide | plain | sed -n '2,4p' | awk '{print length($0)}' | sort -u | wc -l)
 if [ "$widths" -eq 1 ]; then
     ok "the wordmark's three rows are the same width"
@@ -44,21 +74,23 @@ fi
 #
 # Sabotage: in the auto branch compare against `ART_W + 40` -- a 60-column
 # terminal drops to the one-line form and the wide assertion fails.
-narrow_lines=$(COLUMNS=30 "$BIN" | plain | grep -c '▀█▀' || true)
-wide_lines=$(COLUMNS=100 "$BIN" | plain | grep -c '▀█▀' || true)
-if [ "$narrow_lines" -eq 0 ] && [ "$wide_lines" -eq 1 ]; then
+# Detected by the presence of HALF-BLOCKS, not by the subtitle: `tmarchy ·`
+# appears in both forms, so grepping for it reported 1 and 1 and the switch
+# looked broken while working perfectly.
+narrow_lines=$(COLUMNS=30 "$BIN" | plain | grep -c '[▀▄█]' || true)
+wide_lines=$(COLUMNS=100 "$BIN" | plain | grep -c '[▀▄█]' || true)
+if [ "$narrow_lines" -eq 0 ] && [ "$wide_lines" -eq 3 ]; then
     ok "a narrow terminal gets the one-line form, a wide one the wordmark"
 else
-    fail "width switch wrong: narrow showed $narrow_lines wordmark rows, wide showed $wide_lines"
+    fail "width switch wrong: narrow drew $narrow_lines block rows (want 0), wide drew $wide_lines (want 3)"
 fi
 
-# Whatever the width, the name has to be legible -- the narrow form spells it
-# out because 35 columns of block letters will not fit.
-# Sabotage: drop `tmarchy` from the narrow printf -- this fails.
-if COLUMNS=30 "$BIN" | plain | grep -q 'tmarchy'; then
-    ok "the narrow form still says tmarchy"
+# The narrow form spells the host out, because block letters will not fit.
+# Sabotage: drop `$NAME` from the narrow printf -- this fails.
+if "$BIN" --host alpha --narrow | plain | grep -q 'alpha'; then
+    ok "the narrow form spells out the hostname"
 else
-    fail "the narrow form does not name tmarchy"
+    fail "the narrow form does not name the host"
 fi
 
 # --- colours --------------------------------------------------------------
@@ -153,7 +185,7 @@ else
         fi
         sleep 5
         local n
-        n=$(tmux -L "$sock" capture-pane -p -S - -t t 2>/dev/null | grep -c '▀█▀' || true)
+        n=$(tmux -L "$sock" capture-pane -p -S - -t t 2>/dev/null | grep -c 'tmarchy ·' || true)
         tmux -L "$sock" kill-server 2>/dev/null
         printf '%s' "${n:-0}"
     }
@@ -178,7 +210,7 @@ else
     # A non-interactive shell is what a script sourcing .zshrc looks like, and
     # a banner there lands in the middle of that script's own output.
     # Sabotage: remove `-o interactive` from the gate -- this fails.
-    n=$(zsh -l -c 'true' 2>&1 | grep -ac '▀█▀' || true)
+    n=$(zsh -l -c 'true' 2>&1 | grep -ac 'tmarchy ·' || true)
     if [ "${n:-0}" -eq 0 ]; then
         ok "a non-interactive shell shows nothing"
     else

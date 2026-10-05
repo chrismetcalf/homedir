@@ -1,28 +1,34 @@
 #!/usr/bin/env bash
-# The tmarchy wordmark, in whatever theme is current.
+# THIS HOST'S NAME in block letters, with tmarchy as the subtitle.
 #
-# Printed by `.zsh/rc/splash` on a LOGIN shell that is not inside tmux, and
-# runnable by hand any time. Why that gate rather than "every new shell":
-# tmux here has an empty `default-command`, so it spawns `$SHELL -l` and every
-# pane IS a login shell -- measured, a default-spawned pane reports
-# `[[ -o login ]]` true. Gating on login alone would put this in all forty
-# panes and above every agent's output, which is how a splash becomes
-# wallpaper. `-z $TMUX` is the half that makes it mean "I just arrived".
+# Printed on every new interactive shell from the gate in .zsh/rc/00-oh-my-zsh
+# -- see the long comment there about why the call has to sit above p10k's
+# instant-prompt block -- and runnable by hand any time.
 #
-#   tmarchy-splash            draw it
-#   tmarchy-splash --wide     force the full wordmark
-#   tmarchy-splash --narrow   force the one-line form
+#   tmarchy-splash                 draw it
+#   tmarchy-splash --wide          force the block form
+#   tmarchy-splash --narrow        force the one-line form
+#   tmarchy-splash --host NAME     render a given name (used by the selftest)
 #
-# Colours come from ~/.local/state/tmarchy/current.sh -- the same generated
-# file bat, nvim and the prompt read, so this follows a theme switch with
-# nothing to reload. It is sourced HERE rather than inherited from the shell:
-# .zsh/rc/bat happens to source it too, but depending on another fragment's
-# leftovers would make this work only when loaded in a particular order and
-# break when run by hand.
+# A FONT, not a fixed wordmark, because the thing being drawn is now arbitrary
+# text. Glyphs are 3x5 PIXEL bitmaps packed two pixel rows to a terminal row
+# with half-blocks, so five pixels of height come out of three rows. Bitmaps
+# rather than hand-drawn block strings: at 38 glyphs, hand-drawing is where
+# shearing and off-by-one columns come from, and a bitmap can be checked
+# mechanically -- `--selfcheck` asserts every glyph is exactly five rows of
+# equal width, which is the whole class of bug.
 #
-# No forks in the drawing: the wordmark is literal text and the colours are
-# shell arithmetic. The facts line reads /proc, and omits what it cannot get
-# rather than shelling out for it -- a splash is not worth a subprocess.
+# Half-blocks only (U+2580/2584/2588). Unlike the bar and the pickers, this has
+# to render on a bare terminal with no Nerd Font.
+#
+# Colours come from ~/.local/state/tmarchy/current.sh -- the same generated file
+# bat, nvim and the prompt read, so this follows a theme switch with nothing to
+# reload. Sourced HERE rather than inherited from the shell: .zsh/rc/bat happens
+# to source it too, but depending on another fragment's leftovers would make
+# this work only in a particular load order and break when run by hand.
+#
+# No forks in the drawing. The facts line reads /proc and omits what it cannot
+# get rather than shelling out for it -- a splash is not worth a subprocess.
 set -u
 
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy/current.sh"
@@ -55,27 +61,95 @@ sgr() {
     esac
 }
 
-# NO_COLOR is a convention worth honouring in something whose entire output is
-# decoration: with it set, the shape still reads and nothing is emitted that a
-# log or a pipe would have to strip.
+# NO_COLOR is worth honouring in something whose entire output is decoration.
 if [ -n "${NO_COLOR:-}" ]; then
     sgr() { printf ''; }
     R=''
 fi
 
-# Hand-built because this host has neither figlet nor toilet, and a splash
-# should not depend on a package that may not be installed. Half-blocks only
-# (U+2580/2584/2588 and their partners), which every monospace font has --
-# unlike the Nerd Font glyphs the bar and the pickers use, this has to render
-# on a bare terminal too.
-#
-# Written as three WHOLE ROWS rather than per-letter cells: the rows have to be
-# the same length or the wordmark shears, and keeping them as literals makes
-# that checkable by eye instead of by arithmetic over glyph widths.
-ROW1='▀█▀ █▄ ▄█ ▄▀▀▄ █▀▀▄ ▄▀▀▄ █  █ █  █'
-ROW2=' █  █ ▀ █ █▀▀█ █▀▀▄ █    █▀▀█ ▀▄▄█'
-ROW3=' ▀  ▀   ▀ ▀  ▀ ▀  ▀  ▀▀▀ ▀  ▀  ▄▄▀'
-ART_W=35                      # the rows' own width, plus the two-space indent
+# --- the font ---------------------------------------------------------------
+# Five pixel rows per glyph, '#' set and '.' clear, separated by '/'. Widths
+# vary by letter (m and w are 5, n is 4, the rest 3), which is why the rows are
+# assembled per glyph rather than by fixed column arithmetic.
+declare -A GLYPH=(
+  [a]=".#./#.#/###/#.#/#.#"   [b]="##./#.#/##./#.#/##."
+  [c]=".##/#../#../#../.##"   [d]="##./#.#/#.#/#.#/##."
+  [e]="###/#../##./#../###"   [f]="###/#../##./#../#.."
+  [g]=".##/#../#.#/#.#/.##"   [h]="#.#/#.#/###/#.#/#.#"
+  [i]="###/.#./.#./.#./###"   [j]="..#/..#/..#/#.#/.#."
+  [k]="#.#/#.#/##./#.#/#.#"   [l]="#../#../#../#../###"
+  [m]="#...#/##.##/#.#.#/#...#/#...#"
+  [n]="#..#/##.#/#.##/#..#/#..#"
+  [o]=".#./#.#/#.#/#.#/.#."   [p]="##./#.#/##./#../#.."
+  [q]=".#./#.#/#.#/##./.##"   [r]="##./#.#/##./#.#/#.#"
+  [s]=".##/#../.#./..#/##."   [t]="###/.#./.#./.#./.#."
+  [u]="#.#/#.#/#.#/#.#/###"   [v]="#.#/#.#/#.#/#.#/.#."
+  [w]="#...#/#...#/#.#.#/##.##/#...#"
+  [x]="#.#/#.#/.#./#.#/#.#"   [y]="#.#/#.#/.#./.#./.#."
+  [z]="###/..#/.#./#../###"
+  [0]="###/#.#/#.#/#.#/###"   [1]=".#./##./.#./.#./###"
+  [2]="##./..#/.#./#../###"   [3]="##./..#/.#./..#/##."
+  [4]="#.#/#.#/###/..#/..#"   [5]="###/#../##./..#/##."
+  [6]=".##/#../###/#.#/###"   [7]="###/..#/.#./.#./.#."
+  [8]="###/#.#/###/#.#/###"   [9]="###/#.#/###/..#/##."
+  [-]=".../.../###/.../..."   [.]=".../.../.../.../.#."
+)
+
+# One terminal row of a rendered string. Output row r packs pixel rows 2r and
+# 2r+1; row 2 has no partner, so its lower half is always clear.
+render_row() { # $1 = text, $2 = row 0..2
+    local text="$1" r="$2" out="" ch spec top bot i c w t b
+    local -a px
+    for (( i = 0; i < ${#text}; i++ )); do
+        ch="${text:$i:1}"
+        spec="${GLYPH[$ch]:-}"
+        [ -z "$spec" ] && continue          # unknown character: simply omitted
+        IFS='/' read -r -a px <<< "$spec"
+        top="${px[$(( r * 2 ))]}"
+        bot=""
+        [ "$(( r * 2 + 1 ))" -lt 5 ] && bot="${px[$(( r * 2 + 1 ))]}"
+        w=${#top}
+        for (( c = 0; c < w; c++ )); do
+            t="${top:$c:1}"; b="."
+            [ -n "$bot" ] && b="${bot:$c:1}"
+            if   [ "$t" = "#" ] && [ "$b" = "#" ]; then out+="█"
+            elif [ "$t" = "#" ];                   then out+="▀"
+            elif [ "$b" = "#" ];                   then out+="▄"
+            else                                        out+=" "
+            fi
+        done
+        out+=" "
+    done
+    printf '%s' "${out% }"
+}
+
+# Mechanical check on the font itself, because the failure mode is a sheared
+# word rather than an error. Two of these specs shipped malformed while this
+# was being written -- `-` and `.` had a stray dot and split into SIX parts,
+# so their pixel rows were off by one and they drew the wrong shape.
+selfcheck() {
+    local bad=0 ch spec
+    local -a px
+    for ch in "${!GLYPH[@]}"; do
+        spec="${GLYPH[$ch]}"
+        IFS='/' read -r -a px <<< "$spec"
+        if [ "${#px[@]}" -ne 5 ]; then
+            printf 'glyph %s has %d pixel rows, want 5\n' "$ch" "${#px[@]}" >&2
+            bad=1; continue
+        fi
+        local w=${#px[0]} j
+        for (( j = 1; j < 5; j++ )); do
+            if [ "${#px[$j]}" -ne "$w" ]; then
+                printf 'glyph %s row %d is %d wide, want %d\n' "$ch" "$j" "${#px[$j]}" "$w" >&2
+                bad=1
+            fi
+        done
+    done
+    [ "$bad" -eq 0 ] && printf 'font ok: %d glyphs, 5 rows each\n' "${#GLYPH[@]}"
+    return "$bad"
+}
+
+# --- what gets drawn --------------------------------------------------------
 
 cols() {
     if [ -n "${COLUMNS:-}" ]; then printf '%s' "$COLUMNS"; return; fi
@@ -84,18 +158,25 @@ cols() {
     printf '80'
 }
 
-# host, theme, and uptime if this kernel will say. /proc only: macOS would need
-# a sysctl fork, and a splash is not worth one -- the line simply carries one
-# fact fewer there, the same way the screensaver's panel renders `--` for what
-# it cannot portably read.
-facts() {
-    local host="${HOST:-${HOSTNAME:-$(uname -n 2>/dev/null)}}"
-    local out="${host%%.*} · ${THEME}"
+# Short form: a hostname's domain is noise here, and dropping it is also what
+# keeps the block form narrow enough to fit a phone.
+hostname_short() {
+    local h="${TMARCHY_SPLASH_HOST:-${HOST:-${HOSTNAME:-$(uname -n 2>/dev/null)}}}"
+    h="${h%%.*}"
+    printf '%s' "$(printf '%s' "$h" | tr '[:upper:]' '[:lower:]')"
+}
+
+# tmarchy leads the subtitle -- it used to be the headline and is now the
+# brand. Uptime from /proc only: macOS would need a sysctl fork, and the line
+# simply carries one fact fewer there, the same way the screensaver's panel
+# renders `--` for what it cannot portably read.
+subtitle() {
+    local out="tmarchy · ${THEME}"
     if [ -r /proc/uptime ]; then
         local up d h
         read -r up _ < /proc/uptime
         up=${up%%.*}
-        d=$((up / 86400)); h=$(((up % 86400) / 3600))
+        d=$(( up / 86400 )); h=$(( (up % 86400) / 3600 ))
         if [ "$d" -gt 0 ]; then out="$out · up ${d}d${h}h"; else out="$out · up ${h}h"; fi
     fi
     printf '%s' "$out"
@@ -105,27 +186,37 @@ mode="auto"
 case "${1:-}" in
     --wide) mode=wide ;;
     --narrow) mode=narrow ;;
+    --selfcheck) selfcheck; exit $? ;;
+    --host) TMARCHY_SPLASH_HOST="${2:-}"; shift 2 2>/dev/null || true
+            case "${1:-}" in --wide) mode=wide ;; --narrow) mode=narrow ;; esac ;;
     '') ;;
-    *) printf 'usage: tmarchy-splash [--wide|--narrow]\n' >&2; exit 2 ;;
+    *) printf 'usage: tmarchy-splash [--wide|--narrow] [--host NAME] [--selfcheck]\n' >&2; exit 2 ;;
 esac
+
+NAME=$(hostname_short)
+ART=$(render_row "$NAME" 0)
+# Width is measured on the rendered row, not computed from the name's length:
+# glyph widths vary, so counting characters would under-measure anything with
+# an m or a w in it and let a too-wide banner through.
+ART_W=${#ART}
 if [ "$mode" = auto ]; then
-    [ "$(cols)" -ge "$((ART_W + 4))" ] && mode=wide || mode=narrow
+    [ "$(cols)" -ge "$(( ART_W + 4 ))" ] && mode=wide || mode=narrow
 fi
 
 if [ "$mode" = narrow ]; then
     # One line, for a phone. The bar makes the same call at the same kind of
     # width: on 50 columns the chrome has to earn its place.
-    printf '%s▞ %stmarchy%s  %s%s%s\n\n' \
-        "$(sgr "$ACCENT")" "$(sgr "$FG")" "$R" "$(sgr "$DIM")" "$(facts)" "$R"
+    printf '%s▞ %s%s%s  %s%s%s\n\n' \
+        "$(sgr "$ACCENT")" "$(sgr "$FG")" "$NAME" "$R" "$(sgr "$DIM")" "$(subtitle)" "$R"
     exit 0
 fi
 
 # A gradient down the rows rather than across the letters: three rows means
-# three colours, which is a ramp you can actually see, where per-letter would
-# be a fork's worth of arithmetic for a shimmer nobody reads.
+# three colours, which is a ramp you can actually see, where per-letter would be
+# a fork's worth of arithmetic for a shimmer nobody reads.
 printf '\n'
-printf '  %s%s%s\n' "$(sgr "$ACCENT")" "$ROW1" "$R"
-printf '  %s%s%s\n' "$(sgr "$ACCENT_ALT")" "$ROW2" "$R"
-printf '  %s%s%s\n' "$(sgr "$INFO")" "$ROW3" "$R"
+printf '  %s%s%s\n' "$(sgr "$ACCENT")"     "$ART"                     "$R"
+printf '  %s%s%s\n' "$(sgr "$ACCENT_ALT")" "$(render_row "$NAME" 1)"  "$R"
+printf '  %s%s%s\n' "$(sgr "$INFO")"       "$(render_row "$NAME" 2)"  "$R"
 printf '\n'
-printf '  %s%s%s\n\n' "$(sgr "$DIM")" "$(facts)" "$R"
+printf '  %s%s%s\n\n' "$(sgr "$DIM")" "$(subtitle)" "$R"
