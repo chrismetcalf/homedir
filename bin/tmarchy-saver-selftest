@@ -299,6 +299,103 @@ else
     fi
 fi
 
+# --- the mode toggle --------------------------------------------------------
+# `tmarchy-saver-mode` is what lets `lock-after` and `prefix + Z` follow a
+# preference without either of them carrying the mode.
+#
+# XDG_STATE_HOME IS SANDBOXED for all of this. The operator's real preference
+# lives in that directory, and a test that cycled it would silently change
+# which screensaver they get -- the same class of mistake as the first alert
+# test writing into the live scout status.json.
+MODEBIN="$ROOT/bin/tmarchy-saver-mode"
+MSTATE="$TMPDIR_SELF/modestate"
+mkdir -p "$MSTATE"
+m() { env XDG_STATE_HOME="$MSTATE" "$MODEBIN" "$@"; }
+
+if [ ! -x "$MODEBIN" ]; then
+    printf '  skip mode toggle (tmarchy-saver-mode not executable)\n'
+else
+    assert_mode() { # $1 = expected, $2 = label
+        got=$(m)
+        if [ "$got" = "$1" ]; then ok "$2"; else fail "$2 (got '$got', wanted '$1')"; fi
+    }
+
+    # No state file at all must mean the default, not an empty mode -- the
+    # saver would fall back anyway, but `list` and `next` both read this.
+    assert_mode "geo" "with no state file the mode is geo"
+
+    # The cycle has to visit every mode and wrap, which is the whole point of
+    # calling it a toggle.
+    seen=""
+    for _ in 1 2 3; do seen="$seen$(m next) "; done
+    if [ "$seen" = "rain demo geo " ]; then
+        ok "next cycles rain -> demo -> geo and wraps"
+    else
+        fail "the cycle went '$seen', wanted 'rain demo geo '"
+    fi
+
+    m set demo >/dev/null
+    assert_mode "demo" "set chooses a mode"
+
+    # An unknown mode must be refused AND must not disturb what is stored: a
+    # typo at a keybinding should cost nothing.
+    if m set nope >/dev/null 2>&1; then
+        fail "an unknown mode was accepted"
+    else
+        ok "an unknown mode is refused"
+    fi
+    assert_mode "demo" "a refused mode leaves the stored one alone"
+
+    # `list` marks exactly one current mode, which is what a picker would read.
+    marked=$(m list | grep -c '^\*')
+    if [ "$marked" -eq 1 ]; then
+        ok "list marks exactly one current mode"
+    else
+        fail "list marked $marked modes as current, wanted 1"
+    fi
+
+    # Nothing left behind: the write is tmp-then-rename, so a stray .tmp would
+    # mean the rename did not happen.
+    strays=$(find "$MSTATE" -name '*.tmp' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$strays" -eq 0 ]; then
+        ok "the atomic write leaves no temporary file"
+    else
+        fail "$strays temporary files left in the state directory"
+    fi
+
+    # END TO END: the saver with NO argument has to honour the stored mode.
+    # Demo suppresses the telemetry panel and draws a block banner, so the two
+    # are distinguishable from a capture without needing to read any internals.
+    if command -v tmux >/dev/null 2>&1; then
+        mode_draws() { # $1 = mode -> "block:N panel:M"
+            m set "$1" >/dev/null
+            local sock="tmarchy-mode-$$-$RANDOM"
+            tmux -L "$sock" new-session -d -s t -x 120 -y 34 \
+                "env XDG_STATE_HOME=$MSTATE HOME=$TMPDIR_SELF $ROOT/bin/tmarchy-saver; sleep 20" 2>/dev/null
+            sleep 5
+            local cap
+            cap=$(tmux -L "$sock" capture-pane -p -t t 2>/dev/null)
+            tmux -L "$sock" kill-server 2>/dev/null
+            printf 'block:%s panel:%s' \
+                "$(printf '%s' "$cap" | grep -c '██' || true)" \
+                "$(printf '%s' "$cap" | grep -c ' SYS ' || true)"
+        }
+        d=$(mode_draws demo)
+        g=$(mode_draws geo)
+        case "$d" in
+            block:0*) fail "demo mode drew no block banner ($d)" ;;
+            *panel:0) ok "the stored mode reaches the saver with no argument ($d)" ;;
+            *) fail "demo mode still drew the telemetry panel ($d)" ;;
+        esac
+        case "$g" in
+            *panel:0) fail "geo mode lost its telemetry panel ($g)" ;;
+            *) ok "geo mode still draws the panel ($g)" ;;
+        esac
+    else
+        printf '  skip mode end-to-end (no tmux)\n'
+    fi
+fi
+
 # --- standalone, no tmux ----------------------------------------------------
 # The saver is an ordinary program, not a tmux feature. These run it through a
 # pty with TMUX scrubbed from the environment, because "works outside tmux" is

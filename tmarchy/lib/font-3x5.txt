@@ -1,0 +1,49 @@
+# tmarchy 3x5 pixel font. One glyph per line: <char>:<5 pixel rows, / separated>.
+# `#` is set, `.` is clear. Widths vary per glyph (m and w are 5, n is 4).
+#
+# ONE source of truth, read by both bin/tmarchy-splash (bash) and
+# bin/tmarchy-demo.js (node). Plain text rather than JSON precisely so the
+# bash side can parse it without jq, which is not installed everywhere this
+# repo deploys.
+#
+# Every glyph must be exactly five rows of equal width -- that invariant is
+# checked by `tmarchy-splash --selfcheck`, because the failure mode is a
+# sheared word rather than an error.
+a:.#./#.#/###/#.#/#.#
+b:##./#.#/##./#.#/##.
+c:.##/#../#../#../.##
+d:##./#.#/#.#/#.#/##.
+e:###/#../##./#../###
+f:###/#../##./#../#..
+g:.##/#../#.#/#.#/.##
+h:#.#/#.#/###/#.#/#.#
+i:###/.#./.#./.#./###
+j:..#/..#/..#/#.#/.#.
+k:#.#/#.#/##./#.#/#.#
+l:#../#../#../#../###
+m:#...#/##.##/#.#.#/#...#/#...#
+n:#..#/##.#/#.##/#..#/#..#
+o:.#./#.#/#.#/#.#/.#.
+p:##./#.#/##./#../#..
+q:.#./#.#/#.#/##./.##
+r:##./#.#/##./#.#/#.#
+s:.##/#../.#./..#/##.
+t:###/.#./.#./.#./.#.
+u:#.#/#.#/#.#/#.#/###
+v:#.#/#.#/#.#/#.#/.#.
+w:#...#/#...#/#.#.#/##.##/#...#
+x:#.#/#.#/.#./#.#/#.#
+y:#.#/#.#/.#./.#./.#.
+z:###/..#/.#./#../###
+0:###/#.#/#.#/#.#/###
+1:.#./##./.#./.#./###
+2:##./..#/.#./#../###
+3:##./..#/.#./..#/##.
+4:#.#/#.#/###/..#/..#
+5:###/#../##./..#/##.
+6:.##/#../###/#.#/###
+7:###/..#/.#./.#./.#.
+8:###/#.#/###/#.#/###
+9:###/#.#/###/..#/##.
+-:.../.../###/.../...
+.:.../.../.../.../.#.

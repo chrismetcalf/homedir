@@ -256,6 +256,9 @@ items:
       - name: Screensaver (rain)
         key: Z
         command: 'display-popup -E -w 100% -h 100% "~/bin/tmarchy-saver rain"'
+      - name: Screensaver (demo)
+        key: d
+        command: 'display-popup -E -w 100% -h 100% "~/bin/tmarchy-saver demo"'
 
   - name: +Move
     key: m
@@ -373,6 +376,9 @@ items:
       - name: Theme…
         key: t
         command: 'display-popup -E -w 50% -h 60% "~/bin/tmux-theme-pick"'
+      - name: Screensaver mode (cycle)
+        key: z
+        command: 'run-shell -b "~/bin/tmarchy-saver-mode next"'
 
   - name: +Copy
     key: c

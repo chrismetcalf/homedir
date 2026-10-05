@@ -68,32 +68,27 @@ if [ -n "${NO_COLOR:-}" ]; then
 fi
 
 # --- the font ---------------------------------------------------------------
+# Loaded from tmarchy/lib/font-3x5.txt, which is the ONE source of truth: the
+# demo screensaver renderer (bin/tmarchy-demo.js, node) draws the same glyphs,
+# and two hand-maintained copies in two languages would drift. Plain text
+# rather than JSON so this side needs no jq.
+#
 # Five pixel rows per glyph, '#' set and '.' clear, separated by '/'. Widths
-# vary by letter (m and w are 5, n is 4, the rest 3), which is why the rows are
+# vary by letter (m and w are 5, n is 4, the rest 3), which is why rows are
 # assembled per glyph rather than by fixed column arithmetic.
-declare -A GLYPH=(
-  [a]=".#./#.#/###/#.#/#.#"   [b]="##./#.#/##./#.#/##."
-  [c]=".##/#../#../#../.##"   [d]="##./#.#/#.#/#.#/##."
-  [e]="###/#../##./#../###"   [f]="###/#../##./#../#.."
-  [g]=".##/#../#.#/#.#/.##"   [h]="#.#/#.#/###/#.#/#.#"
-  [i]="###/.#./.#./.#./###"   [j]="..#/..#/..#/#.#/.#."
-  [k]="#.#/#.#/##./#.#/#.#"   [l]="#../#../#../#../###"
-  [m]="#...#/##.##/#.#.#/#...#/#...#"
-  [n]="#..#/##.#/#.##/#..#/#..#"
-  [o]=".#./#.#/#.#/#.#/.#."   [p]="##./#.#/##./#../#.."
-  [q]=".#./#.#/#.#/##./.##"   [r]="##./#.#/##./#.#/#.#"
-  [s]=".##/#../.#./..#/##."   [t]="###/.#./.#./.#./.#."
-  [u]="#.#/#.#/#.#/#.#/###"   [v]="#.#/#.#/#.#/#.#/.#."
-  [w]="#...#/#...#/#.#.#/##.##/#...#"
-  [x]="#.#/#.#/.#./#.#/#.#"   [y]="#.#/#.#/.#./.#./.#."
-  [z]="###/..#/.#./#../###"
-  [0]="###/#.#/#.#/#.#/###"   [1]=".#./##./.#./.#./###"
-  [2]="##./..#/.#./#../###"   [3]="##./..#/.#./..#/##."
-  [4]="#.#/#.#/###/..#/..#"   [5]="###/#../##./..#/##."
-  [6]=".##/#../###/#.#/###"   [7]="###/..#/.#./.#./.#."
-  [8]="###/#.#/###/#.#/###"   [9]="###/#.#/###/..#/##."
-  [-]=".../.../###/.../..."   [.]=".../.../.../.../.#."
-)
+FONT="${TMARCHY_FONT:-$(dirname "$(readlink -f "$0")")/../tmarchy/lib/font-3x5.txt}"
+declare -A GLYPH=()
+if [ -r "$FONT" ]; then
+    # Comments are skipped on the RAW line, before splitting. Splitting first
+    # with `IFS=:` puts the whole comment prefix in the key field, so a `#`
+    # test never matches and every comment line is loaded as a glyph.
+    while IFS= read -r _line; do
+        case "$_line" in ''|'#'*) continue ;; esac
+        _ch="${_line%%:*}"
+        [ ${#_ch} -eq 1 ] || continue
+        GLYPH["$_ch"]="${_line#*:}"
+    done < "$FONT"
+fi
 
 # One terminal row of a rendered string. Output row r packs pixel rows 2r and
 # 2r+1; row 2 has no partner, so its lower half is always clear.
@@ -194,6 +189,10 @@ case "${1:-}" in
 esac
 
 NAME=$(hostname_short)
+# No font, no block form. The one-line form needs no glyphs, so a missing
+# tmarchy/lib/font-3x5.txt costs the big lettering and nothing else -- rather
+# than printing an empty banner on every new shell.
+[ "${#GLYPH[@]}" -eq 0 ] && mode=narrow
 ART=$(render_row "$NAME" 0)
 # Width is measured on the rendered row, not computed from the name's length:
 # glyph widths vary, so counting characters would under-measure anything with

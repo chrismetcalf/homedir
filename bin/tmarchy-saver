@@ -33,7 +33,7 @@ const STATE = path.join(os.homedir(), '.local', 'state', 'tmarchy')
 // form was `argv[2]` positionally, which silently read `--kiosk` as a mode name
 // and fell through to geo.
 const ARGS = process.argv.slice(2)
-const MODES = ['geo', 'rain']
+const MODES = ['geo', 'rain', 'demo']
 const flag = (...names) => ARGS.some((a) => names.includes(a))
 
 if (flag('--help', '-h')) {
@@ -68,9 +68,27 @@ const FPS_FLAG = (() => {
   const n = i >= 0 ? Number(ARGS[i + 1]) : NaN
   return Number.isFinite(n) && n >= 1 && n <= 60 ? Math.round(n) : 0
 })()
-const MODE = ARGS.map((a) => a.replace(/^--?/, '')).find((a) => MODES.includes(a)) || 'geo'
+// An explicit argument wins; otherwise the persisted preference, which is what
+// makes `lock-after` and `prefix + Z` follow `tmarchy-saver-mode next` without
+// either of them having to carry the mode. See bin/tmarchy-saver-mode for why
+// the preference is a file rather than a flag on the binding.
+function persistedMode() {
+  try {
+    const f = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state'),
+      'tmarchy', 'saver-mode')
+    const m = require('node:fs').readFileSync(f, 'utf8').trim()
+    return MODES.includes(m) ? m : null
+  } catch { return null }
+}
+const MODE = ARGS.map((a) => a.replace(/^--?/, '')).find((a) => MODES.includes(a))
+  || persistedMode() || 'geo'
 let geo = null
 try { geo = require(path.join(__dirname, 'tmarchy-geo.js')) } catch { /* rain still works */ }
+// The demo mode: this host's name run through a sequence of demo-scene
+// effects, modelled on Omarchy's own screensaver (see the header of
+// tmarchy-demo.js for what is taken from it and what is not).
+let demo = null
+try { demo = require(path.join(__dirname, 'tmarchy-demo.js')) } catch { /* geo and rain still work */ }
 let panel = null
 try { panel = require(path.join(__dirname, 'tmarchy-panel.js')) } catch { /* panel is optional */ }
 let ping = null
@@ -769,7 +787,12 @@ function main() {
     // The telemetry panel owns the right-hand columns; everything else is
     // centred in what is LEFT, not in the whole pane. Computed before drawing
     // so the solid and the rain can both avoid it.
-    const right = (panel && cols >= panel.MIN_COLS && rows >= 14) ? panel.WIDTH : 0
+    // The demo draws ALONE -- see the demo block below. Suppressing the panel
+    // and the graph here rather than inside the demo keeps the reservations
+    // honest: everything else centres in what is LEFT of the pane, so a demo
+    // that merely drew over them would still be squeezed into the middle third.
+    const soloDemo = MODE === 'demo' && demo
+    const right = (!soloDemo && panel && cols >= panel.MIN_COLS && rows >= 14) ? panel.WIDTH : 0
     const mainW = cols - right
     // The CPU graph owns the bottom band, full width -- it runs UNDER the panel
     // too, which is deliberate: a timeline that stopped at the panel's edge
@@ -777,7 +800,7 @@ function main() {
     // Shorter than the filled version was. A sparse trace only ever occupies one
     // cell per column, so a tall band on an idle box is empty pane rather than
     // a fuller-looking graph -- the height buys resolution, not presence.
-    const graphH = (panel && rows >= 18) ? Math.max(4, Math.min(6, Math.floor(rows * 0.18))) : 0
+    const graphH = (!soloDemo && panel && rows >= 18) ? Math.max(4, Math.min(6, Math.floor(rows * 0.18))) : 0
 
     // --- the alert banner ---------------------------------------------------
     // Drawn FIRST so the solid can be told to start below it, rather than being
@@ -798,8 +821,17 @@ function main() {
         colour: (ping && ping.latencyHex && ping.latencyHex(theme, e.ms, e.state)) || theme.dim,
       }))
 
+    // --- the demo ----------------------------------------------------------
+    // It draws ALONE: a resolving banner next to a rotating solid, a telemetry
+    // panel and a CPU graph would be four things competing for the eye, and
+    // the whole point of a demo is that it is the thing you are looking at.
+    if (MODE === 'demo' && demo) {
+      demo.render({ grid, rows, cols, frame: aframe, theme, fg, dim, mix,
+        word: data.host || os.hostname().split('.')[0] })
+    }
+
     // --- solid geometry ---------------------------------------------------
-    if (MODE !== 'rain' && geo) {
+    if (MODE !== 'rain' && MODE !== 'demo' && geo) {
       // Spin tracks load per core, so the thing visibly works harder when the
       // box does. That is the readout, not decoration.
       // Same agent count the breath uses, so the two signals agree about how
@@ -815,7 +847,7 @@ function main() {
     }
 
     // --- rain ---------------------------------------------------------------
-    if (MODE === 'rain' || !geo) columns.forEach((col, x) => {
+    if ((MODE === 'rain' || !geo) && MODE !== 'demo') columns.forEach((col, x) => {
       if (x >= mainW) return                    // leave the panel's columns alone
       const bannerFloor = bannerH
       col.y += col.speed * STEP

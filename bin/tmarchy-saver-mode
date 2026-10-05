@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Which screensaver `tmarchy-saver` draws when nobody tells it.
+#
+# The saver takes a mode argument (geo, rain, demo), but the two ways it
+# actually starts are `lock-after` and `prefix + Z`, and neither is a good
+# place to carry a preference: lock-command is one global string, and a
+# keybinding would have to be rebound to change modes. So the preference lives
+# in a file the saver reads when it is given no argument.
+#
+#   tmarchy-saver-mode              print the current mode
+#   tmarchy-saver-mode list         print every mode, marking the current one
+#   tmarchy-saver-mode next         cycle to the next one (this is the toggle)
+#   tmarchy-saver-mode set <mode>   choose one
+#
+# State lives beside tmarchy's other state, and is written ATOMICALLY: the
+# saver reads this file as it starts, and a half-written file would be a mode
+# it does not recognise -- which falls back to the default, so the failure is
+# mild, but a torn read is still not something to leave to chance.
+set -u
+
+MODES="geo rain demo"
+DEFAULT="geo"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy"
+STATE="$STATE_DIR/saver-mode"
+
+valid() { case " $MODES " in *" ${1:-} "*) return 0 ;; *) return 1 ;; esac; }
+
+current() {
+    local m=""
+    [ -r "$STATE" ] && IFS= read -r m < "$STATE" 2>/dev/null
+    m="${m%%[[:space:]]*}"
+    valid "$m" && printf '%s\n' "$m" || printf '%s\n' "$DEFAULT"
+}
+
+save() {
+    mkdir -p "$STATE_DIR"
+    local tmp="$STATE.$$.tmp"
+    printf '%s\n' "$1" > "$tmp" && mv -f "$tmp" "$STATE"
+}
+
+# Report through tmux when there is a server to report through, so the cycle
+# bound to a key says what it did. Outside tmux it just prints.
+announce() {
+    printf '%s\n' "$1"
+    [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1 &&
+        tmux display-message "screensaver: $1" 2>/dev/null
+    return 0
+}
+
+case "${1:-}" in
+'')
+    current ;;
+list)
+    cur=$(current)
+    for m in $MODES; do
+        if [ "$m" = "$cur" ]; then printf '* %s\n' "$m"; else printf '  %s\n' "$m"; fi
+    done ;;
+next)
+    cur=$(current)
+    # Cycle in the declared order, wrapping. Written without arrays so this
+    # stays a plain POSIX-ish loop -- `set --` on $MODES is enough.
+    first=""; pick=""; take=0
+    for m in $MODES; do
+        [ -z "$first" ] && first="$m"
+        if [ "$take" -eq 1 ]; then pick="$m"; take=0; fi
+        [ "$m" = "$cur" ] && take=1
+    done
+    [ -z "$pick" ] && pick="$first"
+    save "$pick"
+    announce "$pick" ;;
+set)
+    want="${2:-}"
+    if ! valid "$want"; then
+        printf 'tmarchy-saver-mode: unknown mode %s (want one of: %s)\n' \
+            "${want:-<none>}" "$MODES" >&2
+        exit 2
+    fi
+    save "$want"
+    announce "$want" ;;
+*)
+    printf 'usage: tmarchy-saver-mode [list|next|set <mode>]\n' >&2
+    exit 2 ;;
+esac
