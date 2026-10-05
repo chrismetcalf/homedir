@@ -17,6 +17,7 @@ PANE="${TMUX_PANE:-}"
 
 ESC=$'\033'
 RESET="${ESC}[0m"
+TAB=$'\t'
 
 # The theme is read once per draw, not per row: theme_load caches one
 # `tmux show -g` in the calling shell and theme_get scans it with builtins.
@@ -221,14 +222,51 @@ lookup_mtime() {
     _ret="-"
 }
 
-# "mtime \t state \t path" lines -> "recency \t rendered" lines. Pure, so the
-# layout is testable without a repo, a tmux server or a clock.
+# "mtime \t state \t path" lines -> the _ROWS array, each element
+# "recency \t rendered". Pure, so the layout is testable without a repo, a tmux
+# server or a clock.
+#
+# ASSIGNS AN ARRAY RATHER THAN PRINTING, for the same reason age_str and
+# trunc_left assign _ret: this is on the 1 Hz render path, and a caller that
+# wanted the output had to write `done <<< "$(changed_rows ...)"` -- a subshell
+# fork AND, under bash 3.2, a $TMPDIR temp file for the here-string, once per
+# second per sidebar pane. Ten windows made that ten forks and twenty temp
+# files a second, which is the fork-storm shape this repo's CLAUDE.md records
+# twice. Measured over 300 renders of a 30-file list: 4.1 ms -> 1.7 ms per
+# render under bash 3.2.57, 3.2 ms -> 1.1 ms under 5.3.15. The selftest keeps
+# its own one-line join helper; production code must not carry a *_print
+# wrapper to make tests convenient.
+#
+# The row loop walks an array rather than `done <<< "$lines"` for the second
+# half of that cost -- the here-string is one more temp file per render even
+# after the fork is gone. Splitting on tabs by parameter expansion instead of
+# `IFS=$'\t' read` is not merely equivalent: `read` treats tab as IFS
+# WHITESPACE and strips leading and trailing runs of it, so this is the
+# stricter of the two. A record is skipped unless it carries both tabs, which
+# is what `read` gave for free by leaving $path empty.
 changed_rows() {
     local lines="${1:-}" now="${2:-0}" w="${3:-24}" max="${4:-0}"
     local mtime state path glyph age name namew pad n=0 recency
+    local rec rest oldifs noglob_was
+    _ROWS=()
     [ "$max" -gt 0 ] || return 0
     [ -n "$lines" ] || return 0
-    while IFS=$'\t' read -r mtime state path; do
+    # Word-splitting on newline needs globbing off, or a filename holding a `*`
+    # would expand against the cwd. `set -f` is restored to what it was rather
+    # than unconditionally cleared.
+    case "$-" in *f*) noglob_was=1 ;; *) noglob_was=0 ;; esac
+    oldifs="$IFS"
+    IFS=$'\n'
+    set -f
+    local recs=( $lines )
+    [ "$noglob_was" = 1 ] || set +f
+    IFS="$oldifs"
+    for rec in ${recs[@]+"${recs[@]}"}; do
+        case "$rec" in *"$TAB"*"$TAB"*) ;; *) continue ;; esac
+        mtime="${rec%%"$TAB"*}"
+        rest="${rec#*"$TAB"}"
+        state="${rest%%"$TAB"*}"
+        path="${rest#*"$TAB"}"
         [ -n "$path" ] || continue
         [ "$n" -ge "$max" ] && break
         case "$state" in
@@ -286,10 +324,10 @@ changed_rows() {
         # sabotage of this line only shows up against a w=4+len(age) fixture.
         pad=$((w - 1 - ${#name} - ${#age}))
         [ "$pad" -lt 1 ] && pad=1
-        printf '%s\t%s%s%*s%s\n' "$recency" \
-            "$glyph" "$name" "$pad" '' "$age"
+        printf -v rest '%s%s%*s%s' "$glyph" "$name" "$pad" '' "$age"
+        _ROWS+=("${recency}${TAB}${rest}")
         n=$((n + 1))
-    done <<< "$lines"
+    done
 }
 
 # Pane height + window count -> how many rows each section gets.
@@ -310,6 +348,35 @@ budget() {
     [ "$crows" -lt "$CHANGED_MIN" ] && crows=0
     _BUDGET_W=$wrows
     _BUDGET_C=$crows
+}
+
+# `pane_active pane_is_sidebar pane_current_path` lines -> the active non-sidebar
+# pane's path in _ret, or "" if there is none. The repo follows that pane rather
+# than this one, so focusing the sidebar does not re-root the list.
+#
+# The two flags come first and the path is taken with ${line#* } twice. The
+# obvious awk form -- `$1=="1" && $2=="0" {$1="";$2="";sub(/^  /,"");print}` --
+# is WRONG, and silently: assigning to any field makes awk rebuild $0 with OFS,
+# collapsing every run of whitespace in the whole record. Measured, a pane in
+# `/Users/me/two  spaces/repo` came back as `/Users/me/two spaces/repo`, so
+# `git -C` failed and the CHANGED section just emptied, with nothing on screen
+# to say why. Same path-handling class the -z porcelain parse exists for, and
+# it is a function rather than four lines inside draw() so a test can reach it
+# without a tmux server.
+pick_pane_path() {
+    local input="${1:-}" line
+    _ret=""
+    [ -n "$input" ] || return 0
+    while IFS= read -r line; do
+        case "$line" in
+            "1 0 "*)
+                line="${line#* }"
+                _ret="${line#* }"
+                return 0
+                ;;
+        esac
+    done <<< "$input"
+    return 0
 }
 
 # Repo -> "mtime \t state \t path" lines, newest first.
@@ -420,6 +487,14 @@ if stat -f '%m %N' . >/dev/null 2>&1; then _STAT_FMT=(-f '%m %N'); else _STAT_FM
 _STAT_LINES=()
 _STAT_N=0
 _STAT_I=0
+_ROWS=()
+
+# Wall clock WITHOUT a fork per refresh. bash 3.2 has neither $EPOCHSECONDS nor
+# printf '%(%s)T', so the epoch is read once here and advanced by $SECONDS,
+# which is a builtin. `date +%s` per refresh was a fork on the one path the
+# whole caching design exists to keep fork-free.
+START_EPOCH=$(date +%s 2>/dev/null) || START_EPOCH=0
+case "$START_EPOCH" in ''|*[!0-9]*) START_EPOCH=0 ;; esac
 
 cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
 
@@ -432,6 +507,7 @@ LAST_REFRESH=-999
 REFRESH_EVERY=3
 draw() {
 	local info W NP H ACTIVE theme namew active idx scout name col nm ln
+	local apath nrepo line subs tag tagpart row rec text
 	# Dimensions + pane count + height + active + theme marker. The marker
 	# (@theme-bg) is last so a value containing special characters won't disturb
 	# earlier fields. If we're the only pane left (the main shell exited),
@@ -469,9 +545,9 @@ draw() {
 		LAST_REFRESH=$SECONDS
 		# The repo follows the ACTIVE pane, excluding this one -- focusing the
 		# sidebar would otherwise re-root the list to wherever it started.
-		apath=$(tmux list-panes -t "$PANE" \
-			-F '#{pane_active} #{?@sidebar-pane,1,0} #{pane_current_path}' 2>/dev/null \
-			| awk '$1=="1" && $2=="0" {$1="";$2="";sub(/^  /,"");print;exit}')
+		pick_pane_path "$(tmux list-panes -t "$PANE" \
+			-F '#{pane_active} #{?@sidebar-pane,1,0} #{pane_current_path}' 2>/dev/null)"
+		apath="$_ret"
 		if [ -n "$apath" ]; then
 			nrepo=$(git -C "$apath" rev-parse --show-toplevel 2>/dev/null) || nrepo=""
 			REPO="$nrepo"
@@ -480,7 +556,7 @@ draw() {
 		# stale, never a blank or half-populated section.
 		[ -n "$REPO" ] && CHANGED_CACHE=$(git_refresh "$REPO")
 		[ -n "$REPO" ] || CHANGED_CACHE=""
-		NOW_TS=$(date +%s 2>/dev/null || printf '0')
+		[ "$START_EPOCH" -gt 0 ] && NOW_TS=$((START_EPOCH + SECONDS))
 	fi
 
 	local winrows=()
@@ -528,16 +604,21 @@ draw() {
 	done
 
 	if [ "$_BUDGET_C" -gt 0 ] && [ -n "$CHANGED_CACHE" ]; then
-		lines+=("")
-		lines+=("${C_HEAD} CHANGED${RESET}")
-		while IFS=$'\t' read -r rec text; do
-			[ -n "$text" ] || continue
-			case "$rec" in
-				now)    lines+=("${C_HEAD}${text}${RESET}") ;;
-				recent) lines+=("${C_NAME}${text}${RESET}") ;;
-				*)      lines+=("${C_IDLE}${text}${RESET}") ;;
-			esac
-		done <<< "$(changed_rows "$CHANGED_CACHE" "$NOW_TS" "$W" "$_BUDGET_C")"
+		changed_rows "$CHANGED_CACHE" "$NOW_TS" "$W" "$_BUDGET_C"
+		if [ "${#_ROWS[@]}" -gt 0 ]; then
+			lines+=("")
+			lines+=("${C_HEAD} CHANGED${RESET}")
+			for row in "${_ROWS[@]}"; do
+				rec="${row%%"$TAB"*}"
+				text="${row#*"$TAB"}"
+				[ -n "$text" ] || continue
+				case "$rec" in
+					now)    lines+=("${C_HEAD}${text}${RESET}") ;;
+					recent) lines+=("${C_NAME}${text}${RESET}") ;;
+					*)      lines+=("${C_IDLE}${text}${RESET}") ;;
+				esac
+			done
+		fi
 	fi
 
 	# On a width change (terminal resize) wipe the whole pane first, so

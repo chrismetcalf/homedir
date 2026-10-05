@@ -118,13 +118,72 @@ recency_of 1000 1400;  assert_eq "this hour" "recent" "$_ret"
 recency_of 1000 90000; assert_eq "older"     "old"    "$_ret"
 recency_of - 1000;     assert_eq "no mtime is old" "old" "$_ret"
 
+echo "pick_pane_path"
+PP=$(printf '%s\n' '0 0 /other/pane' '1 1 /the/sidebar' '1 0 /Users/me/repo')
+pick_pane_path "$PP"
+assert_eq "picks the active non-sidebar pane" "/Users/me/repo" "$_ret"
+pick_pane_path "$(printf '%s\n' '1 1 /the/sidebar')"
+assert_eq "no non-sidebar pane yields nothing" "" "$_ret"
+# The defect this function exists for: awk field reassignment rebuilds $0 with
+# OFS and collapses runs of whitespace, so a repo path with two spaces in it
+# came back shortened and `git -C` failed silently.
+pick_pane_path "$(printf '%s\n' '1 0 /Users/me/two  spaces/repo')"
+assert_eq "consecutive spaces in a path survive" "/Users/me/two  spaces/repo" "$_ret"
+pick_pane_path "$(printf '%s\n' '1 0 /Users/me/trailing ')"
+assert_eq "a trailing space in a path survives" "/Users/me/trailing " "$_ret"
+
 echo "changed_rows"
+# changed_rows assigns the _ROWS array rather than printing, because it is on
+# the 1 Hz render path and a printing version forced the caller into
+# `$(...)` + a here-string -- a fork and, under bash 3.2, two $TMPDIR temp
+# files, per second per sidebar pane. The join lives HERE, in the test, not as
+# a *_print wrapper in production: fix pass 5 removed three of those for the
+# same reason.
+rows_out() {
+    changed_rows "$@"
+    [ "${#_ROWS[@]}" -gt 0 ] && printf '%s\n' "${_ROWS[@]}"
+    return 0
+}
+
+# The contract the renderer depends on, pinned directly: nothing on stdout, the
+# answer in _ROWS. A changed_rows that went back to printing would still pass
+# every assertion below (they all go through rows_out), and draw() would then
+# render an empty CHANGED section with nothing to explain it.
+_ROWS=(sentinel)
+CR_OUT=$(changed_rows "$(printf '%s\t%s\t%s\n' 999988 modified bin/a)" 1000000 24 10)
+assert_eq "changed_rows writes nothing to stdout" "" "$CR_OUT"
+changed_rows "$(printf '%s\t%s\t%s\n' 999988 modified bin/a)" 1000000 24 10
+assert_eq "changed_rows assigns _ROWS" "1" "${#_ROWS[@]}"
+# An empty input must RESET _ROWS, not leave the previous render standing.
+changed_rows "" 1000000 24 10
+assert_eq "changed_rows clears _ROWS on empty input" "0" "${#_ROWS[@]}"
+
+# Splitting the record list on newline requires globbing off, and getting a
+# fixture that proves it takes care. Bash globs the WHOLE word, and a word here
+# is a full `mtime<TAB>state<TAB>path` record -- so a `*` in the path can only
+# expand against a file whose own NAME contains those tabs. A first version of
+# this test dropped two plain `decoy-*.txt` files in a scratch directory and
+# passed with `set -f` removed: vacuous, because the tabs in the pattern meant
+# nothing could ever match it. The decoy below is named to match the record
+# exactly, which is the only shape that reaches the defect.
+GLOBDIR=$(mktemp -d "${TMPDIR:-/tmp}/sbglob.XXXXXX")
+: > "$GLOBDIR/$(printf '999988\tmodified\tdecoy.txt')"
+GLOBRES=$(
+    cd "$GLOBDIR" || exit 1
+    rows_out "$(printf '999988\tmodified\tdecoy*.txt')" 1000000 40 10 | cut -f2
+)
+case "$GLOBRES" in
+    *'decoy*.txt'*) pass "a path containing a glob is not expanded" ;;
+    *) fail "a path containing a glob is not expanded" "decoy*.txt" "$GLOBRES" ;;
+esac
+rm -rf "$GLOBDIR"
+
 NOW=1000000
 L=$(printf '%s\t%s\t%s\n' \
     999988 modified bin/a \
     999940 added    bin/b \
     -      deleted  bin/gone)
-R=$(changed_rows "$L" "$NOW" 24 10)
+R=$(rows_out "$L" "$NOW" 24 10)
 assert_eq "one row per file" "3" "$(printf '%s\n' "$R" | wc -l | tr -d ' ')"
 printf '%s\n' "$R" | head -1 | cut -f2 | grep -q '●' && pass "modified glyph" || fail "modified glyph" "●" "$(printf '%s\n' "$R" | head -1 | cut -f2)"
 printf '%s\n' "$R" | sed -n 2p | cut -f2 | grep -q '+' && pass "added glyph" || fail "added glyph" "+" "$(printf '%s\n' "$R" | sed -n 2p | cut -f2)"
@@ -133,7 +192,7 @@ printf '%s\n' "$R" | head -1 | cut -f2 | grep -q '12s' && pass "age is rendered"
 # A deleted file has no mtime: stat failed on it. An em dash, never "0s" --
 # that would claim the file was touched a moment ago.
 printf '%s\n' "$R" | tail -1 | cut -f2 | grep -q '—' && pass "deleted shows no age" || fail "deleted shows no age" "—" "$(printf '%s\n' "$R" | tail -1 | cut -f2)"
-assert_eq "max caps the rows" "2" "$(changed_rows "$L" "$NOW" 24 2 | wc -l | tr -d ' ')"
+assert_eq "max caps the rows" "2" "$(rows_out "$L" "$NOW" 24 2 | wc -l | tr -d ' ')"
 # TWO guards enforce this and they MASK EACH OTHER: `[ "$max" -gt 0 ] || return
 # 0` at the top of changed_rows and `[ "$n" -ge "$max" ] && break` in the loop,
 # which fires immediately at 0 >= 0. Removing either one ALONE leaves the other
@@ -141,7 +200,7 @@ assert_eq "max caps the rows" "2" "$(changed_rows "$L" "$NOW" 24 2 | wc -l | tr 
 # vacuous. To verify it, delete BOTH -- the same treatment, for the same
 # reason, that tmarchy/test/saver-graph.test.js gives its band bound. The
 # defence in depth is worth keeping: `max` reaches here from a tmux option.
-assert_eq "zero max yields nothing" "" "$(changed_rows "$L" "$NOW" 24 0)"
+assert_eq "zero max yields nothing" "" "$(rows_out "$L" "$NOW" 24 0)"
 
 # Field 1 is the recency class the caller paints the row with. It is a separate
 # output from the rendered text and was previously never asserted at all.
@@ -153,7 +212,7 @@ L2=$(printf '%s\t%s\t%s\n' \
     999988 untracked bin/u \
     900000 modified  bin/oldie \
     999990 mystery   bin/q)
-R2=$(changed_rows "$L2" "$NOW" 24 10)
+R2=$(rows_out "$L2" "$NOW" 24 10)
 printf '%s\n' "$R2" | head -1 | cut -f2 | grep -q '○' && pass "untracked glyph" || fail "untracked glyph" "○" "$(printf '%s\n' "$R2" | head -1 | cut -f2)"
 printf '%s\n' "$R2" | tail -1 | cut -f2 | grep -q '·' && pass "unknown state falls back to ·" || fail "unknown state falls back to ·" "·" "$(printf '%s\n' "$R2" | tail -1 | cut -f2)"
 assert_eq "recency field: an hour-old mtime is old" "old" "$(printf '%s\n' "$R2" | sed -n 2p | cut -f1)"
@@ -164,7 +223,7 @@ assert_eq "recency field: an hour-old mtime is old" "old" "$(printf '%s\n' "$R2"
 # `*)` case would drop the deletion glyph too and a one-sided assertion would
 # not tell those apart.
 L3=$(printf '%s\t%s\t%s\n' 999988 unmerged bin/conflicted)
-R3=$(changed_rows "$L3" "$NOW" 24 10 | cut -f2)
+R3=$(rows_out "$L3" "$NOW" 24 10 | cut -f2)
 printf '%s\n' "$R3" | grep -q '≠' && pass "unmerged glyph" || fail "unmerged glyph" "≠" "$R3"
 printf '%s\n' "$R3" | grep -q '−' \
     && fail "unmerged is not drawn as a deletion" "no − glyph" "$R3" \
@@ -181,7 +240,7 @@ printf '%s\n' "$R3" | grep -q '12s' \
 # `w - 6` rendered 25 columns in a 24-column pane, wrapped, and shifted every
 # row below it. The name has to shrink instead.
 LW=$(printf '%s\t%s\t%s\n' 913600000 added bin/eighteen-chars)
-RW=$(changed_rows "$LW" 1000000000 24 10)
+RW=$(rows_out "$LW" 1000000000 24 10)
 RW_TEXT=$(printf '%s\n' "$RW" | cut -f2)
 printf '%s\n' "$RW_TEXT" | grep -q '1000d' && pass "five-character age is rendered" || fail "five-character age is rendered" "1000d" "$RW_TEXT"
 if [ "$UTF8_CTYPE" = "1" ]; then
@@ -203,7 +262,7 @@ fi
 # @sidebar-width is user-settable and nothing rejects a small value, so this is
 # reachable. The row over-runs w by one column here; that is the documented
 # contract in changed_rows (an unreadable row is worse than a wrapped one).
-PC=$(changed_rows "$(printf '%s\t%s\t%s\n' 999988 modified bin/a)" "$NOW" 7 10 | cut -f2)
+PC=$(rows_out "$(printf '%s\t%s\t%s\n' 999988 modified bin/a)" "$NOW" 7 10 | cut -f2)
 case "$PC" in
     *' 12s') pass "the name and the age never abut (w=7, the pad-clamp band)" ;;
     *)       fail "the name and the age never abut (w=7, the pad-clamp band)" \
@@ -480,7 +539,7 @@ if [ "$CF_CODES" = "UU:both.txt DU:victim.txt" ] && [ -f "$CFD/victim.txt" ]; th
     # w=24) CF_ROW would be empty, grep would find no deletion glyph, and the
     # assertion would report success having tested nothing. The positive is
     # what proves a row was found at all. Do not delete either as duplicative.
-    CF_ROW=$(changed_rows "$(printf '%s\n' "$CFOUT")" "$(date +%s)" 24 10 \
+    CF_ROW=$(rows_out "$(printf '%s\n' "$CFOUT")" "$(date +%s)" 24 10 \
         | awk -F'\t' '/victim/ { print $2 }')
     printf '%s\n' "$CF_ROW" | grep -q '−' \
         && fail "the rendered DU row is not a deletion" "no − glyph" "$CF_ROW" \
@@ -650,6 +709,13 @@ budget 40 3; assert_eq "changed gets the remainder" "33" "$_BUDGET_C"
 # section goes header and all. This is the screensaver panel's rule.
 budget 9 4; assert_eq "changed is dropped entirely when it cannot fit" "0" "$_BUDGET_C"
 budget 9 4; assert_eq "windows still render in a tiny pane" "4" "$_BUDGET_W"
+# The cap FLOOR (`[ "$cap" -lt 1 ] && cap=1`) is only reachable at h < 2, which
+# no assertion above visits -- removing it passed the whole suite, the same way
+# the `pad` clamp did in Task 5. It is kept rather than dropped because at one
+# row the useful thing to show is the window you are in, not a bare header, so
+# the floor is pinned at the only height that can reach it.
+budget 1 3; assert_eq "a one-row pane still lists a window" "1" "$_BUDGET_W"
+budget 1 3; assert_eq "a one-row pane drops CHANGED" "0" "$_BUDGET_C"
 
 echo "regression pins"
 # --ignore-submodules is 305 ms vs 32 ms in this nine-submodule repo. Nothing
@@ -716,7 +782,7 @@ RENDER_PIN=$(printf '%s\t%s\t%s\n' \
     999988 modified bin/now \
     999600 modified bin/recent \
     900000 modified bin/old)
-RENDER_OUT=$(changed_rows "$RENDER_PIN" 1000000 24 10)
+RENDER_OUT=$(rows_out "$RENDER_PIN" 1000000 24 10)
 # The integration is in draw(), which paints based on the recency field (field 1).
 # Verify the three expected classes appear, so a renderer that silently dropped
 # field 1 cannot pass this.
