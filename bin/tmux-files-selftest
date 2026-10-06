@@ -69,17 +69,52 @@ assert_eq "depth cap limits the walk" "2" "$got"
 assert_eq "a missing root yields nothing" "" "$(file_rows "$FIX/nope")"
 rm -rf "$FIX"
 
+echo "reload_body"
+# fzf hands a reload() body to `sh -c`, so a root pasted into it is SYNTAX.
+# Verified against the previous form: a repo under a directory named
+# x'$(touch ...)'y executed the payload on both ^g and ^u. These pins run the
+# body the way fzf does and assert the hostile root comes back as one word of
+# data with nothing run -- both halves are needed, since a body that errored
+# out would also create no marker.
+MARK=$(mktemp -u)
+EVIL="/tmp/x'\$(touch $MARK)'y; touch $MARK"
+(
+    export TMUX_FILES_SELF=/bin/echo TMUX_FILES_GIT="$EVIL"
+    out=$(sh -c "$(reload_body TMUX_FILES_GIT)" 2>&1)
+    assert_eq "a hostile root survives sh -c as one word" "--list $EVIL" "$out"
+    assert_no "...and nothing in it is executed" test -e "$MARK"
+    out=$(sh -c "$(reload_body TMUX_FILES_GIT 4)" 2>&1)
+    assert_eq "the depth cap is argv, after the root" "--list $EVIL 4" "$out"
+)
+rm -f "$MARK"
+
 echo "main wiring"
 assert_eq "main is defined" "function" "$(type -t main)"
-assert_eq "sourcing does not run main" "" "${TMUX_FILES_MAIN_RAN:-}"
+# Observed through main's first real side effect -- its opening
+# `tmux display-message` -- rather than through a sentinel the script does not
+# set. A PATH shim makes that call leave a marker; a library load must leave
+# none. The marker also catches the realistic regression the guard alone does
+# not: a tmux call added at TOP LEVEL, outside main, which runs on every source
+# no matter what the guard says.
+#
+# stdin is /dev/null throughout, so a run that reaches fzf dies instead of
+# blocking the suite on a tty that is not there.
+SHIMD=$(mktemp -d)
+MARK2="$SHIMD/tmux-ran"
+printf '#!/bin/sh\ntouch %s\n' "$MARK2" > "$SHIMD/tmux"
+chmod +x "$SHIMD/tmux"
+( PATH="$SHIMD:$PATH" TMUX_FILES_LIB=1 bash "$DIR/tmux-files" >/dev/null 2>&1 </dev/null )
+assert_no "a library load runs no part of main" test -e "$MARK2"
+# ...and the shim really does observe a run, so the pin above is not vacuous.
+( PATH="$SHIMD:$PATH" TMUX_FILES_LIB=0 bash "$DIR/tmux-files" >/dev/null 2>&1 </dev/null )
+assert_ok "the shim detects main when it DOES run" test -e "$MARK2"
+rm -rf "$SHIMD"
 
-# Regression pins. These guard properties nothing else can observe from
-# outside the process -- a `-` path reaching send-keys without `--` parses as
-# flags, and -R silently resets the pane's terminal.
+# Regression pin. This guards a property nothing else can observe from outside
+# the process -- a `-` path reaching send-keys without `--` parses as flags,
+# and -R silently resets the pane's terminal.
 grep -q 'send-keys -t "\$pane" -l --' "$DIR/tmux-files" \
     && pass "send-keys uses -l and --" || fail "send-keys uses -l and --" "present" "missing"
-grep -q 'ctrl-g:reload' "$DIR/tmux-files" \
-    && pass "re-root keys are bound" || fail "re-root keys are bound" "present" "missing"
 
 echo
 [ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"

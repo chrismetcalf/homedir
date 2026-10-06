@@ -38,12 +38,16 @@ theme_colours() {
     C_SUB=$(ansi_for "$(theme_get info)")
 }
 
+# Assigns _ret rather than printing, for the same reason age_str does: a
+# $(color_for …) is one fork PER WINDOW ROW on the 1 Hz path -- 0.53 ms each
+# under bash 3.2, so a box with eight windows paid 4 ms a second to look up
+# four constants.
 color_for() {
     case "$1" in
-    wait) printf '%s' "$C_WAIT" ;;
-    busy) printf '%s' "$C_BUSY" ;;
-    done) printf '%s' "$C_DONE" ;;
-    *)    printf '%s' "$C_IDLE" ;;
+    wait) _ret="$C_WAIT" ;;
+    busy) _ret="$C_BUSY" ;;
+    done) _ret="$C_DONE" ;;
+    *)    _ret="$C_IDLE" ;;
     esac
 }
 
@@ -503,6 +507,7 @@ cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
 
 lastW=""
 lastTheme=""
+THEME_READY=0
 REPO=""
 CHANGED_CACHE=""
 NOW_TS=0
@@ -524,14 +529,27 @@ draw() {
 	ACTIVE="${4:-0}"
 	theme="${5:-}"
 	[ "${NP:-2}" -le 1 ] && exit 0
-	# Invalidate the theme cache if the marker changed. This costs nothing: the
-	# marker is appended to an existing tmux call, so no extra fork, and the
+	# Re-read the theme only when the marker changed. The marker is appended to
+	# the display-message above, so detecting the change is free, and the
 	# invalidate is builtins only.
-	if [ "$theme" != "$lastTheme" ]; then
+	#
+	# theme_colours is 14 forks -- seven colours, each an ansi_for of a
+	# theme_get -- measured at 10.4 ms under bash 3.2. Running it every draw
+	# spent that once a second, per window, to recompute seven values that
+	# change only when you switch theme. It belongs inside this branch, not
+	# after it.
+	#
+	# THEME_READY is a separate condition rather than part of the comparison:
+	# an unset @theme-bg is a legitimate value of `theme`, so on a host with no
+	# tmarchy the marker equals lastTheme from the very first draw and keying on
+	# the comparison alone would leave every colour unset forever.
+	if [ "$theme" != "$lastTheme" ] || [ "$THEME_READY" = 0 ]; then
 		theme_invalidate
 		lastTheme="$theme"
+		theme_load
+		theme_colours
+		THEME_READY=1
 	fi
-	theme_load; theme_colours
 	namew=$((W - 4))
 	[ "$namew" -lt 3 ] && namew=3
 
@@ -573,7 +591,7 @@ draw() {
 	# `name`, so a window called "my long name" survives. Reordering these
 	# breaks that silently.
 	while read -r active idx scout subs name; do
-		col=$(color_for "$scout")
+		color_for "$scout"; col="$_ret"
 		tag=""
 		[ "$subs" != "0" ] && [ -n "$subs" ] && tag="+${subs}"
 		# The suffix eats into the name's budget rather than overflowing the

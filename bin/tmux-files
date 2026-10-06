@@ -101,7 +101,38 @@ file_rows() {
 
 # Rank most-used-first. With an EMPTY query fzf does no scoring at all and
 # shows input order, so sorting the input IS the ranking when the popup opens.
-frecency_key_files() { printf '%s' "${1:-}"; }
+#
+# `-` is frecency_sort's self-keyed mode: a row here is a bare path, so it is
+# already its own key. A one-line key function would have been tidier and cost
+# a fork per row -- 7.4 s on this repo's 11,830 files, all of it before the
+# picker appeared.
+FRECENCY_KEY='-'
+
+# The body of a reload() action: the command fzf hands to `sh -c`.
+#
+# Takes the NAME of an exported variable, never a root's value. fzf does no
+# expansion of its own here, so the `$NAME` reaches sh verbatim and sh expands
+# it exactly once, inside double quotes, as a single word of data. That is what
+# makes a root containing a quote, a `$(...)`, a `;` or a newline inert. See
+# the bind site for what interpolating the value instead cost.
+reload_body() {
+    local var="${1:-}" depth="${2:-}"
+    [ -n "$var" ] || return 0
+    printf '"$TMUX_FILES_SELF" --list "$%s"' "$var"
+    [ -n "$depth" ] && printf ' %s' "$depth"
+    return 0
+}
+
+# The picker's header line, for a given root.
+#
+# Display-only -- a header never reaches a shell -- but a control byte in a
+# path would be written to the terminal verbatim as an escape sequence, so it
+# is stripped here for the same reason safe_ref() rejects one.
+header_for() {
+    local root
+    root=$(printf '%s' "${1:-}" | tr -d '[:cntrl:]')
+    printf '^g git root   ^h home (depth 4)   ^u up   TAB multi   root: %s' "$root"
+}
 
 main() {
     local pane cwd root git_root depth rows chosen text err
@@ -123,19 +154,33 @@ main() {
 
     depth=""
     rows=$(file_rows "$root" "$depth")
-    rows=$(frecency_sort "$rows" "$(frecency_path files)" frecency_key_files)
+    rows=$(frecency_sort "$rows" "$(frecency_path files)" "$FRECENCY_KEY")
 
     # Re-root from inside the picker rather than choosing a scope up front --
     # the tmux-goto lesson. HOME passes a depth cap because ~ has no gitignore
     # and ~/Library is unbounded on macOS; the header says so rather than
     # quietly returning a short list.
+    #
+    # Roots reach reload() through the ENVIRONMENT, never by interpolation.
+    # fzf hands a reload() body to `sh -c`, so a root pasted into a quoted
+    # argument closes the quote and the rest is syntax: verified against a repo
+    # under a directory named x'$(touch /tmp/PROOF)'y, which executed the
+    # payload on both ^g and ^u. A path is not ours to trust -- the picker's
+    # whole job is handling filenames someone else chose. Referenced as "$VAR"
+    # inside the body, sh expands it exactly once, as data, so no path content
+    # can become syntax no matter what is in it. The headers still interpolate
+    # because a header is display text that never reaches a shell.
+    export TMUX_FILES_SELF="${BASH_SOURCE[0]}"
+    export TMUX_FILES_GIT="$git_root"
+    TMUX_FILES_UP=$(dirname "$root")
+    export TMUX_FILES_UP
     # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
     chosen=$(printf '%s\n' "$rows" | fzf --ansi --multi --tiebreak=index $(fzf_theme_opts) \
         --prompt='@file > ' --height=100% --reverse \
-        --header="^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $root" \
-        --bind "ctrl-g:reload(\"$BASH_SOURCE\" --list '$git_root')+change-header(^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $git_root)" \
-        --bind "ctrl-h:reload(\"$BASH_SOURCE\" --list '$HOME' 4)+change-header(^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $HOME)" \
-        --bind "ctrl-u:reload(\"$BASH_SOURCE\" --list '$(dirname "$root")')+change-header(^g git root   ^h home (depth 4)   ^u up   TAB multi   root: $(dirname "$root"))"
+        --header="$(header_for "$root")" \
+        --bind "ctrl-g:reload($(reload_body TMUX_FILES_GIT))+change-header($(header_for "$git_root"))" \
+        --bind "ctrl-h:reload($(reload_body HOME 4))+change-header($(header_for "$HOME"))" \
+        --bind "ctrl-u:reload($(reload_body TMUX_FILES_UP))+change-header($(header_for "$TMUX_FILES_UP"))"
     ) || exit 0
     [ -n "$chosen" ] || exit 0
 

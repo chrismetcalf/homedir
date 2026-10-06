@@ -783,16 +783,94 @@ RENDER_PIN=$(printf '%s\t%s\t%s\n' \
     999600 modified bin/recent \
     900000 modified bin/old)
 RENDER_OUT=$(rows_out "$RENDER_PIN" 1000000 24 10)
-# The integration is in draw(), which paints based on the recency field (field 1).
-# Verify the three expected classes appear, so a renderer that silently dropped
-# field 1 cannot pass this.
+# This half tests the PRODUCER only: that changed_rows emits all three classes,
+# so a renderer that silently dropped field 1 cannot pass, and that none of the
+# values it emits is the string 'wait'.
 assert_eq "the fixture yields all three recency classes" "now old recent" \
     "$(printf '%s\n' "$RENDER_OUT" | cut -f1 | LC_ALL=C sort | tr '\n' ' ' | sed 's/ *$//')"
-# None of those three can map to 'wait' in any integration -- draw() is the only
-# thing that reads field 1, and it is tested here by what changed_rows PRODUCES.
 printf '%s\n' "$RENDER_OUT" | cut -f1 | grep -qw 'wait' \
     && fail "no file recency class is 'wait'" "only now/recent/old" "found wait in output" \
     || pass "no file recency class is 'wait'"
+
+# ...and this half tests the CONSUMER, which the producer pins above cannot:
+# a value of 'now' is equally un-red whether draw() paints it C_HEAD or C_WAIT,
+# so no assertion on changed_rows' OUTPUT can see a mis-coloured arm. An earlier
+# version of this block claimed the integration was covered "by what
+# changed_rows PRODUCES" -- it was not, and swapping an arm to C_WAIT would have
+# left the whole suite green.
+#
+# Read from source because the three arms are inline in draw()'s row loop, not a
+# function anything can call, and the escape they emit is indistinguishable from
+# a window row's once it reaches the pane. Same instrument, and same
+# justification, as tmux-files' `send-keys -l --` pin: a property real code has
+# but nothing outside the process can observe.
+# Anchored on `case "$rec"` -- the recency switch itself -- rather than on the
+# CHANGED header, which is several lines earlier and swept in the window rows'
+# own C_SUB on the first attempt.
+CHANGED_ARMS=$(sed -n '/case "\$rec" in/,/esac/p' "$DIR/tmux-window-sidebar" \
+    | grep -oE 'C_[A-Z]+' | LC_ALL=C sort -u | tr '\n' ' ' | sed 's/ *$//')
+assert_eq "the CHANGED arms use only non-wait colours" "C_HEAD C_IDLE C_NAME" "$CHANGED_ARMS"
+
+# --- the 1 Hz path --------------------------------------------------------
+# draw() runs once a second per window, forever. theme_colours is 14 forks --
+# seven colours, each an ansi_for of a theme_get -- measured at 10.4 ms under
+# bash 3.2 on this host, and it recomputes values that change only when you
+# switch theme. It used to run unconditionally on every draw; nothing in the
+# suite could see that, because the output is identical either way.
+#
+# So this counts CALLS rather than inspecting output, across three draws with
+# an unchanged theme marker, then one more with the marker moved. tmux is a
+# PATH shim, which is also what keeps this off the live server.
+echo "draw: theme work is cached"
+SHIM=$(mktemp -d)
+cat > "$SHIM/tmux" <<'SHIMEOF'
+#!/bin/sh
+case "$1" in
+  display-message) printf '24 2 30 1 %s\n' "${SBTEST_MARKER:-}" ;;
+  list-windows)    printf '1 0 none 0 win-a\n' ;;
+  list-panes)      printf '1 0 /nonexistent-path\n' ;;
+esac
+SHIMEOF
+chmod +x "$SHIM/tmux"
+(
+    PATH="$SHIM:$PATH"
+    export SBTEST_MARKER="#1a1b26"
+    THEME_CALLS=0
+    # Counted, not called through: the pin is about frequency. Every colour is
+    # assigned so `set -u` downstream still has something to read.
+    theme_colours() {
+        THEME_CALLS=$((THEME_CALLS + 1))
+        C_WAIT=""; C_BUSY=""; C_DONE=""; C_IDLE=""; C_NAME=""; C_HEAD=""; C_SUB=""
+    }
+    theme_load() { :; }
+    theme_invalidate() { :; }
+    PANE="%0"
+    draw >/dev/null 2>&1; draw >/dev/null 2>&1; draw >/dev/null 2>&1
+    assert_eq "three draws, one unchanged marker: theme read once" "1" "$THEME_CALLS"
+    SBTEST_MARKER="#2e3440"
+    draw >/dev/null 2>&1
+    assert_eq "...and re-read when the marker moves" "2" "$THEME_CALLS"
+    # An unset @theme-bg is a legitimate marker value, so the very first draw
+    # must still populate the colours even though "" == the initial lastTheme.
+    THEME_READY=0; lastTheme=""; THEME_CALLS=0
+    SBTEST_MARKER=""
+    draw >/dev/null 2>&1
+    assert_eq "an empty marker still reads the theme once" "1" "$THEME_CALLS"
+    exit "$FAILED"
+) || FAILED=1
+rm -rf "$SHIM"
+
+# color_for is called once per window row on that same path. A $(…) around it
+# is one fork per row; it assigns _ret instead. Asserting the value also keeps
+# the colours coming from the theme rather than the hardcoded 203/214/78/245
+# this sidebar used before -- the one real property of the deleted
+# bin/tmux-sidebar-theme-test, which was otherwise 25 source-greps.
+C_WAIT="W"; C_BUSY="B"; C_DONE="D"; C_IDLE="I"
+color_for wait; assert_eq "color_for assigns _ret for wait" "W" "$_ret"
+color_for busy; assert_eq "color_for assigns _ret for busy" "B" "$_ret"
+color_for done; assert_eq "color_for assigns _ret for done" "D" "$_ret"
+color_for none; assert_eq "color_for falls back to idle"    "I" "$_ret"
+assert_eq "color_for prints nothing" "" "$(color_for wait)"
 
 # --- bash 3.2 -----------------------------------------------------------------
 # This repo deploys to macOS boxes without Homebrew, where /usr/bin/env bash is
