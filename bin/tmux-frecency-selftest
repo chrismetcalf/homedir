@@ -5,8 +5,21 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED=0
 
-pass() { printf '  ok   %s\n' "$1"; }
-fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Totals are DERIVED, never hand-maintained. A hardcoded count is how a
+# dropped assertion goes unnoticed: the number drifts, somebody updates the
+# literal, and the missing test is never missed.
+#
+# Counted into FILES, not shell variables. Several assertions below run inside
+# `( ... )` to scope an export, and a variable incremented in a subshell does
+# not survive it: the first version of this counter read 26 against 31 emitted
+# `ok` lines -- a derived number that was quietly wrong, which is worse than
+# the hardcoded one it replaced.
+COUNTDIR=$(mktemp -d)
+pass() { printf 'x' >> "$COUNTDIR/pass"; printf '  ok   %s\n' "$1"; }
+fail() { printf 'x' >> "$COUNTDIR/fail"; printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Set by fail() in a subshell too, where FAILED=1 is likewise lost -- so the
+# exit status is taken from the file, not the variable.
+count_of() { [ -f "$COUNTDIR/$1" ] && wc -c < "$COUNTDIR/$1" | tr -d ' ' || printf '0'; }
 assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
 
 WORK=$(mktemp -d)
@@ -166,4 +179,8 @@ ratio=$(awk -v a="$t_fork" -v b="$t_self" 'BEGIN { printf "%d", (b > 0 ? a / b :
     || fail "self-keyed does not fork per row" ">=4x faster than a keyfn" "${ratio}x"
 
 rm -rf "$WORK"
-exit "$FAILED"
+echo
+NPASS=$(count_of pass); NFAIL=$(count_of fail); rm -rf "$COUNTDIR"
+printf '%s assertions: %s passed, %s failed\n' "$(basename "$0")" "$NPASS" "$NFAIL"
+[ "$NFAIL" = "0" ] && echo "all passed" || echo "FAILURES"
+[ "$NFAIL" = "0" ]

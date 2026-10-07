@@ -5,8 +5,21 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED=0
 
-pass() { printf '  ok   %s\n' "$1"; }
-fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Totals are DERIVED, never hand-maintained. A hardcoded count is how a
+# dropped assertion goes unnoticed: the number drifts, somebody updates the
+# literal, and the missing test is never missed.
+#
+# Counted into FILES, not shell variables. Several assertions below run inside
+# `( ... )` to scope an export, and a variable incremented in a subshell does
+# not survive it: the first version of this counter read 26 against 31 emitted
+# `ok` lines -- a derived number that was quietly wrong, which is worse than
+# the hardcoded one it replaced.
+COUNTDIR=$(mktemp -d)
+pass() { printf 'x' >> "$COUNTDIR/pass"; printf '  ok   %s\n' "$1"; }
+fail() { printf 'x' >> "$COUNTDIR/fail"; printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Set by fail() in a subshell too, where FAILED=1 is likewise lost -- so the
+# exit status is taken from the file, not the variable.
+count_of() { [ -f "$COUNTDIR/$1" ] && wc -c < "$COUNTDIR/$1" | tr -d ' ' || printf '0'; }
 assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
 assert_ok() { if "${@:2}"; then pass "$1"; else fail "$1" "exit 0" "exit $?"; fi; }
 assert_no() { if "${@:2}"; then fail "$1" "non-zero" "exit 0"; else pass "$1"; fi; }
@@ -69,6 +82,33 @@ assert_eq "depth cap limits the walk" "2" "$got"
 assert_eq "a missing root yields nothing" "" "$(file_rows "$FIX/nope")"
 rm -rf "$FIX"
 
+echo "--list ranking"
+# ^g/^h/^u re-invoke this script with --list, and that path must rank the same
+# way the initial list does. It used to return raw rg order, so the frecency
+# ordering silently vanished the moment you re-rooted -- invisible in any test
+# that only checked WHICH files came back, which is why this one checks the
+# order.
+LFIX=$(mktemp -d)
+LSTATE=$(mktemp -d)
+touch "$LFIX/aaa.txt" "$LFIX/bbb.txt" "$LFIX/zzz.txt"
+(
+    export TMUX_FRECENCY_DIR="$LSTATE"
+    # The ranked file is whichever comes LAST in the unranked order, derived
+    # here rather than assumed. The first version of this pin picked the
+    # alphabetically-last name on the reasoning that rg would return it last --
+    # rg walks in filesystem order and returned it FIRST, so the ranked and
+    # unranked outputs coincided and the pin passed against the raw-order bug
+    # it existed to catch.
+    raw_last=$(file_rows "$LFIX" | tail -1)
+    frecency_record "$(frecency_path files)" "$raw_last"
+    frecency_record "$(frecency_path files)" "$raw_last"
+    got=$(TMUX_FRECENCY_DIR="$LSTATE" bash "$DIR/tmux-files" --list "$LFIX" | head -1)
+    assert_eq "--list applies frecency ranking" "$raw_last" "$got"
+    assert_eq "--list still returns every file" "3" \
+        "$(TMUX_FRECENCY_DIR="$LSTATE" bash "$DIR/tmux-files" --list "$LFIX" | grep -c .)"
+)
+rm -rf "$LFIX" "$LSTATE"
+
 echo "reload_body"
 # fzf hands a reload() body to `sh -c`, so a root pasted into it is SYNTAX.
 # Verified against the previous form: a repo under a directory named
@@ -117,5 +157,7 @@ grep -q 'send-keys -t "\$pane" -l --' "$DIR/tmux-files" \
     && pass "send-keys uses -l and --" || fail "send-keys uses -l and --" "present" "missing"
 
 echo
-[ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
-exit "$FAILED"
+NPASS=$(count_of pass); NFAIL=$(count_of fail); rm -rf "$COUNTDIR"
+printf '%s assertions: %s passed, %s failed\n' "$(basename "$0")" "$NPASS" "$NFAIL"
+[ "$NFAIL" = "0" ] && echo "all passed" || echo "FAILURES"
+[ "$NFAIL" = "0" ]

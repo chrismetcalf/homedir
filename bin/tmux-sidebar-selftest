@@ -20,8 +20,21 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELF_BASH="${BASH:-/bin/bash}"
 
 FAILED=0
-pass() { printf '  ok   %s\n' "$1"; }
-fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Totals are DERIVED, never hand-maintained. A hardcoded count is how a
+# dropped assertion goes unnoticed: the number drifts, somebody updates the
+# literal, and the missing test is never missed.
+#
+# Counted into FILES, not shell variables. Several assertions below run inside
+# `( ... )` to scope an export, and a variable incremented in a subshell does
+# not survive it: the first version of this counter read 26 against 31 emitted
+# `ok` lines -- a derived number that was quietly wrong, which is worse than
+# the hardcoded one it replaced.
+COUNTDIR=$(mktemp -d)
+pass() { printf 'x' >> "$COUNTDIR/pass"; printf '  ok   %s\n' "$1"; }
+fail() { printf 'x' >> "$COUNTDIR/fail"; printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Set by fail() in a subshell too, where FAILED=1 is likewise lost -- so the
+# exit status is taken from the file, not the variable.
+count_of() { [ -f "$COUNTDIR/$1" ] && wc -c < "$COUNTDIR/$1" | tr -d ' ' || printf '0'; }
 assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
 
 # The layout functions measure with ${#s} and slice with ${s: -n}, which count
@@ -909,5 +922,11 @@ if [ "${SIDEBAR_SELFTEST_INNER:-}" != "1" ]; then
 fi
 
 echo
-[ "$FAILED" = "0" ] && echo "all passed" || echo "FAILURES"
-exit "$FAILED"
+# The inner bash-3.2 run has its own COUNTDIR and prints its own total, so this
+# line counts THIS interpreter's assertions -- the inner run's are reported in
+# its indented block, and its pass/fail is folded in as the single assertion
+# above rather than by summing two totals.
+NPASS=$(count_of pass); NFAIL=$(count_of fail); rm -rf "$COUNTDIR"
+printf '%s assertions: %s passed, %s failed\n' "$(basename "$0")" "$NPASS" "$NFAIL"
+[ "$NFAIL" = "0" ] && echo "all passed" || echo "FAILURES"
+[ "$NFAIL" = "0" ]

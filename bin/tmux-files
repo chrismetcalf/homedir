@@ -202,8 +202,15 @@ main() {
 }
 
 # fzf's reload() re-invokes this script for a new root.
+#
+# Ranked the same way the initial list is. Without this the ordering silently
+# disappeared the moment you pressed ^g/^h/^u -- the first list was
+# frecency-sorted and every re-rooted one came back in raw rg order, so the
+# comment above ("sorting the input IS the ranking") was true only until you
+# touched anything. Affordable only because the sort is self-keyed: as a fork
+# per row this would have added 7 s to every re-root.
 if [ "${1:-}" = "--list" ]; then
-    file_rows "${2:-}" "${3:-}"
+    frecency_sort "$(file_rows "${2:-}" "${3:-}")" "$(frecency_path files)" "$FRECENCY_KEY"
     exit 0
 fi
 

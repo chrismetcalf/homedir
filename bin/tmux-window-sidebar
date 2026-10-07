@@ -2,12 +2,27 @@
 # Persistent per-window sidebar pane: a narrow left column listing every window
 # in the session (index, truncated name, tmux-scout state color) and highlighting
 # the session's active window. Auto-refreshes ~1/s, repaints instantly on resize,
-# and styles to the powerline scout palette (203 wait, 214 busy, 78 done, 245 idle).
+# and styles to the ACTIVE TMARCHY THEME, read from @theme-* -- not to the old
+# hardcoded powerline scout palette (203 wait, 214 busy, 78 done, 245 idle),
+# which is what this line used to describe and which nothing here uses now.
+#
+# Below it also shows a CHANGED section: files recently changed in the active
+# pane's repo, newest first, coloured by recency.
 #
 # Spawned focus-safe by tmux-sidebar-ensure; not meant to be run by hand. Toggle
 # the whole feature with `prefix + W` (tmux-sidebar-toggle). Width is pinned to
 # @sidebar-width by tmux-sidebar-resize on the window-resized hook.
 set -u
+
+# Set explicitly rather than inherited. This runs as a tmux child, and the tmux
+# server's environment is FROZEN at server start -- before .zshrc runs -- which
+# is the same trap that silently left mode-keys on emacs (see CLAUDE.md). Under
+# a C ctype `${#s}` and `${s: -n}` count BYTES, so a row like `café.txt`
+# miscounts by one and truncation lands mid-UTF-8. Measured on this host the
+# server carries LANG=en_US.UTF-8 and no LC_CTYPE, so it happens to be fine
+# here; this removes the dependency on an environment nobody controls. A locale
+# the host lacks falls back harmlessly, so this cannot make things worse.
+export LC_CTYPE="${LC_CTYPE:-en_US.UTF-8}"
 
 PANE="${TMUX_PANE:-}"
 [ -n "$PANE" ] || [ "${TMUX_SIDEBAR_LIB:-}" = "1" ] || exit 0
@@ -206,6 +221,13 @@ stat_split() {
 # the stat output is in the order existing_paths was built in, and it means a
 # genuine desync (stat failing on one file mid-batch, say) costs one scan to
 # recover from instead of one scan per remaining file.
+#
+# The forward-only property is a COMPLEXITY claim, not a correctness one, and
+# it is not pinned directly -- nothing observable from outside distinguishes a
+# cursor that rewinds from one that does not, given both produce the same
+# mtimes. What guards it is the `t(300)/t(40) < 6` ratio pin in the selftest,
+# which is the right instrument: a rewind makes this O(n^2) and the ratio is
+# what detects that.
 # Assigns _ret and advances _STAT_I; writes nothing to stdout.
 lookup_mtime() {
     local target="${1:-}" j
@@ -273,6 +295,14 @@ changed_rows() {
         path="${rest#*"$TAB"}"
         [ -n "$path" ] || continue
         [ "$n" -ge "$max" ] && break
+        # Every glyph in this set -- ● ○ − · ≠ and the em dash used for a
+        # missing age -- is East-Asian AMBIGUOUS width. A terminal configured
+        # to render Ambiguous as double-width overflows each row by one column.
+        # None of this repo's three clients (Rio, Tabby, ShellFish) does so by
+        # default, and the consequence is cosmetic and self-evident when it
+        # happens, so this is recorded rather than designed around: do NOT swap
+        # these for different glyphs on account of it. There is no unambiguous
+        # single-width alternative that still reads as what each state means.
         case "$state" in
             modified)  glyph='●' ;;
             added)     glyph='+' ;;
@@ -452,6 +482,14 @@ git_refresh() {
     done
 
     # Stat the existing paths once. Format includes filename for verification.
+    #
+    # One argv, so this is bounded by ARG_MAX -- 1 MB on this host, on the order
+    # of 10,000 changed files in a single repo. Deliberately not chunked: a tree
+    # in that state has bigger problems than its sidebar. What IS worth knowing
+    # is the failure SHAPE, because `|| true` swallows it: past the bound stat
+    # fails wholesale, every mtime comes back missing, and the CHANGED section
+    # renders a column of em dashes with nothing on screen or in a log saying
+    # why. If you are ever looking at that, this line is the reason.
     stat_output=""
     if [ "${#existing_paths[@]}" -gt 0 ]; then
         stat_output=$(stat "${_STAT_FMT[@]}" "${existing_paths[@]}" 2>/dev/null || true)
