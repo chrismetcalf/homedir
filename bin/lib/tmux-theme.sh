@@ -23,6 +23,10 @@
 # is a fresh process, so a theme switched between popups is still picked up.
 # Only a switch DURING one popup is missed, and there is no such moment.
 #
+# DAEMON EXCEPTION: a long-lived process (bin/tmux-window-sidebar) must detect
+# theme changes and invalidate. It appends a marker field to an existing tmux
+# call and calls theme_invalidate() when the marker changes.
+#
 # Keyed by NAME, not read positionally out of chained `show -gqv` calls. That
 # alternative is also one fork and looks tidier, but an unset option prints
 # NOTHING AT ALL -- not even an empty line (verified) -- so a theme missing one
@@ -64,6 +68,15 @@ _theme_load() {
 # $(...) command substitution, and a cache filled in that subshell dies with it.
 # Calling it here means the subshells inherit a cache that is already warm.
 theme_load() { _theme_load; }
+
+# Invalidate the cache, forcing a re-read on the next theme_load. Used by daemons
+# (bin/tmux-window-sidebar) that detect theme changes via a marker field and need
+# to reload. Short-lived processes never call this.
+theme_invalidate() {
+    _THEME_LOADED=""
+    _THEME_NAMES=()
+    _THEME_VALUES=()
+}
 
 theme_get() {
     local want="${1:-}" i=0

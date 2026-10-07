@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# tmux-files — fuzzy-pick files and insert them as @<path> references at the
+# calling pane's prompt, without running anything.
+#
+# Bound to `prefix + f`, which takes over tmux's own find-window; `prefix + u`
+# (tmux-goto) already lists every window with fuzzy matching, a scout tint and
+# frecency order, so find-window had nothing left to do.
+#
+# Sourceable for tests: TMUX_FILES_LIB=1 defines the functions without running
+# main. See bin/tmux-files-selftest.
+set -uo pipefail
+
+# shellcheck source=lib/tmux-theme.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-theme.sh"
+# shellcheck source=lib/tmux-frecency.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-frecency.sh"
+
+# Absolute path + the cwd Claude resolves @ against -> the text to insert.
+#
+# Three branches, in order. The cwd test is first because a path inside the
+# session's own directory should read the way you would have typed it.
+to_ref() {
+    local path="${1:-}" cwd="${2:-}"
+    [ -n "$path" ] || return 0
+    # Strip a trailing slash so the pattern below cannot double the separator.
+    cwd="${cwd%/}"
+    # Guarded on non-empty: an empty cwd makes the pattern "/*", which matches
+    # every absolute path on the system and would relativise all of them.
+    if [ -n "$cwd" ]; then
+        case "$path" in
+            # The literal / in the pattern is what stops a sibling directory
+            # sharing the prefix (.homedir-old vs .homedir) from matching.
+            "$cwd"/*) printf '%s' "${path#"$cwd"/}"; return 0 ;;
+        esac
+    fi
+    # Guarded on non-empty: an empty HOME makes the pattern "/*", which matches
+    # every absolute path on the system and would relativise all of them.
+    if [ -n "$HOME" ]; then
+        case "$path" in
+            "$HOME"/*) printf '~/%s' "${path#"$HOME"/}"; return 0 ;;
+        esac
+    fi
+    printf '%s' "$path"
+}
+
+# Filenames are not trusted input. They come off the filesystem, and this tool's
+# entire job is putting them on a shell prompt.
+#
+# Reject any control byte, not just newline: CR submits a line exactly like
+# Enter, and an ESC byte reaches readline's dispatcher, where ESC then C-e
+# performs command substitution with no keypress and no visible trace. Same
+# gate as bin/tmux-gen, for the same reason.
+safe_ref() {
+    case "${1-}" in
+        "")            return 1 ;;
+        *[[:cntrl:]]*) return 1 ;;
+        *)             return 0 ;;
+    esac
+}
+
+# Newline-separated absolute paths on stdin -> the string to insert.
+#
+# A filename containing a newline cannot survive fzf's default output at all,
+# so it is already unreachable here; the gate is for every other control byte
+# and for the day this stops reading line-oriented input.
+build_insert() {
+    local cwd="${1:-}" path ref out=""
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        safe_ref "$path" || continue
+        ref=$(to_ref "$path" "$cwd")
+        safe_ref "$ref" || continue
+        out="${out}@${ref} "
+    done
+    printf '%s' "$out"
+}
+
+# Candidate paths under a root, absolute, newline-separated.
+#
+# rg is gitignore-aware, which is what makes this sharp inside a repo -- a
+# node_modules or a build directory never reaches the picker. Home has no
+# gitignore and ~/Library is unbounded on macOS, so that root passes a depth
+# cap, stated in the picker's header rather than applied silently.
+#
+# find is the fallback rather than an error: slower and not gitignore-aware,
+# but the picker works on a host without rg.
+file_rows() {
+    local root="${1:-}" depth="${2:-}" args=()
+    [ -d "$root" ] || return 0
+    if command -v rg >/dev/null 2>&1; then
+        args=(--files --hidden --glob '!.git')
+        [ -n "$depth" ] && args+=(--max-depth "$depth")
+        rg "${args[@]}" -- "$root" 2>/dev/null
+    else
+        # -maxdepth must follow the path and precede the tests.
+        args=("$root")
+        [ -n "$depth" ] && args+=(-maxdepth "$depth")
+        find "${args[@]}" -type f -not -path '*/.git/*' 2>/dev/null
+    fi
+}
+
+# Rank most-used-first. With an EMPTY query fzf does no scoring at all and
+# shows input order, so sorting the input IS the ranking when the popup opens.
+#
+# `-` is frecency_sort's self-keyed mode: a row here is a bare path, so it is
+# already its own key. A one-line key function would have been tidier and cost
+# a fork per row -- 7.4 s on this repo's 11,830 files, all of it before the
+# picker appeared.
+FRECENCY_KEY='-'
+
+# The body of a reload() action: the command fzf hands to `sh -c`.
+#
+# Takes the NAME of an exported variable, never a root's value. fzf does no
+# expansion of its own here, so the `$NAME` reaches sh verbatim and sh expands
+# it exactly once, inside double quotes, as a single word of data. That is what
+# makes a root containing a quote, a `$(...)`, a `;` or a newline inert. See
+# the bind site for what interpolating the value instead cost.
+reload_body() {
+    local var="${1:-}" depth="${2:-}"
+    [ -n "$var" ] || return 0
+    printf '"$TMUX_FILES_SELF" --list "$%s"' "$var"
+    [ -n "$depth" ] && printf ' %s' "$depth"
+    return 0
+}
+
+# The picker's header line, for a given root.
+#
+# Display-only -- a header never reaches a shell -- but a control byte in a
+# path would be written to the terminal verbatim as an escape sequence, so it
+# is stripped here for the same reason safe_ref() rejects one.
+header_for() {
+    local root
+    root=$(printf '%s' "${1:-}" | tr -d '[:cntrl:]')
+    printf '^g git root   ^h home (depth 4)   ^u up   TAB multi   root: %s' "$root"
+}
+
+main() {
+    local pane cwd root git_root depth rows chosen text err
+    # display-message -p inside a popup returns the pane the popup was launched
+    # OVER -- a popup is not a pane. So this is the target without any
+    # bookkeeping, and it cannot drift the way reading the active pane later
+    # would (a popup is an ordinary client and the active pane can move).
+    pane=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
+    cwd=$(tmux display-message -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
+    [ -d "$cwd" ] || cwd="$PWD"
+    root="$cwd"
+    git_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || git_root="$cwd"
+
+    if ! command -v fzf >/dev/null 2>&1; then
+        printf '  fzf is not installed.\n  Install it, or run homedir-install.\n\n  [q] close  '
+        IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+        exit 1
+    fi
+
+    depth=""
+    rows=$(file_rows "$root" "$depth")
+    rows=$(frecency_sort "$rows" "$(frecency_path files)" "$FRECENCY_KEY")
+
+    # Re-root from inside the picker rather than choosing a scope up front --
+    # the tmux-goto lesson. HOME passes a depth cap because ~ has no gitignore
+    # and ~/Library is unbounded on macOS; the header says so rather than
+    # quietly returning a short list.
+    #
+    # Roots reach reload() through the ENVIRONMENT, never by interpolation.
+    # fzf hands a reload() body to `sh -c`, so a root pasted into a quoted
+    # argument closes the quote and the rest is syntax: verified against a repo
+    # under a directory named x'$(touch /tmp/PROOF)'y, which executed the
+    # payload on both ^g and ^u. A path is not ours to trust -- the picker's
+    # whole job is handling filenames someone else chose. Referenced as "$VAR"
+    # inside the body, sh expands it exactly once, as data, so no path content
+    # can become syntax no matter what is in it. The headers still interpolate
+    # because a header is display text that never reaches a shell.
+    export TMUX_FILES_SELF="${BASH_SOURCE[0]}"
+    export TMUX_FILES_GIT="$git_root"
+    TMUX_FILES_UP=$(dirname "$root")
+    export TMUX_FILES_UP
+    # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    chosen=$(printf '%s\n' "$rows" | fzf --ansi --multi --tiebreak=index $(fzf_theme_opts) \
+        --prompt='@file > ' --height=100% --reverse \
+        --header="$(header_for "$root")" \
+        --bind "ctrl-g:reload($(reload_body TMUX_FILES_GIT))+change-header($(header_for "$git_root"))" \
+        --bind "ctrl-h:reload($(reload_body HOME 4))+change-header($(header_for "$HOME"))" \
+        --bind "ctrl-u:reload($(reload_body TMUX_FILES_UP))+change-header($(header_for "$TMUX_FILES_UP"))"
+    ) || exit 0
+    [ -n "$chosen" ] || exit 0
+
+    while IFS= read -r p; do
+        [ -n "$p" ] && frecency_record "$(frecency_path files)" "$p"
+    done <<< "$chosen"
+
+    text=$(printf '%s\n' "$chosen" | build_insert "$cwd")
+    [ -n "$text" ] || exit 0
+
+    # `--` matters: a path starting with '-' is otherwise parsed as send-keys
+    # flags, and -R silently resets the pane's terminal. `-l` is literal, so
+    # tmux does not read tokens as key names.
+    if ! err=$(tmux send-keys -t "$pane" -l -- "$text" 2>&1); then
+        printf '\n  insert failed: %s\n\n  [q] close  ' "${err:-send-keys exited non-zero}"
+        IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
+        exit 1
+    fi
+}
+
+# fzf's reload() re-invokes this script for a new root.
+#
+# Ranked the same way the initial list is. Without this the ordering silently
+# disappeared the moment you pressed ^g/^h/^u -- the first list was
+# frecency-sorted and every re-rooted one came back in raw rg order, so the
+# comment above ("sorting the input IS the ranking") was true only until you
+# touched anything. Affordable only because the sort is self-keyed: as a fork
+# per row this would have added 7 s to every re-root.
+if [ "${1:-}" = "--list" ]; then
+    frecency_sort "$(file_rows "${2:-}" "${3:-}")" "$(frecency_path files)" "$FRECENCY_KEY"
+    exit 0
+fi
+
+[ "${TMUX_FILES_LIB:-}" = "1" ] || main "$@"

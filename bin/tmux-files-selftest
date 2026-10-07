@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# tmux-files-selftest — fixture-driven tests for bin/tmux-files.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FAILED=0
+
+# Totals are DERIVED, never hand-maintained. A hardcoded count is how a
+# dropped assertion goes unnoticed: the number drifts, somebody updates the
+# literal, and the missing test is never missed.
+#
+# Counted into FILES, not shell variables. Several assertions below run inside
+# `( ... )` to scope an export, and a variable incremented in a subshell does
+# not survive it: the first version of this counter read 26 against 31 emitted
+# `ok` lines -- a derived number that was quietly wrong, which is worse than
+# the hardcoded one it replaced.
+COUNTDIR=$(mktemp -d)
+pass() { printf 'x' >> "$COUNTDIR/pass"; printf '  ok   %s\n' "$1"; }
+fail() { printf 'x' >> "$COUNTDIR/fail"; printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Set by fail() in a subshell too, where FAILED=1 is likewise lost -- so the
+# exit status is taken from the file, not the variable.
+count_of() { [ -f "$COUNTDIR/$1" ] && wc -c < "$COUNTDIR/$1" | tr -d ' ' || printf '0'; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_ok() { if "${@:2}"; then pass "$1"; else fail "$1" "exit 0" "exit $?"; fi; }
+assert_no() { if "${@:2}"; then fail "$1" "non-zero" "exit 0"; else pass "$1"; fi; }
+
+export TMUX_FILES_LIB=1
+# shellcheck source=/dev/null
+. "$DIR/tmux-files"
+
+echo "tmux-files selftest"
+
+echo "to_ref"
+HOME=/Users/x
+assert_eq "under cwd is relative"  "bin/g"              "$(to_ref /Users/x/.homedir/bin/g /Users/x/.homedir)"
+assert_eq "under HOME is ~-prefixed" "~/other/f"        "$(to_ref /Users/x/other/f /Users/x/.homedir)"
+assert_eq "outside HOME is absolute" "/opt/otto/run.sh" "$(to_ref /opt/otto/run.sh /Users/x/.homedir)"
+# A sibling directory sharing the cwd's prefix must NOT be treated as inside it.
+assert_eq "sibling prefix is not inside" "~/.homedir-old/f" "$(to_ref /Users/x/.homedir-old/f /Users/x/.homedir)"
+# An empty cwd would make the pattern "/*", which matches every absolute path.
+assert_eq "empty cwd falls through" "~/.homedir/bin/g"  "$(to_ref /Users/x/.homedir/bin/g '')"
+# An empty HOME must not match every absolute path; it should fall through.
+HOME=""
+assert_eq "empty HOME falls through" "/opt/otto/run.sh"  "$(to_ref /opt/otto/run.sh /Users/x/.homedir)"
+HOME=/Users/x
+assert_eq "trailing slash on cwd"   "bin/g"             "$(to_ref /Users/x/.homedir/bin/g /Users/x/.homedir/)"
+
+echo "safe_ref"
+assert_no "rejects newline" safe_ref "$(printf 'a\nb')"
+assert_no "rejects CR"      safe_ref "$(printf 'a\rb')"
+assert_no "rejects ESC"     safe_ref "$(printf 'a\033b')"
+assert_no "rejects empty"   safe_ref ""
+assert_ok "accepts a plain path"      safe_ref "bin/tmux-goto"
+assert_ok "accepts a leading dash"    safe_ref "-weird-name"
+assert_ok "accepts spaces and UTF-8"  safe_ref "my dir/naïve file.md"
+
+echo "build_insert"
+assert_eq "joins with one trailing space" "@bin/a @bin/b " \
+    "$(printf '/r/bin/a\n/r/bin/b\n' | build_insert /r)"
+assert_eq "skips an unsafe path but keeps the rest" "@bin/a " \
+    "$(printf '/r/bin/a\n/r/bin/\033b\n' | build_insert /r)"
+assert_eq "empty input inserts nothing" "" "$(printf '' | build_insert /r)"
+
+echo "file_rows"
+FIX=$(mktemp -d)
+mkdir -p "$FIX/a/b/c"
+touch "$FIX/top.txt" "$FIX/a/one.txt" "$FIX/a/b/two.txt" "$FIX/a/b/c/three.txt"
+mkdir -p "$FIX/.git" && touch "$FIX/.git/config"
+
+got=$(file_rows "$FIX" | wc -l | tr -d ' ')
+assert_eq "finds every file recursively" "4" "$got"
+file_rows "$FIX" | grep -q '\.git/config' \
+    && fail "excludes .git" "no .git paths" "found .git/config" || pass "excludes .git"
+file_rows "$FIX" | grep -q "^$FIX/top.txt$" \
+    && pass "paths are absolute" || fail "paths are absolute" "$FIX/top.txt" "$(file_rows "$FIX" | head -1)"
+
+# The depth cap is what makes the home root usable: ~ has no gitignore and
+# ~/Library is unbounded on macOS.
+got=$(file_rows "$FIX" 2 | wc -l | tr -d ' ')
+assert_eq "depth cap limits the walk" "2" "$got"
+
+assert_eq "a missing root yields nothing" "" "$(file_rows "$FIX/nope")"
+rm -rf "$FIX"
+
+echo "--list ranking"
+# ^g/^h/^u re-invoke this script with --list, and that path must rank the same
+# way the initial list does. It used to return raw rg order, so the frecency
+# ordering silently vanished the moment you re-rooted -- invisible in any test
+# that only checked WHICH files came back, which is why this one checks the
+# order.
+LFIX=$(mktemp -d)
+LSTATE=$(mktemp -d)
+touch "$LFIX/aaa.txt" "$LFIX/bbb.txt" "$LFIX/zzz.txt"
+(
+    export TMUX_FRECENCY_DIR="$LSTATE"
+    # The ranked file is whichever comes LAST in the unranked order, derived
+    # here rather than assumed. The first version of this pin picked the
+    # alphabetically-last name on the reasoning that rg would return it last --
+    # rg walks in filesystem order and returned it FIRST, so the ranked and
+    # unranked outputs coincided and the pin passed against the raw-order bug
+    # it existed to catch.
+    raw_last=$(file_rows "$LFIX" | tail -1)
+    frecency_record "$(frecency_path files)" "$raw_last"
+    frecency_record "$(frecency_path files)" "$raw_last"
+    got=$(TMUX_FRECENCY_DIR="$LSTATE" bash "$DIR/tmux-files" --list "$LFIX" | head -1)
+    assert_eq "--list applies frecency ranking" "$raw_last" "$got"
+    assert_eq "--list still returns every file" "3" \
+        "$(TMUX_FRECENCY_DIR="$LSTATE" bash "$DIR/tmux-files" --list "$LFIX" | grep -c .)"
+)
+rm -rf "$LFIX" "$LSTATE"
+
+echo "reload_body"
+# fzf hands a reload() body to `sh -c`, so a root pasted into it is SYNTAX.
+# Verified against the previous form: a repo under a directory named
+# x'$(touch ...)'y executed the payload on both ^g and ^u. These pins run the
+# body the way fzf does and assert the hostile root comes back as one word of
+# data with nothing run -- both halves are needed, since a body that errored
+# out would also create no marker.
+MARK=$(mktemp -u)
+EVIL="/tmp/x'\$(touch $MARK)'y; touch $MARK"
+(
+    export TMUX_FILES_SELF=/bin/echo TMUX_FILES_GIT="$EVIL"
+    out=$(sh -c "$(reload_body TMUX_FILES_GIT)" 2>&1)
+    assert_eq "a hostile root survives sh -c as one word" "--list $EVIL" "$out"
+    assert_no "...and nothing in it is executed" test -e "$MARK"
+    out=$(sh -c "$(reload_body TMUX_FILES_GIT 4)" 2>&1)
+    assert_eq "the depth cap is argv, after the root" "--list $EVIL 4" "$out"
+)
+rm -f "$MARK"
+
+echo "main wiring"
+assert_eq "main is defined" "function" "$(type -t main)"
+# Observed through main's first real side effect -- its opening
+# `tmux display-message` -- rather than through a sentinel the script does not
+# set. A PATH shim makes that call leave a marker; a library load must leave
+# none. The marker also catches the realistic regression the guard alone does
+# not: a tmux call added at TOP LEVEL, outside main, which runs on every source
+# no matter what the guard says.
+#
+# stdin is /dev/null throughout, so a run that reaches fzf dies instead of
+# blocking the suite on a tty that is not there.
+SHIMD=$(mktemp -d)
+MARK2="$SHIMD/tmux-ran"
+printf '#!/bin/sh\ntouch %s\n' "$MARK2" > "$SHIMD/tmux"
+chmod +x "$SHIMD/tmux"
+( PATH="$SHIMD:$PATH" TMUX_FILES_LIB=1 bash "$DIR/tmux-files" >/dev/null 2>&1 </dev/null )
+assert_no "a library load runs no part of main" test -e "$MARK2"
+# ...and the shim really does observe a run, so the pin above is not vacuous.
+( PATH="$SHIMD:$PATH" TMUX_FILES_LIB=0 bash "$DIR/tmux-files" >/dev/null 2>&1 </dev/null )
+assert_ok "the shim detects main when it DOES run" test -e "$MARK2"
+rm -rf "$SHIMD"
+
+# Regression pin. This guards a property nothing else can observe from outside
+# the process -- a `-` path reaching send-keys without `--` parses as flags,
+# and -R silently resets the pane's terminal.
+grep -q 'send-keys -t "\$pane" -l --' "$DIR/tmux-files" \
+    && pass "send-keys uses -l and --" || fail "send-keys uses -l and --" "present" "missing"
+
+echo
+NPASS=$(count_of pass); NFAIL=$(count_of fail); rm -rf "$COUNTDIR"
+printf '%s assertions: %s passed, %s failed\n' "$(basename "$0")" "$NPASS" "$NFAIL"
+[ "$NFAIL" = "0" ] && echo "all passed" || echo "FAILURES"
+[ "$NFAIL" = "0" ]

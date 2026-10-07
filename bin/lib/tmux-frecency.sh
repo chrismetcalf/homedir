@@ -57,22 +57,37 @@ frecency_weight() {
 # Rows are tab-separated internally, so the annotation used for sorting is
 # joined with \001 instead: reusing tab here would split rows at their own
 # field boundaries.
+#
+# A keyfn of `-` means THE ROW IS ITS OWN KEY, and the shell loop below is
+# skipped entirely. That is not a special case bolted on for one caller: a row
+# that is a bare path or hostname is already keyed by its own text, while
+# tmux-goto, tmux-ssh and tmux-cmd build a key out of a composite row and need
+# a function to do it. The distinction is worth an argument because
+# `key=$(fn "$row")` is a FORK PER ROW -- unnoticeable at tmux-cmd's 89 rows,
+# and 7.4 seconds at tmux-files' 11,830, which was the entirety of that
+# picker's open time.
 frecency_sort() {
-    local rows="${1:-}" file="${2:-}" keyfn="${3:-}" now row key
+    local rows="${1:-}" file="${2:-}" keyfn="${3:-}" now row key selfkey=0
     [ -n "$rows" ] || return 0
-    if [ -z "$keyfn" ] || ! command -v "$keyfn" >/dev/null 2>&1; then
+    if [ "$keyfn" = "-" ]; then
+        selfkey=1
+    elif [ -z "$keyfn" ] || ! command -v "$keyfn" >/dev/null 2>&1; then
         printf '%s\n' "$rows"
         return 0
     fi
     now=$(date +%s 2>/dev/null || printf '0')
 
     {
-        while IFS= read -r row; do
-            [ -n "$row" ] || continue
-            key=$("$keyfn" "$row")
-            printf '%s\001%s\n' "$key" "$row"
-        done <<< "$rows"
-    } | awk -F'\001' -v now="$now" -v statefile="$file" '
+        if [ "$selfkey" = 1 ]; then
+            printf '%s\n' "$rows"
+        else
+            while IFS= read -r row; do
+                [ -n "$row" ] || continue
+                key=$("$keyfn" "$row")
+                printf '%s\001%s\n' "$key" "$row"
+            done <<< "$rows"
+        fi
+    } | awk -F'\001' -v now="$now" -v statefile="$file" -v selfkey="$selfkey" '
         BEGIN {
             while ((getline line < statefile) > 0) {
                 n = split(line, a, "\t")
@@ -80,9 +95,12 @@ frecency_sort() {
             }
             close(statefile)
         }
+        # The shell loop drops blank rows; in selfkey mode awk is the only
+        # thing reading them, so it has to do the same.
+        $0 == "" { next }
         {
-            key = $1
-            row = substr($0, index($0, "\001") + 1)
+            if (selfkey) { key = $0; row = $0 }
+            else { key = $1; row = substr($0, index($0, "\001") + 1) }
             score = 0
             if (key != "" && (key in cnt)) {
                 age = now - last[key]

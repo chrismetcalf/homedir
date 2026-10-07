@@ -5,8 +5,21 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED=0
 
-pass() { printf '  ok   %s\n' "$1"; }
-fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Totals are DERIVED, never hand-maintained. A hardcoded count is how a
+# dropped assertion goes unnoticed: the number drifts, somebody updates the
+# literal, and the missing test is never missed.
+#
+# Counted into FILES, not shell variables. Several assertions below run inside
+# `( ... )` to scope an export, and a variable incremented in a subshell does
+# not survive it: the first version of this counter read 26 against 31 emitted
+# `ok` lines -- a derived number that was quietly wrong, which is worse than
+# the hardcoded one it replaced.
+COUNTDIR=$(mktemp -d)
+pass() { printf 'x' >> "$COUNTDIR/pass"; printf '  ok   %s\n' "$1"; }
+fail() { printf 'x' >> "$COUNTDIR/fail"; printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+# Set by fail() in a subshell too, where FAILED=1 is likewise lost -- so the
+# exit status is taken from the file, not the variable.
+count_of() { [ -f "$COUNTDIR/$1" ] && wc -c < "$COUNTDIR/$1" | tr -d ' ' || printf '0'; }
 assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
 
 WORK=$(mktemp -d)
@@ -124,5 +137,50 @@ frecency_record "$RT" "delta"
 assert_eq "what was recorded is what sorts first" "delta" \
     "$(frecency_sort "$ROWS" "$RT" key_of | head -1 | cut -f1)"
 
+echo "self-keyed mode"
+# A keyfn of `-` means the row is already its own key. tmux-files' rows are
+# bare paths, and a key function there is a FORK PER ROW: 7.4 s on this repo's
+# 11,830 files, all of it before the picker appeared.
+SK="$WORK/state/sk-frecency"
+frecency_record "$SK" "/b/two"
+frecency_record "$SK" "/b/two"
+frecency_record "$SK" "/c/three"
+SKROWS=$'/a/one\n/b/two\n/c/three\n/d/four'
+
+assert_eq "the row itself is the key" "/b/two" "$(frecency_sort "$SKROWS" "$SK" - | head -1)"
+assert_eq "...and the runner-up follows it" "/c/three" "$(frecency_sort "$SKROWS" "$SK" - | sed -n 2p)"
+# Unused rows tie at score 0 and must fall back to input order, not to
+# whatever sort(1) would make of them.
+assert_eq "unused rows keep input order" "/a/one /d/four" \
+    "$(frecency_sort "$SKROWS" "$SK" - | tail -2 | tr '\n' ' ' | sed 's/ $//')"
+assert_eq "no row is lost or duplicated" "4" "$(frecency_sort "$SKROWS" "$SK" - | grep -c .)"
+# The shell loop drops blank rows; in self-keyed mode awk is the only thing
+# reading them, so awk has to do the same or a blank line becomes a picker row.
+#
+# Counted with `grep -c ''`, which counts EVERY line, not `grep -c .`, which
+# counts only non-blank ones -- the first version of this pin used the latter
+# and so could not observe the very thing it was pinning: with the guard
+# removed the blank row passed straight through and the count was still 2.
+assert_eq "blank rows are dropped" "2" \
+    "$(frecency_sort "$(printf '/a/one\n\n/d/four')" "$SK" - | grep -c '')"
+
+# The whole point of the mode is that it does not fork per row, and nothing
+# about the OUTPUT can show that -- both paths produce the same ranking. So the
+# pin is a ratio rather than a wall-clock threshold: a slow or loaded machine
+# scales both sides, while a self-keyed path that quietly started forking again
+# collapses the ratio to ~1. Measured here at >100x; 4x is the floor.
+BIG=$(awk 'BEGIN { for (i = 0; i < 1000; i++) print "/row/" i }')
+TIMEFORMAT='%R'
+t_self=$( { time frecency_sort "$BIG" "$SK" - >/dev/null; } 2>&1 )
+t_fork=$( { time frecency_sort "$BIG" "$SK" key_of >/dev/null; } 2>&1 )
+ratio=$(awk -v a="$t_fork" -v b="$t_self" 'BEGIN { printf "%d", (b > 0 ? a / b : 999) }')
+[ "${ratio:-0}" -ge 4 ] \
+    && pass "self-keyed does not fork per row (${t_fork}s / ${t_self}s = ${ratio}x)" \
+    || fail "self-keyed does not fork per row" ">=4x faster than a keyfn" "${ratio}x"
+
 rm -rf "$WORK"
-exit "$FAILED"
+echo
+NPASS=$(count_of pass); NFAIL=$(count_of fail); rm -rf "$COUNTDIR"
+printf '%s assertions: %s passed, %s failed\n' "$(basename "$0")" "$NPASS" "$NFAIL"
+[ "$NFAIL" = "0" ] && echo "all passed" || echo "FAILURES"
+[ "$NFAIL" = "0" ]

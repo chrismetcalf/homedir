@@ -2,58 +2,623 @@
 # Persistent per-window sidebar pane: a narrow left column listing every window
 # in the session (index, truncated name, tmux-scout state color) and highlighting
 # the session's active window. Auto-refreshes ~1/s, repaints instantly on resize,
-# and styles to the powerline scout palette (203 wait, 214 busy, 78 done, 245 idle).
+# and styles to the ACTIVE TMARCHY THEME, read from @theme-* -- not to the old
+# hardcoded powerline scout palette (203 wait, 214 busy, 78 done, 245 idle),
+# which is what this line used to describe and which nothing here uses now.
+#
+# Below it also shows a CHANGED section: files recently changed in the active
+# pane's repo, newest first, coloured by recency.
 #
 # Spawned focus-safe by tmux-sidebar-ensure; not meant to be run by hand. Toggle
 # the whole feature with `prefix + W` (tmux-sidebar-toggle). Width is pinned to
 # @sidebar-width by tmux-sidebar-resize on the window-resized hook.
 set -u
 
+# Set explicitly rather than inherited. This runs as a tmux child, and the tmux
+# server's environment is FROZEN at server start -- before .zshrc runs -- which
+# is the same trap that silently left mode-keys on emacs (see CLAUDE.md). Under
+# a C ctype `${#s}` and `${s: -n}` count BYTES, so a row like `café.txt`
+# miscounts by one and truncation lands mid-UTF-8. Measured on this host the
+# server carries LANG=en_US.UTF-8 and no LC_CTYPE, so it happens to be fine
+# here; this removes the dependency on an environment nobody controls. A locale
+# the host lacks falls back harmlessly, so this cannot make things worse.
+export LC_CTYPE="${LC_CTYPE:-en_US.UTF-8}"
+
 PANE="${TMUX_PANE:-}"
-[ -n "$PANE" ] || exit 0
+[ -n "$PANE" ] || [ "${TMUX_SIDEBAR_LIB:-}" = "1" ] || exit 0
+
+# shellcheck source=lib/tmux-theme.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-theme.sh"
 
 ESC=$'\033'
 RESET="${ESC}[0m"
+TAB=$'\t'
 
-# Subagents get their OWN colour rather than sharing the row's state colour.
-# The four state colours already mean specific things (203 needs you, 214
-# working, 78 done, 245 idle) and a window can be in any of them while running
-# subagents -- the two are independent facts, so one colour cannot carry both.
-# 44 is deliberately outside that set: distinct at a glance, and not a red or an
-# amber, because subagents running is activity rather than a problem.
-SUBCOL=44
-
-# tmux-scout state -> 256-color foreground (matches the powerline theme tint)
-color_for() {
-	case "$1" in
-	wait) printf '203' ;;
-	busy) printf '214' ;;
-	done) printf '78' ;;
-	*) printf '245' ;; # idle / none
-	esac
+# The theme is read once per draw, not per row: theme_load caches one
+# `tmux show -g` in the calling shell and theme_get scans it with builtins.
+# Twelve `tmux show -gv` forks per redraw is what made prefix + u take 2s.
+#
+# Subagents keep their OWN colour rather than sharing the row's state colour.
+# The four state colours already mean specific things, and a window can be in
+# any of them WHILE running subagents -- two independent facts, so one colour
+# cannot carry both. @theme-info is the secondary data colour, deliberately
+# neither a red nor an amber: subagents running is activity, not a problem.
+theme_colours() {
+    C_WAIT=$(ansi_for "$(theme_get wait)")
+    C_BUSY=$(ansi_for "$(theme_get busy)")
+    C_DONE=$(ansi_for "$(theme_get done)")
+    C_IDLE=$(ansi_for "$(theme_get dim)")
+    C_NAME=$(ansi_for "$(theme_get fg)")
+    C_HEAD=$(ansi_for "$(theme_get accent)")
+    C_SUB=$(ansi_for "$(theme_get info)")
 }
 
+# Assigns _ret rather than printing, for the same reason age_str does: a
+# $(color_for …) is one fork PER WINDOW ROW on the 1 Hz path -- 0.53 ms each
+# under bash 3.2, so a box with eight windows paid 4 ms a second to look up
+# four constants.
+color_for() {
+    case "$1" in
+    wait) _ret="$C_WAIT" ;;
+    busy) _ret="$C_BUSY" ;;
+    done) _ret="$C_DONE" ;;
+    *)    _ret="$C_IDLE" ;;
+    esac
+}
+
+# --- changed files -----------------------------------------------------------
+
+# Seconds -> the shortest honest label. Buckets, not rounding: 90s is "1m",
+# because a file touched a minute and a half ago was touched once.
+# Assigns result to _ret global to avoid subshell fork.
+age_str() {
+    local s="${1:-0}"
+    if   [ "$s" -lt 60 ];    then _ret="${s}s"
+    elif [ "$s" -lt 3600 ];  then _ret="$((s / 60))m"
+    elif [ "$s" -lt 86400 ]; then _ret="$((s / 3600))h"
+    else                          _ret="$((s / 86400))d"
+    fi
+}
+
+# Truncate from the LEFT, keeping the basename. The opposite of the window
+# list, and deliberately: for a file the basename identifies it, for a window
+# the prefix does.
+# Assigns result to _ret global to avoid subshell fork.
+trunc_left() {
+    local s="${1:-}" w="${2:-10}"
+    [ "$w" -lt 2 ] && w=2
+    if [ "${#s}" -le "$w" ]; then _ret="$s"
+    else _ret="…${s: -$((w - 1))}"; fi
+}
+
+# `git status --porcelain -z` on stdin -> "state \t relpath" lines. Pure.
+#
+# -z, NOT plain --porcelain: v1 QUOTES any path containing a space, a tab, a
+# newline, a quote, or (under the default core.quotePath=true) a non-ASCII
+# byte -- and nothing downstream un-quotes it. `"with space.txt"` then never
+# matches on disk, so it never reaches stat: the row gets mtime "-", sorts to
+# the bottom with the deleted files, renders an em dash instead of an age, and
+# buckets as `old`, drawing a file touched ten seconds ago in the oldest
+# colour. Three wrong behaviours at once, all silent, on an everyday filename.
+# core.quotePath=false is NOT a fix -- it only stops the octal escaping; a
+# space-containing path is still quoted (verified).
+#
+# -z makes the INPUT unambiguous: records are NUL-framed, so a tab or a
+# newline inside a path cannot end a record. It does NOT make the whole
+# pipeline safe, and it would be worse than useless to claim it does --
+#   * INTERIOR TABS survive end to end. This function's output is
+#     "state<TAB>path", and every consumer reads it with `read -r state path`,
+#     which puts the whole remainder in $path -- so `a<TAB>b.txt` arrives
+#     intact. Measured.
+#   * A LEADING OR TRAILING TAB IS LOST, and that is this parse's other known
+#     break. `read` with IFS=$'\t' treats tab as IFS *whitespace*, so it strips
+#     leading and trailing runs of it: a file named `<TAB>lead.txt` emits
+#     "state<TAB><TAB>lead.txt" and reads back as `lead.txt`, which is not on
+#     disk, so the row gets no mtime, renders an em dash and buckets `old`.
+#     Measured. No desync results -- both loops in git_refresh read
+#     identically, so path_exists stays in step -- and the cost is one row of
+#     one pathological filename, which is why this is documented rather than
+#     fixed. An earlier version of this comment claimed tabs survived outright
+#     and ended in "Verified."; it was right about the interior case and wrong
+#     about the edges, which in a file whose comments are the primary defence
+#     is worse than saying nothing.
+#   * NEWLINES are a known, accepted break. Output here is newline-framed, and
+#     so is everything downstream (`<<< "$pairs"`, `<<< "$lines"`), so a file
+#     named `nl<LF>here.txt` splits into a phantom row `-  modified  nl` with
+#     the `here.txt` half silently gone. Measured. Fixing it means NUL-framing
+#     this function's output and every reader of it; newlines in filenames are
+#     rare enough that the cost is not worth paying, but a reader of this code
+#     must not believe the hazard is gone.
+#
+# Under -z a rename or copy is TWO records -- "R  <new>" then "<old>" -- not
+# the "old -> new" of v1. The second record is consumed and discarded here:
+# left in the stream it would be read as a separate, still-present file.
+parse_status() {
+    local rec xy path old
+    while IFS= read -r -d '' rec; do
+        [ -n "$rec" ] || continue
+        xy="${rec:0:2}"
+        path="${rec:3}"
+        # R/C in EITHER column (index or worktree) carries the origin record.
+        case "$xy" in
+            R*|C*|?R|?C) IFS= read -r -d '' old || true ;;
+        esac
+        # UNMERGED IS MATCHED FIRST, and specifically before *D*. `DU` and `UD`
+        # -- "deleted by us"/"deleted by them" -- are conflicts in which the
+        # worktree DOES contain a file awaiting resolution, so `*D*` claimed
+        # them and the row rendered a deletion glyph next to a real, fresh
+        # mtime: `- del-us.txt  4s`, for the single most action-requiring state
+        # a working tree can be in. `AA` (both added) was likewise swallowed by
+        # `*A*`. The unmerged set that a real merge produces is UU/AA/DU/UD/AU/UA.
+        #
+        # `DD` (both deleted) is NOT in this set and must keep falling through
+        # to `*D*`: the file really is gone from the worktree.
+        case "$xy" in
+            '??')     printf 'untracked\t%s\n' "$path" ;;
+            *U*|AA)   printf 'unmerged\t%s\n'  "$path" ;;
+            *D*)      printf 'deleted\t%s\n'   "$path" ;;
+            *A*)      printf 'added\t%s\n'     "$path" ;;
+            *)        printf 'modified\t%s\n'  "$path" ;;
+        esac
+    done
+}
+
+# Which colour a row takes. Colour carries RECENCY because that is the
+# headline; the glyph carries git state. @theme-wait is not in this set at
+# any bucket -- red means "an agent needs you" everywhere else here.
+# Assigns result to _ret global to avoid subshell fork.
+recency_of() {
+    local m="${1:-}" now="${2:-0}" d
+    if { [ -z "$m" ] || [ "$m" = "-" ]; }; then _ret='old'; return 0; fi
+    d=$((now - m))
+    if   [ "$d" -lt 300 ];  then _ret='now'
+    elif [ "$d" -lt 3600 ]; then _ret='recent'
+    else                         _ret='old'
+    fi
+}
+
+# Split one batched stat output into _STAT_LINES / _STAT_N and rewind the
+# cursor _STAT_I. Called ONCE per refresh, never per file.
+#
+# bash 3.2 has no `mapfile`, so this is the read loop -- but the point is that
+# there is exactly one of them. The previous design held the stat output as a
+# string and re-scanned it with `<<< "$stat_output"` once per changed path,
+# which cost a TEMP FILE per file as well as the scan: bash backs a here-string
+# with a $TMPDIR file until 5.1, measured here as `stat -f '%HT' /dev/fd/0 <<<
+# hi` reporting `Regular File` under 3.2.57 and `Fifo File` under 5.3.15. On a
+# Linux host that lands in /tmp, which this repo's CLAUDE.md already documents
+# as a directory where temp-file operations go O(n) under bloat.
+# Assigns _STAT_LINES/_STAT_N/_STAT_I; writes nothing to stdout.
+stat_split() {
+    local out="${1:-}" line
+    _STAT_LINES=()
+    _STAT_I=0
+    if [ -n "$out" ]; then
+        while IFS= read -r line; do
+            [ -n "$line" ] && _STAT_LINES+=("$line")
+        done <<< "$out"
+    fi
+    _STAT_N=${#_STAT_LINES[@]}
+}
+
+# One step of the stat-output walk: the mtime for $1, or "-".
+#
+# O(1) amortised, NOT a scan. The old version linear-scanned the entire stat
+# output per path, which is O(n^2) over a refresh -- measured under /bin/bash
+# 3.2.57 at 119 ms for 300 changed files against 966 ms for the same refresh
+# with the per-path scan restored, on a ~45 ms budget, with the Task 6
+# renderer driving this at 1 Hz. The suite pins the scaling as a RATIO
+# (t(300)/t(40) under 6) rather than a millisecond ceiling; see the long
+# comment on the timing pin in bin/tmux-sidebar-selftest for why an absolute
+# bound cannot be made safe for this.
+#
+# The position is STEPPED, never TRUSTED. stat output is 1:1 with its input
+# because deleted paths are partitioned off before stat runs and are never
+# looked up here at all, so the cursor and the pairs advance together -- but
+# every step still compares the stat line's own %N against the path it is
+# supposed to be, and a disagreement resyncs by scanning FORWARD from the
+# cursor rather than accepting the wrong mtime. Forward is sufficient because
+# the stat output is in the order existing_paths was built in, and it means a
+# genuine desync (stat failing on one file mid-batch, say) costs one scan to
+# recover from instead of one scan per remaining file.
+#
+# The forward-only property is a COMPLEXITY claim, not a correctness one, and
+# it is not pinned directly -- nothing observable from outside distinguishes a
+# cursor that rewinds from one that does not, given both produce the same
+# mtimes. What guards it is the `t(300)/t(40) < 6` ratio pin in the selftest,
+# which is the right instrument: a rewind makes this O(n^2) and the ratio is
+# what detects that.
+# Assigns _ret and advances _STAT_I; writes nothing to stdout.
+lookup_mtime() {
+    local target="${1:-}" j
+    if [ "$_STAT_I" -lt "$_STAT_N" ] && [ "${_STAT_LINES[$_STAT_I]#* }" = "$target" ]; then
+        _ret="${_STAT_LINES[$_STAT_I]%% *}"
+        _STAT_I=$((_STAT_I + 1))
+        return
+    fi
+    j=$_STAT_I
+    while [ "$j" -lt "$_STAT_N" ]; do
+        if [ "${_STAT_LINES[$j]#* }" = "$target" ]; then
+            _ret="${_STAT_LINES[$j]%% *}"
+            _STAT_I=$((j + 1))
+            return
+        fi
+        j=$((j + 1))
+    done
+    _ret="-"
+}
+
+# "mtime \t state \t path" lines -> the _ROWS array, each element
+# "recency \t rendered". Pure, so the layout is testable without a repo, a tmux
+# server or a clock.
+#
+# ASSIGNS AN ARRAY RATHER THAN PRINTING, for the same reason age_str and
+# trunc_left assign _ret: this is on the 1 Hz render path, and a caller that
+# wanted the output had to write `done <<< "$(changed_rows ...)"` -- a subshell
+# fork AND, under bash 3.2, a $TMPDIR temp file for the here-string, once per
+# second per sidebar pane. Ten windows made that ten forks and twenty temp
+# files a second, which is the fork-storm shape this repo's CLAUDE.md records
+# twice. Measured over 300 renders of a 30-file list: 4.1 ms -> 1.7 ms per
+# render under bash 3.2.57, 3.2 ms -> 1.1 ms under 5.3.15. The selftest keeps
+# its own one-line join helper; production code must not carry a *_print
+# wrapper to make tests convenient.
+#
+# The row loop walks an array rather than `done <<< "$lines"` for the second
+# half of that cost -- the here-string is one more temp file per render even
+# after the fork is gone. Splitting on tabs by parameter expansion instead of
+# `IFS=$'\t' read` is not merely equivalent: `read` treats tab as IFS
+# WHITESPACE and strips leading and trailing runs of it, so this is the
+# stricter of the two. A record is skipped unless it carries both tabs, which
+# is what `read` gave for free by leaving $path empty.
+changed_rows() {
+    local lines="${1:-}" now="${2:-0}" w="${3:-24}" max="${4:-0}"
+    local mtime state path glyph age name namew pad n=0 recency
+    local rec rest oldifs noglob_was
+    _ROWS=()
+    [ "$max" -gt 0 ] || return 0
+    [ -n "$lines" ] || return 0
+    # Word-splitting on newline needs globbing off, or a filename holding a `*`
+    # would expand against the cwd. `set -f` is restored to what it was rather
+    # than unconditionally cleared.
+    case "$-" in *f*) noglob_was=1 ;; *) noglob_was=0 ;; esac
+    oldifs="$IFS"
+    IFS=$'\n'
+    set -f
+    local recs=( $lines )
+    [ "$noglob_was" = 1 ] || set +f
+    IFS="$oldifs"
+    for rec in ${recs[@]+"${recs[@]}"}; do
+        case "$rec" in *"$TAB"*"$TAB"*) ;; *) continue ;; esac
+        mtime="${rec%%"$TAB"*}"
+        rest="${rec#*"$TAB"}"
+        state="${rest%%"$TAB"*}"
+        path="${rest#*"$TAB"}"
+        [ -n "$path" ] || continue
+        [ "$n" -ge "$max" ] && break
+        # Every glyph in this set -- ● ○ − · ≠ and the em dash used for a
+        # missing age -- is East-Asian AMBIGUOUS width. A terminal configured
+        # to render Ambiguous as double-width overflows each row by one column.
+        # None of this repo's three clients (Rio, Tabby, ShellFish) does so by
+        # default, and the consequence is cosmetic and self-evident when it
+        # happens, so this is recorded rather than designed around: do NOT swap
+        # these for different glyphs on account of it. There is no unambiguous
+        # single-width alternative that still reads as what each state means.
+        case "$state" in
+            modified)  glyph='●' ;;
+            added)     glyph='+' ;;
+            untracked) glyph='○' ;;
+            deleted)   glyph='−' ;;
+            # A conflict is its own thing, and it used to borrow the deletion
+            # glyph (see parse_status). U+2260 NOT EQUAL TO: the two sides
+            # disagree and nobody has decided yet. Chosen from the maths
+            # operators block, which is what the narrow-width allowlist in
+            # tmarchy/lib/agents.js permits and where U+2212 above already
+            # lives -- a better-matching glyph from an unlisted block would be
+            # a guess about width. NOT red: @theme-wait means "an agent needs
+            # you", and colour here carries recency regardless.
+            unmerged)  glyph='≠' ;;
+            *)         glyph='·' ;;
+        esac
+        # A deleted path has no mtime -- stat failed on it. An em dash, never
+        # "0s", which would claim it had just been touched.
+        if [ -n "$mtime" ] && [ "$mtime" != "-" ]; then
+            age_str "$((now - mtime))"
+            age="$_ret"
+        else
+            age='—'
+        fi
+        # The name budget is computed AFTER the age, not from a fixed
+        # allowance of four. age_str's days branch is unbounded, and a
+        # 5-character age against a hard `w - 6` overflowed the row: at w=24 a
+        # 1000-day file rendered 26 visible columns, wrapped, and shifted every
+        # row below it. (Not hypothetical -- a submodule in this repo is at
+        # 942d.) The name shrinks instead, so the row is always exactly w wide.
+        # gutter(1) + name + gap(>=1) + age
+        #
+        # WIDTH CONTRACT. The row is exactly `w` columns while `w >= 5 + ${#age}`
+        # -- one gutter, a three-character minimum name, one gap, the age.
+        # Below that there is no layout that fits, and the two clamps below
+        # choose deliberately: the name stops shrinking at 3 and the gap stops
+        # shrinking at 1, so the row OVER-RUNS by the shortfall rather than
+        # rendering `…ab20726d` with the name and the age run together. An
+        # unreadable row is worse than a wrapped one. @sidebar-width is
+        # user-settable and nothing rejects a small value, so this is a
+        # reachable path, not a theoretical one.
+        namew=$((w - 2 - ${#age})); [ "$namew" -lt 3 ] && namew=3
+        trunc_left "$path" "$namew"
+        name="$_ret"
+        recency_of "$mtime" "$now"
+        recency="$_ret"
+        # The gap clamp is LIVE, not dead, and it is live in a narrow band:
+        # exactly at `w == 4 + ${#age}` with a truncated name, where pad
+        # computes to 0 and the unclamped printf emits no separator at all.
+        # One column either side of that band it makes no difference -- at
+        # pad == -1, `%*s` with a negative width left-justifies in one column
+        # and emits the same single space the clamp would. That is why a
+        # sabotage of this line only shows up against a w=4+len(age) fixture.
+        pad=$((w - 1 - ${#name} - ${#age}))
+        [ "$pad" -lt 1 ] && pad=1
+        printf -v rest '%s%s%*s%s' "$glyph" "$name" "$pad" '' "$age"
+        _ROWS+=("${recency}${TAB}${rest}")
+        n=$((n + 1))
+    done
+}
+
+# Pane height + window count -> how many rows each section gets.
+#
+# WINDOWS takes what it needs up to a ceiling of half the pane; under that
+# ceiling it takes only what it has. CHANGED gets everything left. Below
+# CHANGED_MIN rows of room the section is dropped HEADER AND ALL -- a rule
+# with nothing under it reads as broken rather than absent, which is the
+# screensaver panel's rule for exactly the same reason.
+# Assigns _BUDGET_W and _BUDGET_C; writes nothing to stdout.
+CHANGED_MIN=2
+budget() {
+    local h="${1:-0}" nwin="${2:-0}" cap wrows crows
+    cap=$((h / 2)); [ "$cap" -lt 1 ] && cap=1
+    wrows=$nwin; [ "$wrows" -gt "$cap" ] && wrows=$cap
+    # Two headers, each with a blank line under it.
+    crows=$((h - wrows - 4))
+    [ "$crows" -lt "$CHANGED_MIN" ] && crows=0
+    _BUDGET_W=$wrows
+    _BUDGET_C=$crows
+}
+
+# `pane_active pane_is_sidebar pane_current_path` lines -> the active non-sidebar
+# pane's path in _ret, or "" if there is none. The repo follows that pane rather
+# than this one, so focusing the sidebar does not re-root the list.
+#
+# The two flags come first and the path is taken with ${line#* } twice. The
+# obvious awk form -- `$1=="1" && $2=="0" {$1="";$2="";sub(/^  /,"");print}` --
+# is WRONG, and silently: assigning to any field makes awk rebuild $0 with OFS,
+# collapsing every run of whitespace in the whole record. Measured, a pane in
+# `/Users/me/two  spaces/repo` came back as `/Users/me/two spaces/repo`, so
+# `git -C` failed and the CHANGED section just emptied, with nothing on screen
+# to say why. Same path-handling class the -z porcelain parse exists for, and
+# it is a function rather than four lines inside draw() so a test can reach it
+# without a tmux server.
+pick_pane_path() {
+    local input="${1:-}" line
+    _ret=""
+    [ -n "$input" ] || return 0
+    while IFS= read -r line; do
+        case "$line" in
+            "1 0 "*)
+                line="${line#* }"
+                _ret="${line#* }"
+                return 0
+                ;;
+        esac
+    done <<< "$input"
+    return 0
+}
+
+# Repo -> "mtime \t state \t path" lines, newest first.
+#
+# --ignore-submodules is MANDATORY, not a tuning knob: measured in this repo,
+# median of 11 warm runs, it is 207 ms without and 20 ms with -- ten times --
+# because there are ten submodules. (An earlier draft of this comment said
+# 305/32 from a single cold run; the ratio held, the absolutes did not, so the
+# method is stated here to make the number reproducible.) At the sidebar's
+# redraw rate the first number is a third of a core per window,
+# which is the 2026-08-21 fork-storm shape. bin/tmux-sidebar-selftest pins it
+# BEHAVIOURALLY (a fixture repo with a dirty submodule), not by grepping this
+# file -- a grep for the flag name is satisfied by this very comment.
+#
+# ONE stat for every path, never one per file -- a fork per changed file is
+# the cost this design exists to avoid. A deleted path makes stat fail, so its
+# mtime is "-", which sorts last numerically and renders no age.
+#
+# The trailing `sort -t$'\t' -k1,1nr` IS THE PRODUCT, not tidiness. It is the
+# load-bearing input to changed_rows's `max` truncation: unsorted, a busy repo
+# shows an arbitrary subset rather than what you just touched, and "-" (which
+# sorts as 0, hence last under -r) floats to the TOP, so the section leads with
+# deleted files. Nothing errors -- the section simply lies. Deleting the sort,
+# or flipping it to -k1,1n, used to pass the entire suite; bin/tmux-sidebar-
+# selftest now pins the order against a staggered `touch -t` fixture.
+git_refresh() {
+    local repo="${1:-}" pairs state path mtime
+    local -a path_array existing_paths path_exists
+    local stat_output p i n
+    [ -n "$repo" ] || return 0
+    pairs=$(git -C "$repo" status --porcelain -z --ignore-submodules 2>/dev/null | parse_status)
+    [ -n "$pairs" ] || return 0
+
+    # One pass over the pairs: the absolute path AND whether it exists, both
+    # recorded in step. The existence flag is RECORDED rather than re-derived
+    # in the pairing loop below so that the partition which built the stat
+    # argv is byte-for-byte the partition the pairing uses -- a file deleted
+    # between the two passes cannot be tested one way here and the other way
+    # there, which would desync the walk.
+    path_array=()
+    path_exists=()
+    while IFS=$'\t' read -r state path; do
+        [ -n "$path" ] || continue
+        p="$repo/$path"
+        path_array+=("$p")
+        # -L as well as -e: -e is FALSE for a broken symlink, so a changed
+        # dangling link would be misreported as deleted.
+        if [ -e "$p" ] || [ -L "$p" ]; then path_exists+=(1); else path_exists+=(0); fi
+    done <<< "$pairs"
+
+    # ONE stat call for all paths. Partition first: deleted paths get mtime "-"
+    # and never reach stat, so stat output is 1:1 with its input and the pairing
+    # is by position. The position is still verified against the filename in
+    # the format -- see lookup_mtime. This is correct under deletion because
+    # the existence test partitions before stat runs: a deleted path is
+    # detected as deleted, never passed to stat where it would silently shift
+    # everything after it.
+    #
+    # The ${#} guard is not decoration: under `set -u` bash 3.2 treats
+    # "${path_array[@]}" on an empty array as an unbound variable and EXITS --
+    # and this runs in the sidebar daemon, so the pane would die.
+    [ "${#path_array[@]}" -gt 0 ] || return 0
+    n=${#path_array[@]}
+    existing_paths=()
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        [ "${path_exists[$i]}" = "1" ] && existing_paths+=("${path_array[$i]}")
+        i=$((i + 1))
+    done
+
+    # Stat the existing paths once. Format includes filename for verification.
+    #
+    # One argv, so this is bounded by ARG_MAX -- 1 MB on this host, on the order
+    # of 10,000 changed files in a single repo. Deliberately not chunked: a tree
+    # in that state has bigger problems than its sidebar. What IS worth knowing
+    # is the failure SHAPE, because `|| true` swallows it: past the bound stat
+    # fails wholesale, every mtime comes back missing, and the CHANGED section
+    # renders a column of em dashes with nothing on screen or in a log saying
+    # why. If you are ever looking at that, this line is the reason.
+    stat_output=""
+    if [ "${#existing_paths[@]}" -gt 0 ]; then
+        stat_output=$(stat "${_STAT_FMT[@]}" "${existing_paths[@]}" 2>/dev/null || true)
+    fi
+    stat_split "$stat_output"
+
+    # Pair each file with its mtime (or "-" if deleted). A known-deleted path
+    # is short-circuited rather than looked up: it is guaranteed absent from
+    # the stat output, so a lookup could only ever run lookup_mtime's forward
+    # resync scan to the end -- which would put the O(n^2) straight back for
+    # any repo with deletions in it.
+    #
+    # `i` indexes path_exists BY POSITION, so this loop and the one that built
+    # path_exists must filter identically -- both skip on `[ -n "$path" ]` and
+    # nothing else. Change one without the other and the flags desync, which
+    # under `set -u` is an unbound array element and a dead sidebar pane. No
+    # default is given here on purpose: the two loops read the same string with
+    # the same IFS, so a mismatch is a code error to fix, not a value to paper
+    # over with a silent "-" on every row.
+    i=0
+    while IFS=$'\t' read -r state path; do
+        [ -n "$path" ] || continue
+        if [ "${path_exists[$i]}" = "1" ]; then
+            lookup_mtime "$repo/$path"
+            mtime="$_ret"
+        else
+            mtime="-"
+        fi
+        i=$((i + 1))
+        printf '%s\t%s\t%s\n' "$mtime" "$state" "$path"
+    done <<< "$pairs" | sort -t$'\t' -k1,1nr
+}
+
+# BSD and GNU stat disagree on every flag. Resolved once, not per call.
+# Format includes filename so batched stat can pair results by name.
+if stat -f '%m %N' . >/dev/null 2>&1; then _STAT_FMT=(-f '%m %N'); else _STAT_FMT=(-c '%Y %n'); fi
+
+# The stat-output walk's state, initialised at load so `set -u` cannot trip a
+# caller that reaches lookup_mtime before the first stat_split.
+_STAT_LINES=()
+_STAT_N=0
+_STAT_I=0
+_ROWS=()
+
+# Wall clock WITHOUT a fork per refresh. bash 3.2 has neither $EPOCHSECONDS nor
+# printf '%(%s)T', so the epoch is read once here and advanced by $SECONDS,
+# which is a builtin. `date +%s` per refresh was a fork on the one path the
+# whole caching design exists to keep fork-free.
+START_EPOCH=$(date +%s 2>/dev/null) || START_EPOCH=0
+case "$START_EPOCH" in ''|*[!0-9]*) START_EPOCH=0 ;; esac
+
 cleanup() { printf '%s[?25h%s\n' "$ESC" "$RESET"; }
-trap cleanup EXIT INT TERM
-printf '%s[?25l' "$ESC" # hide cursor
 
 lastW=""
+lastTheme=""
+THEME_READY=0
+REPO=""
+CHANGED_CACHE=""
+NOW_TS=0
+LAST_REFRESH=-999
+REFRESH_EVERY=3
 draw() {
-	local info W NP namew active idx scout name col nm plain pad ln
-	# Dimensions + pane count. If we're the only pane left (the main shell
-	# exited), self-destruct so the window doesn't linger as a lone sidebar.
-	info=$(tmux display-message -p -t "$PANE" '#{pane_width} #{window_panes}' 2>/dev/null) || exit 0
+	local info W NP H ACTIVE theme namew active idx scout name col nm ln
+	local apath nrepo line subs tag tagpart row rec text
+	# Dimensions + pane count + height + active + theme marker. The marker
+	# (@theme-bg) is last so a value containing special characters won't disturb
+	# earlier fields. If we're the only pane left (the main shell exited),
+	# self-destruct so the window doesn't linger as a lone sidebar.
+	info=$(tmux display-message -p -t "$PANE" '#{pane_width} #{window_panes} #{pane_height} #{window_active} #{@theme-bg}' 2>/dev/null) || exit 0
 	# shellcheck disable=SC2086
 	set -- $info
 	W="${1:-24}"
 	NP="${2:-2}"
+	H="${3:-24}"
+	ACTIVE="${4:-0}"
+	theme="${5:-}"
 	[ "${NP:-2}" -le 1 ] && exit 0
+	# Re-read the theme only when the marker changed. The marker is appended to
+	# the display-message above, so detecting the change is free, and the
+	# invalidate is builtins only.
+	#
+	# theme_colours is 14 forks -- seven colours, each an ansi_for of a
+	# theme_get -- measured at 10.4 ms under bash 3.2. Running it every draw
+	# spent that once a second, per window, to recompute seven values that
+	# change only when you switch theme. It belongs inside this branch, not
+	# after it.
+	#
+	# THEME_READY is a separate condition rather than part of the comparison:
+	# an unset @theme-bg is a legitimate value of `theme`, so on a host with no
+	# tmarchy the marker equals lastTheme from the very first draw and keying on
+	# the comparison alone would leave every colour unset forever.
+	if [ "$theme" != "$lastTheme" ] || [ "$THEME_READY" = 0 ]; then
+		theme_invalidate
+		lastTheme="$theme"
+		theme_load
+		theme_colours
+		THEME_READY=1
+	fi
 	namew=$((W - 4))
 	[ "$namew" -lt 3 ] && namew=3
 
-	local lines=()
-	lines+=("${ESC}[1;38;5;67m WINDOWS${RESET}")
-	lines+=("")
+	# Render every second from cache; refresh the git data every REFRESH_EVERY
+	# seconds and ONLY when the window is active. Same split as bar.conf vs
+	# tmarchy-tick, for the same reason: `git status` is 32 ms even with
+	# --ignore-submodules, and paying it per second per window is how a status
+	# surface in this repo turns into a fork storm.
+	#
+	# The cache is these variables. The sidebar is a long-running process per
+	# window, so the process IS the cache -- no state file to go stale, no
+	# reader/writer race, nothing to clean up when the window closes.
+	if [ "$ACTIVE" = "1" ] && [ $((SECONDS - LAST_REFRESH)) -ge "$REFRESH_EVERY" ]; then
+		LAST_REFRESH=$SECONDS
+		# The repo follows the ACTIVE pane, excluding this one -- focusing the
+		# sidebar would otherwise re-root the list to wherever it started.
+		pick_pane_path "$(tmux list-panes -t "$PANE" \
+			-F '#{pane_active} #{?@sidebar-pane,1,0} #{pane_current_path}' 2>/dev/null)"
+		apath="$_ret"
+		if [ -n "$apath" ]; then
+			nrepo=$(git -C "$apath" rev-parse --show-toplevel 2>/dev/null) || nrepo=""
+			REPO="$nrepo"
+		fi
+		# A failed refresh leaves the previous rows standing -- one interval
+		# stale, never a blank or half-populated section.
+		[ -n "$REPO" ] && CHANGED_CACHE=$(git_refresh "$REPO")
+		[ -n "$REPO" ] || CHANGED_CACHE=""
+		[ "$START_EPOCH" -gt 0 ] && NOW_TS=$((START_EPOCH + SECONDS))
+	fi
+
+	local winrows=()
 	# `subs` is @scout-subagents, written per window by tmarchy-tick: how many
 	# Task subagents that window's agents have running. Rendered as a suffix on
 	# the row rather than as extra rows, because a subagent is not somewhere you
@@ -64,7 +629,7 @@ draw() {
 	# `name`, so a window called "my long name" survives. Reordering these
 	# breaks that silently.
 	while read -r active idx scout subs name; do
-		col=$(color_for "$scout")
+		color_for "$scout"; col="$_ret"
 		tag=""
 		[ "$subs" != "0" ] && [ -n "$subs" ] && tag="+${subs}"
 		# The suffix eats into the name's budget rather than overflowing the
@@ -75,21 +640,45 @@ draw() {
 		nm="$name"
 		[ "${#nm}" -gt "$avail" ] && nm="${nm:0:$((avail - 1))}…"
 		# The tag is coloured SEPARATELY from the name, so it is built as its own
-		# escape run rather than concatenated into $nm. `plain` still counts the
-		# visible characters -- padding the active row by the escaped length
-		# would push it metres past the pane edge.
+		# escape run rather than concatenated into $nm.
 		tagpart=""
-		[ -n "$tag" ] && tagpart=" ${ESC}[38;5;${SUBCOL}m${tag}"
+		[ -n "$tag" ] && tagpart=" ${C_SUB}${tag}"
 		if [ "$active" = "1" ]; then
-			plain=">${idx} ${nm}${tag:+ $tag}"
-			pad=$((W - ${#plain}))
-			[ "$pad" -lt 0 ] && pad=0
-			lines+=("${ESC}[48;5;236m${ESC}[1;38;5;${col}m>${idx} ${nm}${tagpart}$(printf '%*s' "$pad" '')${RESET}")
+			winrows+=("${C_HEAD}▌${RESET}${col}${idx} ${nm}${tagpart}${RESET}")
 		else
-			lines+=(" ${ESC}[38;5;${col}m${idx}${RESET} ${ESC}[38;5;250m${nm}${tagpart}${RESET}")
+			winrows+=(" ${col}${idx}${RESET} ${C_NAME}${nm}${tagpart}${RESET}")
 		fi
 	done < <(tmux list-windows -t "$PANE" \
 		-F '#{window_active} #{window_index} #{?@scout-state,#{@scout-state},none} #{?@scout-subagents,#{@scout-subagents},0} #{window_name}' 2>/dev/null)
+
+	budget "$H" "${#winrows[@]}"
+
+	local lines=()
+	lines+=("${C_HEAD} WINDOWS${RESET}")
+	lines+=("")
+	local i=0
+	for ln in "${winrows[@]}"; do
+		[ "$i" -ge "$_BUDGET_W" ] && break
+		lines+=("$ln"); i=$((i + 1))
+	done
+
+	if [ "$_BUDGET_C" -gt 0 ] && [ -n "$CHANGED_CACHE" ]; then
+		changed_rows "$CHANGED_CACHE" "$NOW_TS" "$W" "$_BUDGET_C"
+		if [ "${#_ROWS[@]}" -gt 0 ]; then
+			lines+=("")
+			lines+=("${C_HEAD} CHANGED${RESET}")
+			for row in "${_ROWS[@]}"; do
+				rec="${row%%"$TAB"*}"
+				text="${row#*"$TAB"}"
+				[ -n "$text" ] || continue
+				case "$rec" in
+					now)    lines+=("${C_HEAD}${text}${RESET}") ;;
+					recent) lines+=("${C_NAME}${text}${RESET}") ;;
+					*)      lines+=("${C_IDLE}${text}${RESET}") ;;
+				esac
+			done
+		fi
+	fi
 
 	# On a width change (terminal resize) wipe the whole pane first, so
 	# reflowed/wrapped leftovers from the old width don't linger.
@@ -104,14 +693,19 @@ draw() {
 	printf '%s[J' "$ESC"
 }
 
-# Redraw promptly on resize: a no-op WINCH trap interrupts the wait below so the
-# loop repaints immediately (with a full clear) instead of up to a second later.
-trap ':' WINCH
+if [ "${TMUX_SIDEBAR_LIB:-}" != "1" ]; then
+	trap cleanup EXIT INT TERM
+	printf '%s[?25l' "$ESC" # hide cursor
 
-while :; do
-	draw
-	sleep 1 &
-	sp=$!
-	wait "$sp" 2>/dev/null
-	kill "$sp" 2>/dev/null
-done
+	# Redraw promptly on resize: a no-op WINCH trap interrupts the wait below so the
+	# loop repaints immediately (with a full clear) instead of up to a second later.
+	trap ':' WINCH
+
+	while :; do
+		draw
+		sleep 1 &
+		sp=$!
+		wait "$sp" 2>/dev/null
+		kill "$sp" 2>/dev/null
+	done
+fi
