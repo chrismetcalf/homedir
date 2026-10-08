@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Open a popup at a size that suits the CLIENT, not the desktop.
+#
+#   tmux-popup-fit <width%> <height%> <command...>
+#
+# The pickers are all `display-popup -E -w 70% -h 60% …`, which is right on a
+# 209-column laptop and wrong on a phone: 70% of 84 columns is a 58-column box
+# with a border, inside which an fzf picker has to fit a prompt, a counter and
+# the rows. Below a threshold this opens them full screen instead.
+#
+# IT HAS TO BE A WRAPPER. `display-popup -w` takes a size, not a format --
+# verified, `-w '#{?#{e|<:#{client_width},120},100%,70%}'` is rejected outright
+# with "width invalid" -- so the choice cannot be made inside the binding and
+# something has to look at the width first. A `run-shell`'d script can: it sees
+# `#{client_width}` and can open the popup itself (verified on a scratch server
+# with a real client attached).
+#
+# The threshold is 120, the same one tmarchy/bar.conf uses to decide a client is
+# small. One number for "this is a phone" rather than a different guess per
+# surface.
+set -u
+
+FULL_BELOW="${TMUX_POPUP_FULL_BELOW:-120}"
+
+# -d passes a start directory through, because `prefix + f` (the @file picker)
+# opens in the calling pane's directory and would otherwise land in $HOME --
+# the same trap documented for tmux-popup's lazygit and yazi.
+DIR=""
+if [ "${1:-}" = "-d" ]; then DIR="${2:-}"; shift 2; fi
+
+if [ "$#" -lt 3 ]; then
+    printf 'usage: tmux-popup-fit [-d dir] <width%%> <height%%> <command...>\n' >&2
+    exit 2
+fi
+W="$1"; H="$2"; shift 2
+
+command -v tmux >/dev/null 2>&1 || exit 0
+
+# No client means no popup to open and no width to read -- which is not an
+# error, just nothing to do.
+cw=$(tmux display-message -p '#{client_width}' 2>/dev/null) || exit 0
+case "$cw" in ''|*[!0-9]*) cw=0 ;; esac
+
+if [ "$cw" -gt 0 ] && [ "$cw" -lt "$FULL_BELOW" ]; then
+    W=100; H=100
+fi
+
+# `-E` so the popup closes when the command exits, matching every call site
+# this replaces. The command is passed as ONE argument because that is what
+# display-popup expects -- it runs the string through a shell itself, exactly as
+# the bindings did before, so quoting behaviour is unchanged.
+if [ -n "$DIR" ]; then
+    exec tmux display-popup -E -w "${W}%" -h "${H}%" -d "$DIR" "$*"
+fi
+exec tmux display-popup -E -w "${W}%" -h "${H}%" "$*"

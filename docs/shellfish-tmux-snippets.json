@@ -1,4 +1,4 @@
-/* tmux + tmarchy shortcuts for Secure ShellFish — regenerated Sep 6, 2026.
+/* tmux + tmarchy shortcuts for Secure ShellFish — regenerated Oct 8, 2026.
    Prefix is Ctrl-A (\u0001).
 
    Regenerate with bin/gen-shellfish-snippets. Ids are
@@ -185,5 +185,20 @@
     "description": "Detach",
     "keyboardLabel": "detach",
     "body": "\u0001d"
+  },
+  "8653CBC7-D542-505E-93F1-006EBB2100ED": {
+    "description": "Screensaver (geo / rain / demo)",
+    "keyboardLabel": "saver",
+    "body": "\u0001Z"
+  },
+  "B5228FFF-3BA8-52EF-BCFF-4F033016E016": {
+    "description": "Cycle screensaver mode (menu > Set)",
+    "keyboardLabel": "savmode",
+    "body": "\u0001?sz"
+  },
+  "58F12E52-D883-5563-84B8-0D69249809A2": {
+    "description": "Insert a file path (@file picker)",
+    "keyboardLabel": "file",
+    "body": "\u0001f"
   }
 }

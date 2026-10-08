@@ -23,8 +23,27 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TMPDIR_SELF=$(mktemp -d)
 FAIL=0
 
+# Savers alive before this run, so the ones it starts can be told apart from
+# the operator's own. Matched on `node ...tmarchy-saver` rather than on the
+# path: `pgrep -f bin/tmarchy-saver` also matches THIS SCRIPT, whose name
+# contains it, which inflated an earlier count of the leak and sent the first
+# attempt at a fix to the wrong function.
+SAVERS_BEFORE=$(pgrep -f 'node .*/tmarchy-saver$' 2>/dev/null | tr '\n' ' ')
+
 cleanup() {
     tmux -L "$SOCK" kill-server 2>/dev/null
+    # Reap this run's savers. Killing the scratch SERVER is not enough: the
+    # tmux phases attach a client with script(1), and a pane process whose
+    # server dies is left parented to that client rather than reaped -- one
+    # sh+node pair per run. Sixteen had accumulated here, the oldest running
+    # for three days at ~1% CPU each, which also quietly skewed the rate
+    # benchmarks in this very file.
+    local now pid
+    now=$(pgrep -f 'node .*/tmarchy-saver$' 2>/dev/null)
+    for pid in $now; do
+        case " $SAVERS_BEFORE " in *" $pid "*) continue ;; esac
+        kill "$pid" 2>/dev/null
+    done
     rm -rf "$TMPDIR_SELF"
 }
 trap cleanup EXIT
@@ -230,7 +249,15 @@ extra = sys.argv[3:]
 pid, fd = pty.fork()
 if pid == 0:
     env = dict(os.environ); env.pop('TMUX', None); env.pop('TMUX_PANE', None)
-    os.execve(os.environ['SAVER'], ['tmarchy-saver', *extra], env)
+    # MODE IS PINNED, and the state directory sandboxed. Without both, this
+    # measures whatever screensaver the operator happens to prefer: the mode is
+    # persisted in ~/.local/state/tmarchy/saver-mode and read when no argument
+    # is given, so with `demo` selected the rates collapsed from 27 KB/s to 3
+    # -- a small banner instead of a solid plus a panel plus a graph -- and the
+    # ratio checks started comparing threes. A renderer benchmark has to say
+    # which renderer.
+    env['XDG_STATE_HOME'] = os.environ.get('RATE_STATE', env.get('XDG_STATE_HOME', ''))
+    os.execve(os.environ['SAVER'], ['tmarchy-saver', 'geo', *extra], env)
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
 time.sleep(1.5)                      # past the first full repaint
 total, t0, died = 0, time.time(), False
@@ -255,6 +282,9 @@ if ! command -v python3 >/dev/null 2>&1; then
     printf '  skip output rate (no python3)\n'
 else
     export SAVER="$ROOT/bin/tmarchy-saver"
+    # An empty state dir, so no persisted mode can reach the benchmark.
+    mkdir -p "$TMPDIR_SELF/ratestate"
+    export RATE_STATE="$TMPDIR_SELF/ratestate"
     FIXED=$(rate_at 52 27 --fps 20)
     ADAPT=$(rate_at 52 27)
     CEIL=110
@@ -268,7 +298,11 @@ else
         fi
         # Generous ratio: the point is that the tier does SOMETHING, not to pin
         # a particular frame rate, and a loaded box adds noise to both numbers.
-        if [ "$ADAPT" -lt "$((FIXED * 3 / 4))" ]; then
+        if [ "$FIXED" -lt 20 ]; then
+            # See the note on the phone-width check below: a ratio of small
+            # numbers is decided by integer rounding, not by the tier.
+            printf '  skip narrow-vs-fixed ratio (too small to measure: %s KB/s)\n' "$FIXED"
+        elif [ "$ADAPT" -lt "$((FIXED * 3 / 4))" ]; then
             ok "a narrow terminal costs less than a fixed 20fps (${ADAPT} vs ${FIXED} KB/s)"
         else
             fail "narrow terminal cost ${ADAPT} KB/s against ${FIXED} at 20fps -- the frame-rate tier is not applying"
@@ -292,6 +326,15 @@ else
     P_ADA=$(rate_at 84 44)
     if [ "$P_FIX" -lt 0 ] || [ "$P_ADA" -lt 0 ]; then
         fail "the saver died measuring the phone-width tier"
+    elif [ "$P_FIX" -lt 20 ]; then
+        # A RATIO OF SMALL NUMBERS IS NOT A MEASUREMENT. Under load the saver
+        # cannot produce frames and both rates collapse -- observed 3 against 5
+        # KB/s during a full sweep, where the normal figures are 38 and 97. At
+        # that magnitude the shell's integer arithmetic decides it: 5 * 62 / 100
+        # is 3, so `3 < 3` fails and a correct tier reports broken. Refusing to
+        # judge is the honest outcome; the ceiling check above still holds, and
+        # the tier is pinned deterministically by the unit tests.
+        printf '  skip phone-width tier (box too loaded: %s KB/s at 20fps)\n' "$P_FIX"
     elif [ "$P_ADA" -lt "$((P_FIX * 62 / 100))" ]; then
         ok "a phone-width terminal gets the cheap tier (${P_ADA} vs ${P_FIX} KB/s at 84 cols)"
     else

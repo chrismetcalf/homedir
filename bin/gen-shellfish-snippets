@@ -51,6 +51,9 @@ SNIPPETS = [
     ("reload",  "Reload tmux config",                   "r"),
     ("tpm",     "Install tmux plugins (prefix + I)",    "I"),
     ("detach",  "Detach",                               "d"),
+    ("saver",   "Screensaver (geo / rain / demo)",      "Z"),
+    ("savmode", "Cycle screensaver mode (menu > Set)",  "?sz"),
+    ("file",    "Insert a file path (@file picker)",    "f"),
 ]
 
 old_by_body = {}
