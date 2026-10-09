@@ -8,20 +8,73 @@ This is a dotfiles repository that manages shell, editor, and development enviro
 
 ## New machine setup
 
-A fresh checkout needs more than `git pull` — submodules and per-host plugins are not auto-populated. Run these in order:
+**One command: `bin/homedir-setup`.** It provisions a fresh checkout and is safe
+to re-run any time to repair a host — every step checks before acting and reports
+`ok` / `ran` / `FIXED` / `skipped` / `FAILED`. `--dry-run` prints the plan and
+changes nothing; `--list` prints the steps in dependency order.
 
-1. **Clone with submodules** (or initialize them in an existing clone):
-   ```
-   git clone --recurse-submodules <repo> ~/.homedir
-   # existing clone:
-   git -C ~/.homedir submodule update --init --recursive
-   ```
-   Submodules include `.oh-my-zsh`, `.oh-my-zsh-custom/plugins/zsh-syntax-highlighting`, `.oh-my-zsh-custom/plugins/zsh-autosuggestions`, `.oh-my-zsh-custom/themes/powerlevel10k`, `.tmux/plugins/tpm`, and the `bin/*.git` tools. Skipping this is what causes `[oh-my-zsh] plugin '...' not found` and a missing powerlevel10k prompt.
-2. **`bin/gitfix`** — symlinks repo contents into `~/`, `~/.ssh/`, `~/.config/`.
-3. **`claude-restore-plugins`** — reinstalls Claude Code plugins. Only `.claude/settings.json` (enabledPlugins + marketplaces), `.claude/skills/`, and the hook scripts `settings.json` points at (`.claude/hooks/`, `.claude/shellfish-notify.sh`) are versioned; the plugin files under `.claude/plugins/` are per-host. ("restore my plugins" maps here.)
-4. **`homedir-install`** — fetches the CLI tools the shell config expects (zoxide, eza, bat, lazygit, lazydocker, yazi), built for *this* platform, into `~/.local/bin`. Every `.zsh/rc/` fragment is guarded on its binary existing, so skipping this leaves a working but plainer shell rather than an error — which is exactly why nothing tells you it is missing.
-5. **`bat cache --build`** — once per host, if bat is installed. bat compiles themes into `~/.cache/bat`; until then it *silently* falls back to its default theme.
-6. **tmux → `prefix + I`** — tpm installs the tmux plugins (tmux-scout, etc.). Until tmux-scout is installed, the Claude hooks in `settings.json` no-op safely (they're guarded with `[ -f <script> ] && ...`), so a host without it won't throw `MODULE_NOT_FOUND`.
+```
+git clone --recurse-submodules <repo> ~/.homedir   # or just clone, setup inits them
+~/.homedir/bin/homedir-setup
+```
+
+**`homedir-setup` provisions, `homedir-doctor` reports — two commands, not a
+`doctor --fix`.** That split is deliberate and worth keeping: a doctor that
+mutates is one you hesitate to run, and hesitating is how a host stays broken.
+Setup ends by calling the doctor, which is what tells you whether it worked.
+
+The steps, in **dependency** order — not alphabetical, and the order is the
+contract, which is why `--list` exists:
+
+| step | what it does | idempotent because |
+| --- | --- | --- |
+| `submodules` | `git submodule update --init --recursive` | skipped unless `git submodule status` shows a leading `-` |
+| `gitfix` | symlinks the repo into `~/`, `~/.ssh/`, `~/.config/` | `dircombine` keeps a `known` file per source dir and cleans up stale links |
+| `cli-tools` | `homedir-install` — zoxide, eza, bat, lazygit, lazydocker, yazi for *this* platform | counts what `--list` calls missing first, so it is quiet when there is nothing to fetch |
+| `bat-cache` | `bat cache --build` (or `batcat`) | skipped when `~/.cache/bat` is non-empty |
+| `tmux-plugins` | tpm's `install_plugins` — **replaces the manual `prefix + I`** | tpm skips what is already cloned |
+| `claude-plugins` | `claude-restore-plugins` — marketplaces + plugins | already re-runnable |
+| `theme-sync` | `tmarchy-theme sync` | regenerates `current.sh`/`.lua`/`.p10k.zsh` + the Claude theme |
+| `per-host-files` | **reports** missing `~/.zshrc.local`, `~/.ssh/config.local`, `~/.obsidian-vault` | report only |
+| `scout-hooks` | **reports** which of scout's 13 hook events are wired | report only |
+
+Three properties worth knowing:
+
+- **Siblings are called by path, never through `$PATH`.** On the fresh checkout
+  this exists for, `gitfix` has not run yet, so `~/bin` is not linked — calling
+  `~/bin/gitfix` would make the very first run the one that cannot work.
+- **It keeps going after a failure** and exits non-zero at the end, so one
+  broken step cannot hide the state of every step after it.
+- **`ran` is distinct from `FIXED`.** `gitfix`, `theme-sync` and
+  `claude-plugins` are idempotent but cannot cheaply tell whether they changed
+  anything, so they report `ran`. Calling those `FIXED` would be a lie on every
+  run after the first, and a report that cries "fixed" when nothing was broken
+  is one you stop reading.
+
+**The two things it will not do**, both on purpose:
+
+- **Per-host secrets** — `~/.zshrc.local` (secrets + `$PATH`),
+  `~/.ssh/config.local`, `~/.obsidian-vault`. A generated `.zshrc.local` would
+  be a wrong `$PATH` and a guessed vault path would point at something that is
+  not a vault, so they are reported with a line on what each is for and never
+  invented. A missing one is **not** a failure: a host may legitimately not want
+  a vault.
+- **Scout's hooks.** Scout's own installer rewrites `~/.claude/settings.json`
+  into its canonical form, which **strips the `[ -f <script> ] &&` guards** this
+  repo adds so a host where tpm has not run yet no-ops instead of throwing
+  `MODULE_NOT_FOUND` — and that file is both versioned here and frequently
+  dirty. Fixing it automatically is the one step that could regress something.
+  - Note that **`scout setup.js status` is misleading here and is not used for
+    the verdict**: it compares the command string *exactly* against its own
+    canonical form, so this repo's guarded variant reports `0/13 installed`
+    while every hook is in place and firing (verified — a hook fired 3 seconds
+    before the check, with 24 of 31 tracked sessions carrying hook history).
+    `homedir-setup` instead asks whether the settings reference the hook script
+    at all, which currently answers **7/13**: `PostToolUseFailure`,
+    `Notification`, `StopFailure`, `SubagentStart`, `SubagentStop` and
+    `PreCompact` are genuinely absent, scout having grown them after these
+    hooks were installed. (`Notification` is ours, pointed at
+    `shellfish-notify.sh` rather than at scout.)
 
 ## Directory Structure
 
@@ -305,6 +358,7 @@ Utility scripts on `$PATH` (via `.zsh/rc/exports`). Notable ones:
   - **The tmux side reads the FILE, not the variable.** The server captures its environment once at start, before `.zshrc.local` runs, so `$OBSIDIAN_VAULT` exported by a login shell is invisible to a binding or a menu — the same trap as the stale-`claude` PATH bug above. The file is read fresh on every call.
   - **`--set-tmux` sets the option EMPTY when there is no vault**, rather than leaving it alone. The menu entry branches on `#{@vault-path}`, so a host without one shows a message naming `obsidian-vault --doctor` instead of opening a window in whatever directory tmux fell back to. Leaving a stale value from another host's reload standing is the failure that guards against.
   - The menu command stays **pure tmux** — `if -F "#{@vault-path}" { new-window -c "#{@vault-path}" … }`. No shell, so the session name typed at the prompt never reaches one, and no `#()` in an option value, which would be a fork per redraw. Verified that `new-window -c` really does expand a format and that `if -F` nests inside a `command-prompt` block; both were assumptions worth testing rather than believing.
+- **`homedir-setup`**: the one command for a fresh checkout, and safe to re-run to repair a host — see **New machine setup** above for the step table and the two things it deliberately will not do. `--dry-run` is inert (asserted by mtime on the paths the steps write, not by reading the code, so a step added later is still covered) and does not run the doctor.
 - **`homedir-doctor`**: report what is wrong with this host's checkout — **report only**, it never installs, links or edits. That separation is the point: a doctor that mutates is one you hesitate to run, and hesitating is how a host stays broken. Every FAIL names the command that fixes it (`gitfix`, `submodule update`, `prefix + I`, `homedir-install`, `bat cache --build`). `--quiet` prints problems only; exit 1 if anything FAILED, warnings alone are exit 0. The checks are the incidents this file already documents, turned executable: uninitialised submodules, **`~/bin/lib/` unreachable** (the one that leaves `prefix + p` empty while every other check passes), missing gitfix links, network mounts on `$PATH`, `mode-keys` guessed as emacs, the tmux server PATH missing `~/.local/bin` (the stale-`claude` bug), tpm plugins not installed, tmarchy not loaded, a slow `tmarchy-tick`, lazydocker < 0.25, an unbuilt bat cache, an **expired agent provider** in `agents.d/`, `/tmp` bloat, and disk pressure.
 - **`homedir-install`**: fetch the CLI tools this repo's config depends on, built for **this** platform, into `~/.local/bin`. `--list` shows installed vs available; bare invocation installs only what is missing; `--all` updates everything. Platform is normalised on two axes because upstreams disagree on all of them — the same CPU is `x86_64` on Linux and `arm64` on macOS, and the archives spell it `Linux` (lazydocker) or `linux` (lazygit), gnu or musl, `.tar.gz` or `.zip` — so each tool's asset pattern is spelled out rather than templated. Binaries are located by **searching the extracted tree by name**, since some ship at the root and some inside a versioned directory. Checksums are verified **where upstream publishes a flat `checksums.txt`** (lazygit and lazydocker do; zoxide and yazi do not) and the result is printed per tool as `verified`/`unverified` rather than implying a check that did not happen; a mismatch refuses to install. Scope deliberately excludes fzf, ripgrep, btop and git (every package manager has them) and neovim (`install-neovim` owns that). **eza publishes no macOS binary** — it says so and points at Homebrew.
 - **`setup_osx`**: macOS `defaults write` bootstrap (Sonoma/Sequoia idioms; sections for UI, keyboard, trackpad, Dock, Finder, etc.)

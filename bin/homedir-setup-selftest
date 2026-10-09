@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# Checks for bin/homedir-setup, the idempotent provisioner.
+#
+# A provisioner is awkward to test, because actually running it changes the
+# host. So the testable surfaces are the three that do not: `--list`, which
+# prints the dependency order; `--dry-run`, which must be inert; and the
+# behaviour when every step fails, which can be produced by running the script
+# from a directory with no siblings.
+#
+# Each assertion names the sabotage that makes it fail.
+set -u
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+BIN="$ROOT/bin/homedir-setup"
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/homedir-setup-selftest-XXXXXX")
+FAIL=0
+cleanup() { [ -d "$TMP" ] && { find "$TMP" -mindepth 1 -delete 2>/dev/null; rmdir "$TMP" 2>/dev/null; }; }
+trap cleanup EXIT
+
+ok()   { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL + 1)); }
+
+echo "homedir-setup-selftest"
+
+# --- the step list ----------------------------------------------------------
+
+# DEPENDENCY ORDER IS THE CONTRACT. gitfix is what links ~/bin and ~/.tmux.conf,
+# so anything that looks for them has to come after it; submodules populate
+# ~/.tmux/plugins/tpm, so the tmux step has to come after that. Getting this
+# wrong does not error -- it just quietly fails on a fresh checkout, which is
+# the one host that matters here.
+#
+# Sabotage: move `gitfix` after `tmux-plugins` in STEPS -- this fails.
+order=$("$BIN" --list 2>/dev/null | /bin/sed -n 's/^ *[0-9]*\. //p' | tr '\n' ' ')
+pos() { printf '%s' "$order" | tr ' ' '\n' | /bin/grep -nx "$1" | /bin/cut -d: -f1; }
+p_sub=$(pos submodules); p_fix=$(pos gitfix); p_tmux=$(pos tmux-plugins)
+p_cl=$(pos claude-plugins); p_theme=$(pos theme-sync)
+if [ -n "$p_sub" ] && [ -n "$p_fix" ] && [ "$p_sub" -lt "$p_fix" ]; then
+    ok "submodules run before gitfix"
+else
+    fail "submodules must precede gitfix (order: $order)"
+fi
+for later in "$p_tmux:tmux-plugins" "$p_cl:claude-plugins" "$p_theme:theme-sync"; do
+    n=${later%%:*}; name=${later#*:}
+    if [ -n "$n" ] && [ "$p_fix" -lt "$n" ]; then
+        ok "gitfix runs before $name"
+    else
+        fail "gitfix must precede $name (order: $order)"
+    fi
+done
+
+# Every name in STEPS needs a matching `step_<name>` function, with dashes
+# mapped to underscores. A typo there is not a syntax error -- the driver
+# reports "no such step function" and counts it as a failure, which is a
+# runtime discovery of a static mistake.
+#
+# Sabotage: rename `step_bat_cache` to `step_batcache` -- the driver cannot
+# find it and this fails.
+missing=""
+for s in $order; do
+    fn="step_$(printf '%s' "$s" | tr '-' '_')"
+    /bin/grep -q "^$fn()" "$BIN" || missing="$missing $s"
+done
+if [ -z "$missing" ]; then
+    ok "every listed step has a function"
+else
+    fail "steps with no function:$missing"
+fi
+
+# --- --dry-run is inert -----------------------------------------------------
+
+# The whole value of --dry-run is that it can be trusted on a host you are not
+# ready to change. Checked by MTIME on the things the steps actually write,
+# rather than by reading the code: a step added later would not be covered by a
+# structural check.
+#
+# Sabotage: in step_theme_sync drop the `if [ "$DRY" -eq 1 ]` guard -- the theme
+# state is regenerated and this fails.
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy"
+watch=""
+for f in "$STATE/current.sh" "$STATE/current.lua" "$HOME/.claude/settings.json" "$HOME/bin"; do
+    [ -e "$f" ] && watch="$watch $f"
+done
+before=$(for f in $watch; do printf '%s:%s\n' "$f" "$(stat -c %Y "$f" 2>/dev/null)"; done)
+"$BIN" --dry-run >/dev/null 2>&1
+after=$(for f in $watch; do printf '%s:%s\n' "$f" "$(stat -c %Y "$f" 2>/dev/null)"; done)
+if [ "$before" = "$after" ]; then
+    ok "--dry-run changed none of $(printf '%s' "$watch" | wc -w | tr -d ' ') watched paths"
+else
+    fail "--dry-run modified something: $(diff <(printf '%s' "$before") <(printf '%s' "$after") | tr '\n' ' ')"
+fi
+
+# A dry run must not run the doctor either: the doctor reports on the host as it
+# IS, which is not what a plan is about, and it is slow.
+# Sabotage: drop the `[ "$DRY" -eq 0 ] &&` from the doctor call -- this fails.
+if "$BIN" --dry-run 2>&1 | /bin/grep -q "homedir-doctor"; then
+    fail "--dry-run ran the doctor"
+else
+    ok "--dry-run does not run the doctor"
+fi
+
+# --- the hooks stay report-only ---------------------------------------------
+
+# The one step deliberately left to a human: scout's own installer rewrites
+# settings.json and strips this repo's `[ -f ] &&` guards. Asserted two ways,
+# because each alone is weak -- the grep would miss a write through a variable,
+# and the mtime check would miss a write that happens not to fire on this host.
+#
+# Sabotage: add `node .../setup.js install --claude` to step_scout_hooks -- the
+# grep catches it.
+if /bin/grep -qE "setup\.js.*install|settings\.json\"? *>|writeSettings" "$BIN"; then
+    fail "homedir-setup appears to write settings.json or run scout's installer"
+else
+    ok "the hooks step contains no installer call and no settings write"
+fi
+s_before=$(stat -c %Y "$HOME/.claude/settings.json" 2>/dev/null || echo none)
+"$BIN" --dry-run >/dev/null 2>&1
+s_after=$(stat -c %Y "$HOME/.claude/settings.json" 2>/dev/null || echo none)
+if [ "$s_before" = "$s_after" ]; then
+    ok "settings.json is untouched"
+else
+    fail "settings.json mtime moved"
+fi
+
+# --- it keeps going, and says so --------------------------------------------
+
+# One broken step must not hide the state of the steps after it. Produced by
+# copying the script somewhere with no siblings, so every step that looks for
+# $ROOT/bin/<something> fails -- which also exercises the path-relative
+# resolution the header promises.
+#
+# Sabotage: add `exit 1` to bad() -- the run stops at the first failure, fewer
+# steps report, and this fails.
+mkdir -p "$TMP/lonely/bin"
+cp "$BIN" "$TMP/lonely/bin/homedir-setup"
+out=$(cd "$TMP" && env HOME="$TMP/fakehome" "$TMP/lonely/bin/homedir-setup" 2>&1); rc=$?
+lines=$(printf '%s' "$out" | /bin/grep -cE '^  [a-z-]+ +(ok|ran|FAILED|skipped|note|MISSING)' || true)
+fails=$(printf '%s' "$out" | /bin/grep -cE 'FAILED' || true)
+if [ "$fails" -ge 2 ] && [ "$lines" -ge 5 ]; then
+    ok "a broken checkout still reports every step ($lines lines, $fails failures)"
+else
+    fail "expected several steps reported and 2+ failures, got $lines lines / $fails failures"
+fi
+if [ "$rc" -ne 0 ]; then
+    ok "it exits non-zero when a step failed"
+else
+    fail "exited 0 despite $fails failures"
+fi
+
+# An unknown option is a mistake worth refusing, not something to ignore --
+# `--dry-run` misspelt must not quietly provision the host.
+# Sabotage: make the catch-all case a no-op -- this fails.
+if "$BIN" --not-an-option >/dev/null 2>&1; then
+    fail "an unknown option was accepted"
+else
+    ok "an unknown option is refused"
+fi
+
+if [ "$FAIL" -eq 0 ]; then echo "all passed"; else echo "$FAIL failed"; fi
+exit $((FAIL > 0))

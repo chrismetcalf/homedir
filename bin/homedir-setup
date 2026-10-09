@@ -1,0 +1,274 @@
+#!/usr/bin/env bash
+# Provision this host from a fresh checkout, and re-run any time to repair it.
+#
+#   homedir-setup              do the work
+#   homedir-setup --dry-run    print the plan, change nothing
+#   homedir-setup --list       print the steps in order, change nothing
+#
+# SETUP PROVISIONS, `homedir-doctor` REPORTS. Two commands rather than a
+# `doctor --fix`, and that split is deliberate: a doctor that mutates is one you
+# hesitate to run, and hesitating is how a host stays broken. So the doctor stays
+# safe to run at any moment, and this is the one you run on purpose. It ends by
+# calling the doctor, which is what tells you whether it worked.
+#
+# EVERY STEP IS IDEMPOTENT. That is the whole point -- the six-item ordered list
+# in CLAUDE.md's "New machine setup" is exactly the kind of thing that rots, and
+# a list you follow by hand is a list you follow wrongly at 1am on a new box.
+# Each step below checks before acting and reports which it did.
+#
+# IT KEEPS GOING AFTER A FAILURE. One broken step must not hide the state of
+# every step after it; the exit status is non-zero if anything failed, so this
+# is still usable from a script.
+#
+# SIBLINGS ARE CALLED BY PATH, NEVER THROUGH $PATH. On the fresh checkout this
+# exists for, `gitfix` has not run yet, so ~/bin is not linked and ~/bin/foo
+# does not resolve -- which would make the very first run the one that cannot
+# work.
+#
+# Two things it will NOT do:
+#
+#   PER-HOST SECRETS cannot be generated -- ~/.zshrc.local, ~/.ssh/config.local
+#   and ~/.obsidian-vault hold host-specific paths and credentials. They are
+#   reported as missing, with a line on what each is for, and never invented.
+#
+#   SCOUT'S HOOKS are reported, not installed. Scout's own installer rewrites
+#   ~/.claude/settings.json into its canonical form, which strips the
+#   `[ -f <script> ] &&` guards this repo adds so a host where tpm has not run
+#   yet no-ops instead of throwing MODULE_NOT_FOUND -- and that file is both
+#   versioned here and frequently dirty. Fixing it automatically is the one step
+#   that could regress something, so it is left to a human.
+set -u
+
+ROOT=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+DRY=0
+LIST=0
+FAILED=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run|-n) DRY=1 ;;
+        --list|-l) LIST=1 ;;
+        -h|--help)
+            /bin/sed -n '2,40p' "$0" | /bin/sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        *) printf 'homedir-setup: unknown option %s\n' "$arg" >&2; exit 2 ;;
+    esac
+done
+
+# Steps, in DEPENDENCY order. Not alphabetical and not "most important first":
+# submodules must land before anything reads them, gitfix must link ~/bin and
+# ~/.tmux.conf before tpm or the Claude plugins can be found, and the theme sync
+# needs tmarchy/ on disk. The order is the contract; `--list` prints it so it
+# can be checked without running anything.
+STEPS="submodules gitfix cli-tools bat-cache tmux-plugins claude-plugins theme-sync per-host-files scout-hooks"
+
+say()  { printf '  %-16s %s\n' "$1" "$2"; }
+ok()   { say "$1" "ok         $2"; }
+did()  { say "$1" "FIXED      $2"; }
+# For a step that is idempotent but cannot cheaply tell whether it changed
+# anything -- gitfix, the theme sync, the Claude plugin restore. Calling those
+# FIXED would be a lie on every run after the first, and a report that cries
+# "fixed" when nothing was broken is one you stop reading.
+ran()  { say "$1" "ran        $2"; }
+skip() { say "$1" "skipped    $2"; }
+bad()  { say "$1" "FAILED     $2"; FAILED=$((FAILED + 1)); }
+plan() { say "$1" "would      $2"; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- the steps --------------------------------------------------------------
+# Each is `step_<name>`, prints its own line, and must be safe to run twice.
+
+step_submodules() {
+    local n
+    # An uninitialised submodule has a leading `-` in `git submodule status`.
+    n=$(git -C "$ROOT" submodule status 2>/dev/null | /bin/grep -c '^-' || true)
+    if [ "${n:-0}" -eq 0 ]; then ok submodules "all populated"; return; fi
+    if [ "$DRY" -eq 1 ]; then plan submodules "initialise $n submodule(s)"; return; fi
+    if git -C "$ROOT" submodule update --init --recursive >/dev/null 2>&1; then
+        did submodules "initialised $n"
+    else
+        bad submodules "git submodule update failed"
+    fi
+}
+
+step_gitfix() {
+    # gitfix is re-runnable by design -- it keeps a `known` file per source dir
+    # and cleans up stale links -- so there is nothing to check first. It is
+    # also the step that makes ~/bin exist, which is why it comes second.
+    if [ ! -x "$ROOT/bin/gitfix" ]; then bad gitfix "bin/gitfix not executable"; return; fi
+    if [ "$DRY" -eq 1 ]; then plan gitfix "re-link ~/ ~/.ssh ~/.config"; return; fi
+    if "$ROOT/bin/gitfix" >/dev/null 2>&1; then ran gitfix "symlinks refreshed"
+    else bad gitfix "gitfix exited non-zero"; fi
+}
+
+step_cli_tools() {
+    local missing
+    if [ ! -x "$ROOT/bin/homedir-install" ]; then
+        bad cli-tools "bin/homedir-install not executable"; return
+    fi
+    # --list reports installed vs available; anything it marks missing is what a
+    # bare invocation would fetch. Counting first is what makes this quiet when
+    # there is nothing to do.
+    missing=$("$ROOT/bin/homedir-install" --list 2>/dev/null | /bin/grep -ci 'missing' || true)
+    if [ "${missing:-0}" -eq 0 ]; then ok cli-tools "nothing missing"; return; fi
+    if [ "$DRY" -eq 1 ]; then plan cli-tools "install $missing tool(s)"; return; fi
+    if "$ROOT/bin/homedir-install" >/dev/null 2>&1; then did cli-tools "installed $missing"
+    else bad cli-tools "homedir-install exited non-zero"; fi
+}
+
+step_bat_cache() {
+    # bat is `batcat` on Debian/Ubuntu/WSL, where the name was taken by
+    # bacula-console-qt -- the same resolution .zsh/rc/bat does.
+    local bat=""
+    have bat && bat=bat
+    [ -z "$bat" ] && have batcat && bat=batcat
+    if [ -z "$bat" ]; then skip bat-cache "bat not installed"; return; fi
+    local cache="${XDG_CACHE_HOME:-$HOME/.cache}/bat"
+    if [ -d "$cache" ] && [ -n "$(ls -A "$cache" 2>/dev/null)" ]; then
+        ok bat-cache "cache built"; return
+    fi
+    if [ "$DRY" -eq 1 ]; then plan bat-cache "$bat cache --build"; return; fi
+    if "$bat" cache --build >/dev/null 2>&1; then did bat-cache "themes compiled"
+    else bad bat-cache "$bat cache --build failed"; fi
+}
+
+step_tmux_plugins() {
+    # Replaces the manual `prefix + I`. tpm ships a non-interactive installer,
+    # which is the only reason this step can exist at all.
+    local tpm="$HOME/.tmux/plugins/tpm/bin/install_plugins"
+    if ! have tmux; then skip tmux-plugins "tmux not installed"; return; fi
+    if [ ! -x "$tpm" ]; then
+        bad tmux-plugins "tpm missing -- submodules did not populate ~/.tmux/plugins/tpm"
+        return
+    fi
+    # One directory per plugin under ~/.tmux/plugins; tpm itself is one of them.
+    local n
+    n=$(find "$HOME/.tmux/plugins" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$DRY" -eq 1 ]; then plan tmux-plugins "run tpm install_plugins (have $n)"; return; fi
+    if "$tpm" >/dev/null 2>&1; then
+        local after
+        after=$(find "$HOME/.tmux/plugins" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$after" -gt "$n" ]; then did tmux-plugins "installed $((after - n))"
+        else ok tmux-plugins "$after plugins present"; fi
+    else
+        bad tmux-plugins "tpm install_plugins failed"
+    fi
+}
+
+step_claude_plugins() {
+    if [ ! -x "$ROOT/bin/claude-restore-plugins" ]; then
+        skip claude-plugins "claude-restore-plugins not executable"; return
+    fi
+    if ! have claude; then skip claude-plugins "claude not installed"; return; fi
+    if [ "$DRY" -eq 1 ]; then plan claude-plugins "re-add marketplaces and install plugins"; return; fi
+    if "$ROOT/bin/claude-restore-plugins" >/dev/null 2>&1; then ran claude-plugins "marketplaces and plugins re-checked"
+    else bad claude-plugins "claude-restore-plugins exited non-zero"; fi
+}
+
+step_theme_sync() {
+    # Generates current.sh / current.lua / current.p10k.zsh and the Claude theme.
+    # tmarchy.tmux calls this on every load, but a host that has never started
+    # tmux still needs it -- a login shell sources current.sh.
+    local t="$ROOT/tmarchy/bin/tmarchy-theme"
+    if [ ! -x "$t" ]; then skip theme-sync "tmarchy-theme not executable"; return; fi
+    if [ "$DRY" -eq 1 ]; then plan theme-sync "tmarchy-theme sync"; return; fi
+    if "$t" sync >/dev/null 2>&1; then ran theme-sync "theme state regenerated"
+    else bad theme-sync "tmarchy-theme sync failed"; fi
+}
+
+# --- the report-only steps --------------------------------------------------
+
+step_per_host_files() {
+    # These hold host-specific paths and credentials. Reported, never invented:
+    # a generated ~/.zshrc.local would be a wrong $PATH, and a guessed
+    # ~/.obsidian-vault would point at a directory that is not a vault.
+    local missing=0
+    check() { # path, what it is for
+        if [ -e "$1" ]; then return; fi
+        missing=$((missing + 1))
+        printf '  %-16s MISSING    %s\n' "per-host" "$1 -- $2"
+    }
+    check "$HOME/.zshrc.local"      "per-host secrets and \$PATH (chmod 600)"
+    check "$HOME/.ssh/config.local" "per-host SSH overrides, Included from .ssh/config (chmod 600)"
+    check "$HOME/.obsidian-vault"   "the vault path, if it is not under \$HOME (see obsidian-vault --doctor)"
+    [ "$missing" -eq 0 ] && ok per-host "all present"
+    # Deliberately NOT counted as a failure: a host may legitimately not want a
+    # vault, and setup should not refuse to succeed over an optional file.
+    return 0
+}
+
+step_scout_hooks() {
+    # REPORT ONLY -- see the header. Scout's own `setup.js status` is not used
+    # for the verdict because it compares the command string EXACTLY against its
+    # canonical form, so this repo's guarded variant reads as "0/13 installed"
+    # while every hook is in place and firing. What matters is whether the
+    # settings reference the hook script at all, and which of scout's events are
+    # absent.
+    local settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+    if [ ! -r "$settings" ]; then skip scout-hooks "no $settings"; return; fi
+    if ! have node; then skip scout-hooks "node not installed"; return; fi
+    local report
+    report=$(node -e '
+      const fs = require("fs")
+      const want = ["SessionStart","UserPromptSubmit","PreToolUse","PermissionRequest",
+                    "PostToolUse","PostToolUseFailure","Notification","Stop","StopFailure",
+                    "SubagentStart","SubagentStop","PreCompact","SessionEnd"]
+      let s
+      try { s = JSON.parse(fs.readFileSync(process.argv[1], "utf8")) } catch { console.log("unreadable"); process.exit(0) }
+      const h = s.hooks || {}
+      const has = (e) => (h[e] || []).some((g) => (g.hooks || []).some(
+        (k) => typeof k.command === "string" && k.command.includes("tmux-scout/scripts/hooks/claude.js")))
+      const on = want.filter(has)
+      console.log(`${on.length}/${want.length} ${want.filter((e) => !has(e)).join(",")}`)
+    ' "$settings" 2>/dev/null)
+    case "$report" in
+        unreadable|'') skip scout-hooks "settings.json unreadable"; return ;;
+    esac
+    local n="${report%% *}" gaps="${report#* }"
+    if [ "$n" = "13/13" ]; then ok scout-hooks "all 13 events wired"; return; fi
+    printf '  %-16s note       %s scout events wired; absent: %s\n' "scout-hooks" "$n" "${gaps:-none}"
+    printf '  %-16s            not installed automatically -- scout rewrites settings.json\n' ""
+    printf '  %-16s            and strips this repo'"'"'s [ -f ] guards. Add by hand if wanted.\n' ""
+    return 0
+}
+
+# --- driver -----------------------------------------------------------------
+
+if [ "$LIST" -eq 1 ]; then
+    printf 'homedir-setup steps, in dependency order:\n'
+    i=0
+    for s in $STEPS; do i=$((i + 1)); printf '  %d. %s\n' "$i" "$s"; done
+    exit 0
+fi
+
+printf 'homedir-setup  %s  %s\n' "$(uname -s) $(uname -m)" "$(hostname -s 2>/dev/null || hostname)"
+[ "$DRY" -eq 1 ] && printf '  (dry run -- nothing will be changed)\n'
+printf '\n'
+
+for s in $STEPS; do
+    # `submodules` -> step_submodules, `bat-cache` -> step_bat_cache.
+    fn="step_$(printf '%s' "$s" | tr '-' '_')"
+    if ! command -v "$fn" >/dev/null 2>&1; then
+        bad "$s" "no such step function ($fn)"
+        continue
+    fi
+    "$fn"
+done
+
+printf '\n'
+if [ "$FAILED" -gt 0 ]; then
+    printf '%d step(s) FAILED\n' "$FAILED"
+else
+    printf 'all steps ok\n'
+fi
+
+# The doctor has the last word, because it checks things setup cannot fix and
+# knows about the incidents this repo has actually had. Skipped on a dry run --
+# it reports on the host as it is, which is not what a plan is about.
+if [ "$DRY" -eq 0 ] && [ -x "$ROOT/bin/homedir-doctor" ]; then
+    printf '\n'
+    "$ROOT/bin/homedir-doctor" --quiet || true
+fi
+
+exit $((FAILED > 0))
