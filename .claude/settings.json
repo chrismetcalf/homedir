@@ -105,11 +105,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
             "timeout": 5
           }
         ]
@@ -127,11 +127,11 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
             "timeout": 5
           }
         ]
@@ -153,17 +153,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
+            "command": "[ -f $HOME/.homedir/.claude/shellfish-notify.sh ] && $HOME/.homedir/.claude/shellfish-notify.sh claude || true"
+          },
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.claude/shellfish-notify.sh ] && $HOME/.homedir/.claude/shellfish-notify.sh claude || true"
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
           }
         ]
       }
@@ -174,7 +169,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
             "timeout": 5
           }
         ]
@@ -186,7 +181,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
             "timeout": 5
           }
         ]
@@ -194,11 +189,11 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
             "timeout": 5
           }
         ]
@@ -211,6 +206,11 @@
           {
             "type": "command",
             "command": "[ -f $HOME/.homedir/.claude/shellfish-notify.sh ] && $HOME/.homedir/.claude/shellfish-notify.sh claude || true"
+          },
+          {
+            "type": "command",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
           }
         ]
       }
@@ -221,7 +221,67 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js ] && node $HOME/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js || true",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -e '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node '/home/krezel/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js'",
             "timeout": 5
           }
         ]

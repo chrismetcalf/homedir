@@ -117,9 +117,41 @@ s_before=$(stat -c %Y "$HOME/.claude/settings.json" 2>/dev/null || echo none)
 "$BIN" --dry-run >/dev/null 2>&1
 s_after=$(stat -c %Y "$HOME/.claude/settings.json" 2>/dev/null || echo none)
 if [ "$s_before" = "$s_after" ]; then
-    ok "settings.json is untouched"
+    ok "settings.json is untouched by a dry run"
 else
-    fail "settings.json mtime moved"
+    fail "settings.json mtime moved on a dry run"
+fi
+
+# SCOPE OF THE CLAIM ABOVE, stated because the first version of it was broader
+# than the evidence: these checks show that homedir-setup itself does not write
+# the hooks. They CANNOT show that a run leaves them alone, because the
+# tmux-plugins step runs tpm, and tpm installing tmux-scout makes scout install
+# its own hooks -- which on the first real run here added five events and
+# rewrote eight others to absolute paths. That is what the detection below is
+# for; it is the honest answer to a thing a test cannot prevent.
+#
+# Sabotage: in step_scout_hooks drop the `!c.includes("$HOME")` term -- an
+# absolute path stops being counted and this fails.
+if ! have_node=$(command -v node) || [ -z "$have_node" ]; then
+    printf '  skip absolute-path detection (no node)\n'
+else
+    probe="$TMP/settings.json"
+    cat > "$probe" <<'JSON'
+{ "hooks": { "Stop": [ { "matcher": "", "hooks": [ { "type": "command",
+  "command": "[ -e '/home/someone/.homedir/.tmux/plugins/tmux-scout/scripts/hooks/claude.js' ] || exit 0; node x" } ] } ] } }
+JSON
+    out=$(env CLAUDE_CONFIG_DIR="$TMP" "$BIN" --dry-run 2>&1 | /bin/grep -c 'ABSOLUTE' || true)
+    if [ "${out:-0}" -ge 1 ]; then
+        ok "an absolute hook path is reported"
+    else
+        fail "an absolute hook path went unreported"
+    fi
+    out=$(env CLAUDE_CONFIG_DIR="$HOME/.claude" "$BIN" --dry-run 2>&1 | /bin/grep -c 'ABSOLUTE' || true)
+    if [ "${out:-0}" -eq 0 ]; then
+        ok "a \$HOME-relative hook path is not reported"
+    else
+        fail "a healthy settings.json was reported as absolute"
+    fi
 fi
 
 # --- it keeps going, and says so --------------------------------------------

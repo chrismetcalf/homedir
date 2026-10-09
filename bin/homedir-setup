@@ -31,12 +31,18 @@
 #   and ~/.obsidian-vault hold host-specific paths and credentials. They are
 #   reported as missing, with a line on what each is for, and never invented.
 #
-#   SCOUT'S HOOKS are reported, not installed. Scout's own installer rewrites
-#   ~/.claude/settings.json into its canonical form, which strips the
-#   `[ -f <script> ] &&` guards this repo adds so a host where tpm has not run
-#   yet no-ops instead of throwing MODULE_NOT_FOUND -- and that file is both
-#   versioned here and frequently dirty. Fixing it automatically is the one step
-#   that could regress something, so it is left to a human.
+#   SCOUT'S HOOKS are reported, not installed -- by this script. But note the
+#   qualifier, which an earlier version of this comment got wrong: the
+#   `tmux-plugins` step runs tpm's installer, and TPM INSTALLING tmux-scout
+#   MAKES SCOUT INSTALL ITS OWN HOOKS. Observed on the first real run here: it
+#   added the five events scout had grown and rewrote the eight existing ones
+#   from `$HOME/.homedir/...` to an absolute `/home/krezel/.homedir/...`, which
+#   on a host with a different home silently no-ops every hook -- the guard is
+#   false, so nothing errors and scout simply never sees anything.
+#
+#   So this script does not write the hooks, and cannot promise nothing else
+#   does. The `scout-hooks` step therefore CHECKS for the absolute form and
+#   says so, which is the part a human needs to see.
 set -u
 
 ROOT=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
@@ -220,13 +226,39 @@ step_scout_hooks() {
       const has = (e) => (h[e] || []).some((g) => (g.hooks || []).some(
         (k) => typeof k.command === "string" && k.command.includes("tmux-scout/scripts/hooks/claude.js")))
       const on = want.filter(has)
-      console.log(`${on.length}/${want.length} ${want.filter((e) => !has(e)).join(",")}`)
+      // Any scout hook whose path is NOT $HOME-relative works on this host and
+      // nowhere else, and fails SILENTLY elsewhere: the guard is false, the
+      // hook exits 0, and scout never hears from it. tpm installing tmux-scout
+      // is what produces this, so it is worth checking on every run.
+      const cmds = []
+      for (const groups of Object.values(h)) {
+        for (const g of groups || []) {
+          for (const k of g.hooks || []) {
+            if (typeof k.command === "string" && k.command.includes("tmux-scout")) cmds.push(k.command)
+          }
+        }
+      }
+      const absolute = cmds.filter((c) => !c.includes("$HOME")).length
+      console.log(`${on.length}/${want.length} ${want.filter((e) => !has(e)).join(",") || "-"} ${absolute}`)
     ' "$settings" 2>/dev/null)
     case "$report" in
         unreadable|'') skip scout-hooks "settings.json unreadable"; return ;;
     esac
-    local n="${report%% *}" gaps="${report#* }"
-    if [ "$n" = "13/13" ]; then ok scout-hooks "all 13 events wired"; return; fi
+    local n gaps absolute
+    n=$(printf '%s' "$report" | /bin/cut -d' ' -f1)
+    gaps=$(printf '%s' "$report" | /bin/cut -d' ' -f2)
+    absolute=$(printf '%s' "$report" | /bin/cut -d' ' -f3)
+    [ "$gaps" = "-" ] && gaps=""
+
+    if [ "${absolute:-0}" -gt 0 ]; then
+        printf '  %-16s note       %s hook path(s) are ABSOLUTE, not $HOME-relative\n' "scout-hooks" "$absolute"
+        printf '  %-16s            they work on this host only and no-op SILENTLY elsewhere;\n' ""
+        printf '  %-16s            tpm installing tmux-scout rewrites them this way.\n' ""
+    fi
+    if [ "$n" = "13/13" ] && [ "${absolute:-0}" -eq 0 ]; then
+        ok scout-hooks 'all 13 events wired, $HOME-relative'; return
+    fi
+    if [ "$n" = "13/13" ]; then return; fi
     printf '  %-16s note       %s scout events wired; absent: %s\n' "scout-hooks" "$n" "${gaps:-none}"
     printf '  %-16s            not installed automatically -- scout rewrites settings.json\n' ""
     printf '  %-16s            and strips this repo'"'"'s [ -f ] guards. Add by hand if wanted.\n' ""

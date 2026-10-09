@@ -272,6 +272,39 @@ check_tool_state() {
         skip "tmarchy theme state" "(no theme persisted yet)"
     fi
 
+    # Scout's Claude hooks. A command carrying an ABSOLUTE home path works on
+    # this host and nowhere else, and fails silently: the `[ -e ... ]` guard is
+    # false elsewhere, the hook exits 0, and scout never hears from the session.
+    # tpm installing tmux-scout rewrites them that way, so a host can acquire
+    # this by being set up, not by being edited.
+    csettings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+    if [ ! -r "$csettings" ]; then
+        skip "scout hook paths" "(no $csettings)"
+    elif ! command -v node >/dev/null 2>&1; then
+        skip "scout hook paths" "(node not installed)"
+    else
+        nabs=$(node -e '
+            const fs = require("fs")
+            let s; try { s = JSON.parse(fs.readFileSync(process.argv[1], "utf8")) } catch { process.stdout.write("x"); process.exit(0) }
+            let n = 0
+            for (const groups of Object.values(s.hooks || {})) {
+              for (const g of groups || []) {
+                for (const k of g.hooks || []) {
+                  if (typeof k.command === "string" && k.command.includes("tmux-scout")
+                      && !k.command.includes("$HOME")) n++
+                }
+              }
+            }
+            process.stdout.write(String(n))
+        ' "$csettings" 2>/dev/null)
+        case "$nabs" in
+            x|'') skip "scout hook paths" "(settings.json unreadable)" ;;
+            0) ok "scout hook paths are \$HOME-relative" ;;
+            *) warn "$nabs scout hook path(s) are absolute" \
+                    "they no-op silently on any other host; re-run homedir-setup after fixing, and see its scout-hooks note" ;;
+        esac
+    fi
+
     # Agent providers (tmarchy/lib/agents.js). A provider file carries its own
     # TTL and tmarchy simply ignores an expired one -- which is exactly right
     # for the renderer and exactly wrong for an operator, because "the producer
