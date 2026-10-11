@@ -885,6 +885,245 @@ color_for done; assert_eq "color_for assigns _ret for done" "D" "$_ret"
 color_for none; assert_eq "color_for falls back to idle"    "I" "$_ret"
 assert_eq "color_for prints nothing" "" "$(color_for wait)"
 
+# --- auto-hide on a narrow window -------------------------------------------
+# bin/lib/tmux-sidebar.sh. The predicate is pure and takes the width as an
+# argument precisely so it is reachable here with no tmux server running;
+# sidebar_min_width, which asks tmux, is deliberately a separate function.
+. "$DIR/lib/tmux-sidebar.sh"
+
+fits() { sidebar_fits "$1" "$2" && printf 'yes' || printf 'no'; }
+
+# Sabotage: change `-ge` to `-gt` in sidebar_fits -- the boundary case flips
+# and this fails. The boundary is asserted on BOTH sides because an off-by-one
+# here is invisible in use: nobody notices the sidebar is missing at exactly
+# 120 columns.
+assert_eq "a window below the minimum does not fit" "no"  "$(fits 84 120)"
+assert_eq "a window at the minimum fits"            "yes" "$(fits 120 120)"
+assert_eq "a window above the minimum fits"         "yes" "$(fits 121 120)"
+assert_eq "one column below does not fit"           "no"  "$(fits 119 120)"
+
+# FAILS OPEN, which is the whole reason this is a function and not an inline
+# `[ "$w" -ge 120 ]`: an unparseable width must degrade to the pre-auto-hide
+# behaviour (a sidebar), never to "no sidebar, ever, silently" -- the
+# bin/lib-unreachable failure mode where every other check passes and the
+# feature is simply gone.
+#
+# Sabotage: delete either `case` guard in sidebar_fits -- `[ "" -ge 120 ]`
+# raises a bash arithmetic error and these fail.
+assert_eq "an empty width fails open"       "yes" "$(fits '' 120)"
+assert_eq "a zero width fails open"         "yes" "$(fits 0 120)"
+assert_eq "a non-numeric width fails open"  "yes" "$(fits 84x50 120)"
+assert_eq "an empty minimum fails open"     "yes" "$(fits 84 '')"
+assert_eq "a non-numeric minimum fails open" "yes" "$(fits 84 abc)"
+
+# The default is the SAME number tmarchy/bar.conf and bin/tmux-popup-fit use
+# for "this display is small". Three surfaces agreeing by coincidence is how
+# they drift apart; this pins them together.
+#
+# Sabotage: change SIDEBAR_MIN_WIDTH_DEFAULT to any other value -- this fails,
+# naming the two files it no longer matches.
+assert_eq "the default threshold is 120" "120" "$SIDEBAR_MIN_WIDTH_DEFAULT"
+assert_eq "bar.conf uses the same threshold" "1" \
+    "$(grep -c 'client_width},120' "$DIR/../tmarchy/bar.conf" | head -1 | tr -d ' ' | sed 's/^[2-9][0-9]*$/1/')"
+assert_eq "tmux-popup-fit uses the same threshold" "120" \
+    "$(sed -n 's/^FULL_BELOW="${TMUX_POPUP_FULL_BELOW:-\([0-9]*\)}"$/\1/p' "$DIR/tmux-popup-fit")"
+
+# THE PREDICATE HAS ONE HOME. It used to be the kind of thing that gets
+# inlined three times; this repo has already paid for that once (sessionState,
+# byte-identical in two files, kept in sync by luck). A re-inlined comparison
+# in any of the three drivers is the invisible failure: the follow hooks build
+# a sidebar the resize hook kills a moment later, on every window switch.
+#
+# Sabotage: replace the sidebar_fits call in any driver with an inline
+# `[ "$ww" -ge "$min" ]` -- the source count drops and this fails.
+for drv in tmux-sidebar-ensure tmux-sidebar-resize tmux-sidebar-toggle; do
+    assert_eq "$drv sources the shared predicate" "1" \
+        "$(grep -c 'lib/tmux-sidebar\.sh' "$DIR/$drv" | tr -d ' ' | sed 's/^[2-9][0-9]*$/1/')"
+    assert_eq "$drv calls sidebar_fits rather than comparing widths itself" "0" \
+        "$(grep -cE '\[ *"?\$\{?(ww|wwidth|width)' "$DIR/$drv" | tr -d ' ')"
+done
+
+# --- auto-hide, end to end on a real server ---------------------------------
+# What the pure assertions above CANNOT show: that a narrow window actually
+# loses its pane, that the follow-hook path does not immediately rebuild it,
+# and that widening brings it back. Those are tmux's behaviour, not bash's, so
+# this section is skipped in the bash-3.2 re-run below -- running two scratch
+# servers per suite buys nothing, since the interpreter is not what is under
+# test here.
+#
+# ISOLATION IS NOT OPTIONAL. An earlier selftest in this repo pointed a tick at
+# a scratch socket without overriding HOME, and scout wrote "pane %N no longer
+# exists" into the LIVE status.json about the pane the test was running in. Both
+# TMUX_TMPDIR and HOME are overridden: the drivers call bare `tmux` (so only
+# TMUX_TMPDIR redirects them -- `-L` cannot reach inside a child script) and
+# they spawn the sidebar as "$HOME/bin/tmux-window-sidebar".
+#
+# TWO REMOVAL PATHS, PINNED SEPARATELY, because they are reached by different
+# tmux hooks and each must work on its own: after-select-window runs
+# tmux-sidebar-ensure, window-resized runs tmux-sidebar-resize. Asserting them
+# through whichever script was convenient made BOTH assertions vacuous --
+# measured, removing either script's removal left the other doing the job and
+# the suite still passed. The resize sweep is therefore pinned on a window that
+# is NOT current, which is the only arrangement its trailing ensure call cannot
+# reach.
+if [ "${SIDEBAR_SELFTEST_INNER:-}" = "1" ]; then
+    echo "  skip live-server auto-hide (covered in the outer run)"
+elif ! command -v tmux >/dev/null 2>&1; then
+    echo "  skip live-server auto-hide (no tmux)"
+else
+    LIVE_TD=$(mktemp -d); LIVE_FH=$(mktemp -d)
+    ln -s "$DIR" "$LIVE_FH/bin"
+    # TMUX_SIDEBAR_LIB IS UNSET HERE, and that is not tidiness. This suite
+    # exports it at the top so it can source tmux-window-sidebar for its
+    # functions without the draw loop running -- and the sidebar pane spawned
+    # below is a real tmux-window-sidebar, which in library mode returns
+    # immediately. Inherited, the pane dies the instant it is created, the
+    # window falls back to one pane, and every removal assertion passes against
+    # a sidebar that was never there.
+    live() { env -u TMUX -u TMUX_PANE -u TMUX_SIDEBAR_LIB \
+        TMUX_TMPDIR="$LIVE_TD" HOME="$LIVE_FH" "$@"; }
+    lx() { live tmux "$@"; }
+    # The drivers return before tmux has applied the split/kill, so give the
+    # server a few round trips rather than sleeping -- a foreground sleep is
+    # both slower and, in this harness, blocked.
+    lsettle() { for _ in 1 2 3 4 5; do lx list-panes -s >/dev/null 2>&1; done; }
+    npanes() { lx display-message -p -t "$1" '#{window_panes}'; }
+    sbwidth() { lx list-panes -t "$1" -F '#{@sidebar-pane}|#{pane_width}' |
+        awk -F'|' '$1=="1"{print $2; exit}'; }
+    ensure() { live "$LIVE_FH/bin/tmux-sidebar-ensure" "$@"; lsettle; }
+    sweep()  { live "$LIVE_FH/bin/tmux-sidebar-resize";   lsettle; }
+
+    lx new-session -d -s s -x 200 -y 50 2>/dev/null
+    lx set-option -g @sidebar on
+    lx set-option -g @sidebar-width 24
+    lx set-option -g @sidebar-min-width 120
+    LW=$(lx display-message -p '#{window_id}')
+
+    # First, that a sidebar gets built at all. Without this the removal
+    # assertions below are satisfied by a sidebar that never existed.
+    # Sabotage: make tmux-sidebar-ensure's split-window fail -- this fails.
+    ensure "$LW"
+    assert_eq "a wide window gets a sidebar"     "24" "$(sbwidth "$LW")"
+    assert_eq "and the window now has two panes"  "2" "$(npanes "$LW")"
+
+    # PATH 1: the follow hook. after-select-window lands here on every window
+    # switch, so without a gate it rebuilds whatever the resize hook removed.
+    # It REMOVES rather than merely declining, because the pane may predate the
+    # client that made the window narrow.
+    #
+    # Sabotage: replace the kill-pane in tmux-sidebar-ensure's narrow branch
+    # with `:` -- this fails. (The resize sweep's own kill cannot cover for it
+    # here: this calls ensure directly.)
+    lx resize-window -t "$LW" -x 84 -y 50
+    ensure "$LW"
+    assert_eq "the follow hook removes a sidebar from a narrowed window" "" "$(sbwidth "$LW")"
+    assert_eq "and the window is back to one pane"                      "1" "$(npanes "$LW")"
+
+    # Sabotage: drop the `if ! sidebar_fits` branch from tmux-sidebar-ensure
+    # (`if false; then`) -- it rebuilds and this fails.
+    ensure "$LW"
+    assert_eq "the follow hook does not rebuild it while narrow" "1" "$(npanes "$LW")"
+
+    # @sidebar is the PREFERENCE and auto-hide must not consume it, or widening
+    # the terminal would need another prefix + W. Checked after EACH removal
+    # path rather than once: a single check sits after whichever path happened
+    # to run first and says nothing about the other -- measured, the version of
+    # this that only checked here passed while tmux-sidebar-resize set the
+    # option off, failing three unrelated assertions instead.
+    #
+    # Sabotage: add `set-option -g @sidebar off` to tmux-sidebar-ensure's
+    # narrow branch -- this fails.
+    assert_eq "the follow hook leaves the preference on" "on" "$(lx show-option -gqv @sidebar)"
+
+    # Sabotage: delete the trailing tmux-sidebar-ensure call at the end of
+    # tmux-sidebar-resize -- the current window is never restored and this
+    # fails.
+    lx resize-window -t "$LW" -x 200 -y 50
+    sweep
+    assert_eq "widening restores the current window's sidebar" "24" "$(sbwidth "$LW")"
+
+    # PATH 2: the window-resized sweep, pinned on a window that is NOT current.
+    # Hiding is eager precisely so a window you are not looking at is already
+    # correct when you arrive; the trailing ensure only touches the current
+    # window, so this is the one arrangement that isolates the sweep's own
+    # kill-pane.
+    #
+    # Sabotage: replace the kill-pane in tmux-sidebar-resize's narrow branch
+    # with `:` -- this fails, and ensure cannot cover for it because @other is
+    # not the current window.
+    lx new-window -d -t s -n other 2>/dev/null
+    OTHER=$(lx list-windows -t s -F '#{window_id}|#{window_name}' | awk -F'|' '$2=="other"{print $1}')
+    ensure "$OTHER"
+    assert_eq "a second wide window also gets one" "24" "$(sbwidth "$OTHER")"
+    lx resize-window -t "$OTHER" -x 84 -y 50
+    sweep
+    assert_eq "the sweep removes it from a narrow window you are not in" "" "$(sbwidth "$OTHER")"
+    assert_eq "and leaves the current wide window alone"               "24" "$(sbwidth "$LW")"
+    # Sabotage: add `set-option -g @sidebar off` to tmux-sidebar-resize -- this
+    # fails.
+    assert_eq "the sweep leaves the preference on" "on" "$(lx show-option -gqv @sidebar)"
+
+    # RESTORING IS LAZY, which is the documented asymmetry: the sweep brings
+    # back only the window in front of you, and the rest return as you visit
+    # them, exactly as the follow hooks populate them in the first place. Doing
+    # it eagerly would split every window in the session on every drag of a
+    # terminal's edge.
+    #
+    # Sabotage: make tmux-sidebar-resize call ensure for every window it swept
+    # rather than once at the end -- this fails.
+    lx resize-window -t "$OTHER" -x 200 -y 50
+    sweep
+    assert_eq "the sweep does not eagerly restore a window you are not in" "" "$(sbwidth "$OTHER")"
+
+    # A SIDEBAR MUST NEVER BE THE PANE THAT TAKES THE WINDOW WITH IT. kill-pane
+    # on a window's only pane kills the window, and this path fires without
+    # anybody asking for it. Built by hand, because the real sidebar
+    # self-destructs when it becomes last and so cannot be made to sit alone.
+    #
+    # Sabotage: drop the `[ "${np:-0}" -gt 1 ]` guard in tmux-sidebar-resize --
+    # the window is destroyed and this fails.
+    lx new-window -d -t s -n lone 2>/dev/null
+    LONE=$(lx list-windows -t s -F '#{window_id}|#{window_name}' | awk -F'|' '$2=="lone"{print $1}')
+    LONEP=$(lx list-panes -t "$LONE" -F '#{pane_id}' | head -1)
+    lx set-option -p -t "$LONEP" @sidebar-pane 1
+    lx resize-window -t "$LONE" -x 84 -y 50
+    sweep
+    assert_eq "a lone sidebar pane is not killed, which would kill the window" \
+        "1" "$(lx list-windows -t s -F '#{window_name}' | grep -c '^lone$' | tr -d ' ')"
+
+    # THE SWEEP IS SERVER-WIDE, not session-wide, and this is the assertion that
+    # found the bug. `list-panes -s` reads the CURRENT session, which is not
+    # reliably the session whose window was resized: the hook's run-shell
+    # carries no session of its own, and a client attaching or detaching moves
+    # widths under `aggressive-resize on`. Measured on the live server with two
+    # sessions attached -- an 84-column window in `main` kept its sidebar
+    # because the current session resolved to `shellfish-1`.
+    #
+    # THE ARRANGEMENT IS THE TEST. The narrowed window has to be in the session
+    # that is NOT current, or `-s` finds it anyway and the sabotage passes --
+    # which is exactly what the first version of this did. With no client
+    # attached tmux calls the most recently CREATED session current (measured:
+    # it stays there, and neither touching nor adding a window to the other one
+    # moves it), so `@far` is built in `s` first and `other` is created
+    # afterwards purely to take the current-session slot away from it.
+    #
+    # Sabotage: change `list-panes -a` back to `-s` in tmux-sidebar-resize --
+    # this fails.
+    lx new-window -d -t s -n far 2>/dev/null
+    FAR=$(lx list-windows -t s -F '#{window_id}|#{window_name}' | awk -F'|' '$2=="far"{print $1}')
+    ensure "$FAR"
+    assert_eq "a far window gets a sidebar" "24" "$(sbwidth "$FAR")"
+    lx new-session -d -s other -x 200 -y 50 2>/dev/null
+    assert_eq "the non-current session is the one under test" "other" \
+        "$(lx display-message -p '#{session_name}')"
+    lx resize-window -t "$FAR" -x 84 -y 50
+    sweep
+    assert_eq "the sweep reaches a narrow window in another session" "" "$(sbwidth "$FAR")"
+
+    lx kill-server 2>/dev/null
+    rm -rf "$LIVE_TD" "$LIVE_FH"
+fi
+
 # --- bash 3.2 -----------------------------------------------------------------
 # This repo deploys to macOS boxes without Homebrew, where /usr/bin/env bash is
 # /bin/bash 3.2.57. Re-running a handful of assertions there is not enough: fix

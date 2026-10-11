@@ -1,13 +1,74 @@
 #!/usr/bin/env bash
-# Re-pin every sidebar pane to @sidebar-width. tmux redistributes pane widths
-# proportionally when a client/window is resized, so without this the sidebar
-# drifts off its intended width and looks wonky. Bound to the window-resized
-# hook in .tmux.conf; also run per-window by tmux-sidebar-ensure on select.
+# Keep every window's sidebar correct for the width it now has. Bound to the
+# window-resized hook in .tmux.conf. Two jobs:
+#
+#   wide enough  -> re-pin the pane to @sidebar-width. tmux redistributes pane
+#                   widths proportionally on a resize, so without this the
+#                   sidebar drifts off its intended width and looks wonky.
+#   too narrow   -> remove it (@sidebar-min-width). A 24-column sidebar in an
+#                   84-column ShellFish window leaves the shell 59 columns.
+#
+# @sidebar -- the user's preference -- is never touched, so widening the
+# terminal brings the sidebar back rather than needing another prefix + W.
 set -u
+
+# shellcheck source=lib/tmux-sidebar.sh
+[ -r "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-sidebar.sh" ] &&
+	. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-sidebar.sh"
+
+[ "$(tmux show-option -gqv @sidebar)" = "on" ] || exit 0
 
 width="$(tmux show-option -gqv @sidebar-width)"
 width="${width:-24}"
+min="$(sidebar_min_width)"
 
-tmux list-panes -s -F '#{@sidebar-pane}|#{pane_id}' 2>/dev/null |
-	awk -F'|' '$1=="1"{print $2}' |
-	while read -r p; do tmux resize-pane -x "$width" -t "$p" 2>/dev/null; done
+# ONE tmux query for every window on the server. Every window has at least one
+# pane, so a pane listing already carries every window's width and pane count
+# alongside which of its panes is the sidebar -- a second `list-windows` would
+# ask for facts this answer already contains. The awk collapses it to one row
+# per window: `<window_id> <width> <panes> [sidebar_pane]`, the last field
+# absent when that window has no sidebar.
+#
+# `-a`, NOT `-s`. The session-scoped version read the CURRENT session, which is
+# not reliably the session whose window was resized: a client attaching or
+# detaching changes widths under `aggressive-resize on`, and the hook's run-shell
+# carries no session of its own. Measured on this host -- two sessions attached,
+# and a sweep left an 84-column window in `main` holding its sidebar because the
+# current session resolved to `shellfish-1`. Nothing is risked by the wider
+# scope: every decision below is made from that window's OWN width, so a window
+# in another session is judged by exactly the same rule it would be judged by
+# there.
+#
+# The decision itself stays in the shell, calling sidebar_fits. Re-expressing
+# the comparison as an awk condition would be the obvious shape and would put a
+# second copy of the predicate in the one file most likely to disagree with
+# tmux-sidebar-ensure about it, which is the drift bin/lib/tmux-sidebar.sh
+# exists to prevent.
+tmux list-panes -a -F '#{window_id} #{window_width} #{window_panes} #{pane_id} #{@sidebar-pane}' 2>/dev/null |
+	awk '{ w = $1
+	       if (!(w in seen)) { seen[w] = 1; ww[w] = $2; np[w] = $3; order[++n] = w }
+	       if ($5 == "1") sb[w] = $4 }
+	     END { for (i = 1; i <= n; i++) { w = order[i]
+	             print w, ww[w], np[w], (w in sb ? sb[w] : "") } }' |
+	while read -r w ww np sp; do
+		if sidebar_fits "$ww" "$min"; then
+			[ -n "$sp" ] && tmux resize-pane -x "$width" -t "$sp" 2>/dev/null
+		elif [ -n "$sp" ] && [ "${np:-0}" -gt 1 ]; then
+			# See tmux-sidebar-ensure for why the pane count is checked:
+			# kill-pane on a window's only pane kills the window.
+			tmux kill-pane -t "$sp" 2>/dev/null
+		fi
+	done
+
+# HIDING IS EAGER, RESTORING IS LAZY, and the asymmetry is deliberate.
+#
+# Hiding sweeps the whole session above, because the alternative -- letting
+# after-select-window remove it when you arrive -- means a visible flash of a
+# wrong-sized sidebar on every window switch.
+#
+# Restoring only touches the window in front of you, which is this one call;
+# the rest come back as you visit them, which is already how the follow hooks
+# populate windows in the first place. Doing it eagerly instead would have
+# every drag of a terminal's edge split every window in the session, which is a
+# lot of work to pre-empt a visit that may not happen.
+"$HOME/bin/tmux-sidebar-ensure"

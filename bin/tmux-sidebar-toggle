@@ -7,6 +7,10 @@
 #   off -> remove every sidebar pane in the session and clear @sidebar.
 set -u
 
+# shellcheck source=lib/tmux-sidebar.sh
+[ -r "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-sidebar.sh" ] &&
+	. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-sidebar.sh"
+
 sess="$(tmux display-message -p '#{session_name}')"
 state="$(tmux show-option -gqv @sidebar)"
 
@@ -20,5 +24,18 @@ else
 	tmux set-option -g @sidebar on
 	tmux list-windows -t "$sess" -F '#{window_id}' |
 		while read -r w; do "$HOME/bin/tmux-sidebar-ensure" "$w"; done
-	tmux display-message "window sidebar: on"
+
+	# @sidebar is the PREFERENCE, not the current visibility: tmux-sidebar-ensure
+	# refuses a window narrower than @sidebar-min-width, so on a phone this
+	# records the intent and nothing appears on screen. SAY SO -- a key that
+	# reports "on" and then does nothing visible reads as a broken binding, and
+	# the next thing you do about a broken binding is press it again, which
+	# turns the preference back off.
+	min="$(sidebar_min_width)"
+	ww="$(tmux display-message -p '#{window_width}')"
+	if sidebar_fits "$ww" "$min"; then
+		tmux display-message "window sidebar: on"
+	else
+		tmux display-message "window sidebar: on (hidden at $ww cols; needs $min)"
+	fi
 fi

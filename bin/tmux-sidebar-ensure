@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Ensure a window has the sidebar pane, if the feature is enabled (@sidebar on).
+# Ensure a window has the sidebar pane, if the feature is enabled (@sidebar on)
+# AND the window is wide enough for one (@sidebar-min-width).
 # Idempotent and focus-safe: splits a narrow left pane running tmux-window-sidebar
 # without stealing focus. Called by tmux-sidebar-toggle (once per window) and by
 # the after-select-window / after-new-window hooks (current window).
@@ -7,23 +8,60 @@
 # Arg 1: target window id (defaults to the current window).
 set -u
 
+# shellcheck source=lib/tmux-sidebar.sh
+[ -r "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-sidebar.sh" ] &&
+	. "$(dirname "${BASH_SOURCE[0]}")/lib/tmux-sidebar.sh"
+
 [ "$(tmux show-option -gqv @sidebar)" = "on" ] || exit 0
 win="${1:-$(tmux display-message -p '#{window_id}')}"
+
+# ONE query for all three facts the refusals below need, rather than a fork
+# each: this runs from after-select-window, so it is on the path of every
+# window switch.
+#
+# Width FIRST, because a window NAME may legally contain a `|` and the
+# delimiter has to be unambiguous -- `${info%%|*}` on a name-first format would
+# return the name's own first field and `${info##*|}` would return the tail of
+# the name instead of the width.
+info="$(tmux display-message -p -t "$win" '#{window_width}|#{window_panes}|#{window_name}')"
+wwidth="${info%%|*}"; rest="${info#*|}"
+wpanes="${rest%%|*}"; wname="${rest#*|}"
 
 # NEVER sidebar the Otto relay window: the relay addresses its panes by index
 # (main:otto-relay.0/1/2 = sonnet/opus/voice, per /opt/otto/.env), so inserting a
 # sidebar pane at index 0 shifts them and every relay request fails with "no signal".
-case "$(tmux display-message -p -t "$win" '#{window_name}')" in
+case "$wname" in
 	otto-relay) exit 0 ;;
 esac
 
 width="$(tmux show-option -gqv @sidebar-width)"
 width="${width:-24}"
 
-# Already has a sidebar pane? Re-pin its width (a resize while this window was
-# hidden may have let it drift) and we're done.
+# Already has a sidebar pane?
 existing="$(tmux list-panes -t "$win" -F '#{@sidebar-pane}|#{pane_id}' 2>/dev/null |
 	awk -F'|' '$1=="1"{print $2; exit}')"
+
+# AUTO-HIDE. Checked here as well as in tmux-sidebar-resize because this is the
+# path the follow hooks take: without it, visiting a window on a phone-sized
+# client rebuilds the sidebar the resize hook had just removed.
+#
+# It REMOVES rather than merely declining to create, because the window may have
+# been wide when the pane was made -- the client it was sized to has since
+# detached, or a narrower one attached. @sidebar is the user's preference and is
+# deliberately left alone, so widening the window brings the sidebar back.
+if ! sidebar_fits "$wwidth" "$(sidebar_min_width)"; then
+	# The pane-count guard is not theoretical politeness: kill-pane on a
+	# window's only pane kills the WINDOW. The sidebar self-destructs when it
+	# becomes the last pane, so it should never be alone here -- but this path
+	# fires without anybody asking for it, which makes an accidental window kill
+	# much worse than it would be behind a deliberate prefix + W.
+	[ -n "$existing" ] && [ "${wpanes:-0}" -gt 1 ] &&
+		tmux kill-pane -t "$existing" 2>/dev/null
+	exit 0
+fi
+
+# Re-pin its width (a resize while this window was hidden may have let it
+# drift) and we're done.
 if [ -n "$existing" ]; then
 	tmux resize-pane -x "$width" -t "$existing" 2>/dev/null
 	exit 0
