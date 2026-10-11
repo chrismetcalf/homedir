@@ -44,10 +44,20 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id')
 
-# Project opt-outs: no deletion tracking in these working directories
+# Project opt-outs: no deletion tracking in these working directories.
+#
+# .homedir is exempt (2026-10-10) for the same reason /tmp scratch scores 0: the
+# breaker was firing on noise here, and a breaker that fires on noise trains you
+# to approve reflexively, which is the exact failure it exists to prevent. Work
+# in this repo is dense in throwaway scratch servers, fixture dirs and generated
+# state -- a scratch tmux socket plus its fake HOME is one `rm -rf` per probe --
+# and every such command was being charged 10 against a session-wide budget of
+# 15. The genuinely destructive thing in a dotfiles repo is not an `rm` anyway:
+# it is gitfix relinking $HOME, which this hook never sees.
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 case "$CWD" in
   /home/krezel/src/github.com/sylvies|/home/krezel/src/github.com/sylvies/*) exit 0 ;;
+  /home/krezel/.homedir|/home/krezel/.homedir/*) exit 0 ;;
 esac
 
 TRACKER_DIR="/tmp/otto-deletion-tracking"
