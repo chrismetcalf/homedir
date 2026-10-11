@@ -103,6 +103,35 @@ if ! tmux has-session -t "=$SESSION" 2>/dev/null; then
     # Plain name here, NOT "=$SESSION": this tmux accepts the = exact-match
     # prefix for has-session but rejects it for set-option ("no such session").
     tmux set-option -t "$SESSION" status off
+
+    # lock-after 0 IS WHAT MAKES THE REGISTRY ABOVE WORK, and without it the
+    # whole stranding guard is decorative.
+    #
+    # lock-after is a SESSION option, so a popup attached to this session
+    # inherits the global 60 and locks ITSELF after a minute idle -- which is
+    # already absurd (a screensaver inside a 90%-size box) and is also fatal: a
+    # LOCKED CLIENT IGNORES detach-client until its lock-command exits. So the
+    # client-session-changed hook fires, runs detach-client, and nothing
+    # happens; main stays rendered inside the popup and the key that opened it
+    # cannot close it. Measured on a scratch server, four cases: popup inheriting
+    # lock-after locks and survives detach-client ("still attached"); the same
+    # popup with lock-after 0 never locks and detaches cleanly. Measured on the
+    # live server as the symptom: a 186x52 client -- exactly 90% of 209x61 less
+    # borders -- sitting on main, flagged `suspended` (which is what tmux shows
+    # for a locked client), with the hook's own condition evaluating TRUE and
+    # the client still there.
+    #
+    # Note lock-client forces a lock whatever lock-after says, so this cannot be
+    # tested by forcing one; it has to be the real idle timer.
+    tmux set-option -t "$SESSION" lock-after 0
+
+    # And if the tool exits on its own -- `q` inside btop, which is the obvious
+    # way to close it -- the popup should go with it. Globally this repo sets
+    # detach-on-destroy off, which instead SWITCHES the orphaned client to
+    # another session: measured, the client lands on main and renders the whole
+    # session in the popup box. The hook catches that too, but only while the
+    # client can act on a detach, and `on` needs no hook at all.
+    tmux set-option -t "$SESSION" detach-on-destroy on
 fi
 
 # TMUX= is required: tmux refuses to attach a client from inside another client

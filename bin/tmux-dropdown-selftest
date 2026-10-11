@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+# tmux-dropdown-selftest — tests for bin/tmux-dropdown, the prefix + B / prefix
+# + D overlay mechanism.
+#
+# Most of this needs a REAL tmux server with a REAL attached client, because the
+# whole subject is how a second client behaves: a popup is an ordinary tmux
+# client, and every bug this file pins came from that. A detached session cannot
+# show any of it.
+#
+# ISOLATION IS NOT OPTIONAL. TMUX_TMPDIR and HOME are both overridden: the
+# script calls bare `tmux` (so only TMUX_TMPDIR redirects it -- `-L` cannot
+# reach inside a child) and the bindings reach it as "$HOME/bin/tmux-dropdown".
+# An earlier selftest in this repo pointed a tick at a scratch socket without
+# overriding HOME and scout wrote into the LIVE status.json.
+#
+# Each assertion names the sabotage that makes it fail.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TD=$(mktemp -d); FH=$(mktemp -d); ln -s "$DIR" "$FH/bin"
+FAIL=0
+
+# THIS SUITE DESTROYED A LIVE 47-DAY-OLD TMUX SERVER WITH 11 WINDOWS, so the
+# isolation is now checked rather than assumed. Two things made that possible
+# and both are closed here:
+#
+#   1. It names its scratch session `main` -- the same name as the real one on
+#      this host -- so a run that reached the wrong socket looked identical to a
+#      run that reached the right one. It uses an unmistakable name now.
+#   2. cleanup() ran `kill-server` against $TD on trust. One empty or wrong
+#      TMUX_TMPDIR and that is the user's server, with no confirmation step and
+#      nothing to undo it.
+#
+# The rule: this suite may only kill a server whose session list is EXACTLY the
+# one it created. Anything else and it refuses and says so, loudly, rather than
+# cleaning up something that is not its.
+SCRATCH_SESSION="dropdown-selftest-$$"
+OWNED=0
+
+# Every tmux call in this file goes through here, so there is one place where
+# the socket is decided and it is never the ambient default.
+sx() { env -u TMUX -u TMUX_PANE TMUX_TMPDIR="$TD" tmux "$@"; }
+
+# True only when the server on OUR socket holds nothing but what we made.
+owns_scratch() {
+    local names
+    names=$(sx list-sessions -F '#{session_name}' 2>/dev/null | sort | tr '\n' ',')
+    case "$names" in
+        ""|"$SCRATCH_SESSION,"|"$SCRATCH_SESSION,_probe,"|"_probe,$SCRATCH_SESSION,") return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+cleanup() {
+    if [ "$OWNED" -eq 1 ] && owns_scratch; then
+        sx kill-server 2>/dev/null
+    elif [ "$OWNED" -eq 1 ]; then
+        printf '  REFUSING to kill-server: socket %s holds sessions I did not create (%s)\n' \
+            "$TD" "$(sx list-sessions -F '#{session_name}' 2>/dev/null | tr '\n' ' ')" >&2
+    fi
+    rm -rf "$TD" "$FH"
+}
+trap cleanup EXIT
+
+ok()   { printf '  ok   %s\n' "$1"; }
+bad()  { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAIL=$((FAIL+1)); }
+eq()   { [ "$2" = "$3" ] && ok "$1" || bad "$1" "$2" "$3"; }
+
+live() { env -u TMUX -u TMUX_PANE TMUX_TMPDIR="$TD" HOME="$FH" "$@"; }
+# lx goes through sx so there is exactly one socket decision in this file.
+lx()   { sx "$@"; }
+st()   { for _ in $(seq 1 25); do lx list-clients >/dev/null 2>&1; done; }
+# Burn wall clock in tmux round trips rather than sleeping: the idle lock below
+# needs real seconds to pass, and a foreground sleep is blocked in this harness.
+idle() { local t0=$SECONDS; while [ $((SECONDS-t0)) -lt "$1" ]; do lx list-clients >/dev/null 2>&1; done; }
+
+echo "tmux-dropdown-selftest"
+
+command -v tmux >/dev/null 2>&1 || { echo "  skip (no tmux)"; exit 0; }
+command -v script >/dev/null 2>&1 || { echo "  skip (no script(1))"; exit 0; }
+
+# --- argument handling (no server needed) -----------------------------------
+
+# The leading underscore is ENFORCED, not conventional: the toggle binding
+# closes on #{m:_*,#{session_name}} and tmux-goto hides the same pattern, so a
+# dropdown named without it would be un-closeable by its own key and would show
+# up as a navigation destination.
+# Sabotage: delete the `case "$SESSION" in _*)` guard -- this fails.
+live "$FH/bin/tmux-dropdown" btop btop >/dev/null 2>&1
+eq "a session name without a leading _ is refused" "2" "$?"
+live "$FH/bin/tmux-dropdown" >/dev/null 2>&1
+eq "no arguments is a usage error" "2" "$?"
+
+# --- the registry pattern ---------------------------------------------------
+
+# A name no real session would carry, so a misrouted run cannot be mistaken
+# for a correct one -- see the isolation note at the top.
+lx new-session -d -s "$SCRATCH_SESSION" -x 120 -y 40 2>/dev/null
+OWNED=1
+if ! owns_scratch; then
+    printf '  ABORT: socket %s is not mine (%s)\n' "$TD" \
+        "$(sx list-sessions -F '#{session_name}' 2>/dev/null | tr '\n' ' ')" >&2
+    exit 3
+fi
+# Entries are space-PADDED because the bindings match with "* $tty *". Without
+# the padding /dev/pts/2 matches inside /dev/pts/24 and prefix + B detaches the
+# terminal you are working in.
+# Sabotage: drop the padding in registry_add (out="" and no trailing space) --
+# the substring match below starts succeeding and this fails.
+lx set-option -g @dropdown-clients " /dev/pts/24 "
+eq "a padded registry matches its own tty" "1" \
+   "$(lx display-message -p '#{m:* /dev/pts/24 *,#{@dropdown-clients}}')"
+eq "and does NOT match a tty it merely contains" "0" \
+   "$(lx display-message -p '#{m:* /dev/pts/2 *,#{@dropdown-clients}}')"
+# SCOPE OF THE TWO ABOVE, stated because their first comment claimed more than
+# they show: the registry value is set BY HAND here, so what they pin is the
+# bindings' matching CONVENTION -- that `* $tty *` needs the padding to be
+# unambiguous. They say nothing about whether registry_add actually writes it.
+# Measured: removing the padding from registry_add leaves both of them passing
+# and trips "the popup's tty is in the registry" instead. The producer's own
+# padding is asserted further down, against a real popup.
+lx set-option -g @dropdown-clients " "
+
+# --- the dropdown session's own options -------------------------------------
+
+# Globals matching this repo's .tmux.conf, which is what the dropdown inherits.
+lx set-option -g detach-on-destroy off
+lx set-option -g lock-after 1
+lx set-option -g lock-command "tail -f /dev/null"   # a saver that never exits
+
+# Start a real dropdown with a real client, exactly as display-popup does.
+script -qfec "env -u TMUX -u TMUX_PANE TMUX_TMPDIR='$TD' HOME='$FH' '$FH/bin/tmux-dropdown' _probe tail -f /dev/null" \
+    "$TD/ts.log" >/dev/null 2>&1 &
+DROP=$!
+st; st
+PTTY=$(lx list-clients -F '#{client_tty}|#{client_session}' | awk -F'|' '$2=="_probe"{print $1}')
+
+if [ -z "$PTTY" ]; then
+    bad "a dropdown attaches a client to its session" "a client on _probe" "none"
+else
+    ok "a dropdown attaches a client to its session"
+
+    # Sabotage: remove the `lock-after 0` line from tmux-dropdown -- the popup
+    # inherits the global and this fails.
+    eq "the dropdown session disables its own idle lock" "0" \
+       "$(lx show-option -t _probe -qv lock-after)"
+
+    # Sabotage: remove the `detach-on-destroy on` line -- this fails.
+    eq "the dropdown session detaches rather than wandering on destroy" "on" \
+       "$(lx show-option -t _probe -qv detach-on-destroy)"
+
+    # Sabotage: delete the registry_add call or the trap -- this fails.
+    eq "the popup's tty is in the registry" "1" \
+       "$(lx display-message -p "#{m:* $PTTY *,#{@dropdown-clients}}")"
+
+    # And that registry_add PADS what it writes, which is the half the
+    # hand-set assertions above cannot reach. Checked on the real value rather
+    # than through a match, so it cannot pass on a pattern that happens to be
+    # lenient.
+    # Sabotage: drop either space from registry_add's `set-option` -- this fails.
+    REG=$(lx show-option -gqv @dropdown-clients)
+    case "$REG" in
+        " "*" ") ok "and registry_add pads the value it writes" ;;
+        *) bad "and registry_add pads the value it writes" "leading and trailing space" "[$REG]" ;;
+    esac
+
+    # THE ONE THAT MATTERS. A locked client IGNORES detach-client until its
+    # lock-command exits, so if the popup locks itself the entire stranding
+    # guard becomes decorative: the hook fires, runs detach-client, and main
+    # stays rendered inside a 90%-size box. Driven through the REAL idle timer,
+    # because lock-client forces a lock whatever lock-after says -- a version of
+    # this test using lock-client passed against both the fixed and the broken
+    # script.
+    #
+    # Sabotage: remove the `lock-after 0` line -- the client locks, picks up the
+    # `suspended` flag, survives the detach, and both of these fail.
+    idle 4
+    FLAGS=$(lx list-clients -F '#{client_tty}|#{client_flags}' | awk -F'|' -v t="$PTTY" '$1==t{print $2}')
+    case "$FLAGS" in
+        *suspended*) bad "the popup does not lock itself while idle" "not locked" "[$FLAGS]" ;;
+        *)           ok  "the popup does not lock itself while idle" ;;
+    esac
+
+    lx detach-client -t "$PTTY" 2>/dev/null
+    st; st
+    STILL=$(lx list-clients -F '#{client_tty}' | grep -cxF "$PTTY" || true)
+    eq "and detach-client can therefore still close it" "0" "${STILL:-0}"
+fi
+
+kill "$DROP" 2>/dev/null; wait "$DROP" 2>/dev/null
+
+# --- a missing binary says so -----------------------------------------------
+# Without the message a fresh checkout that lacks the tool flashes the popup
+# open and shut with nothing to read, which looks like a broken keybinding.
+# Sabotage: delete the `command -v` block -- the output no longer names the
+# tool and this fails.
+OUT=$(live "$FH/bin/tmux-dropdown" _nope definitely-not-a-real-binary-xyz </dev/null 2>&1)
+case "$OUT" in
+    *"definitely-not-a-real-binary-xyz is not installed"*) ok "a missing binary is reported by name" ;;
+    *) bad "a missing binary is reported by name" "a 'not installed' message" "[$OUT]" ;;
+esac
+
+echo
+[ "$FAIL" -eq 0 ] && echo "all passed" || echo "$FAIL failed"
+[ "$FAIL" -eq 0 ]
