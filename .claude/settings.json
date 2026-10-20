@@ -296,7 +296,12 @@
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "skill-creator@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true,
-    "frontend-design@claude-plugins-official": true
+    "frontend-design@claude-plugins-official": true,
+    "filetree@claude-code-filetree": true,
+    "flightdeck@claude-flightdeck": true,
+    "image-view@claude-image-view": true,
+    "claude-md-management@anthropic-plugin-directory": true,
+    "mindful-claude@mindful-claude": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -322,9 +327,55 @@
         "source": "github",
         "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
       }
+    },
+    "claude-code-filetree": {
+      "source": {
+        "source": "github",
+        "repo": "data-goblin/claude-code-filetree"
+      }
+    },
+    "claude-flightdeck": {
+      "source": {
+        "source": "github",
+        "repo": "scasella/claude-flightdeck"
+      }
+    },
+    "claude-image-view": {
+      "source": {
+        "source": "github",
+        "repo": "jarrodwatts/claude-image-view"
+      }
+    },
+    "mindful-claude": {
+      "source": {
+        "source": "github",
+        "repo": "halluton/Mindful-Claude"
+      }
     }
   },
   "alwaysThinkingEnabled": true,
+  "pluginConfigs": {
+    "filetree@claude-code-filetree": {
+      "options": {
+        "activity": "reads and writes",
+        "glyphs": "auto",
+        "follow": "on",
+        "start": "on",
+        "column": "date"
+      }
+    },
+    "flightdeck@claude-flightdeck": {
+      "options": {
+        "motion": "while-active",
+        "moments": true,
+        "matchDescriptions": false,
+        "layout": "auto",
+        "palette": "theme",
+        "openOnStart": true,
+        "statusLine": true
+      }
+    }
+  },
   "tui": "fullscreen",
   "skipWorkflowUsageWarning": true,
   "theme": "custom:tmarchy",

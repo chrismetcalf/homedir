@@ -1,50 +1,184 @@
 #!/usr/bin/env bash
 # Reinstall Claude Code plugins on a new machine.
 #
-# Only ~/.claude/settings.json (enabledPlugins + extraKnownMarketplaces) is
-# tracked in this repo; the plugin FILES under ~/.claude/plugins/ are not
-# vendored (churn-prone marketplace content, reinstallable from public repos).
-# This script reinstalls them from those public marketplaces.
+# THE LIST IS NOT IN THIS SCRIPT. It is derived from settings.json, which is
+# versioned here: `/plugin install` on any host writes `enabledPlugins` and
+# `extraKnownMarketplaces`, committing that file carries the set to every other
+# host, and `homedir-setup`'s claude-plugins step replays it there. So adding a
+# plugin to the common set is one action -- install it -- with no second place
+# to remember.
 #
-# Personal skills under ~/.claude/skills/ ARE versioned and need no restore.
+# That replaced two hand-maintained arrays, which is why the derivation is the
+# point rather than a tidy-up: they had drifted to 3 marketplaces and 4 plugins
+# against the file's 8 and 9, so a fresh host got four of nine with nothing
+# saying so. Same failure mode as gen-shellfish-snippets -- a literal table
+# describing something that moved underneath it.
 #
-# Idempotent: already-present marketplaces/plugins are reported by the CLI as
-# success, so re-running is safe. Individual failures don't abort the rest —
-# each is reported and the script exits non-zero if anything failed.
+# Only settings.json is tracked. The plugin FILES under ~/.claude/plugins/ are
+# churn-prone marketplace content, reinstallable from public repos. Personal
+# skills under ~/.claude/skills/ ARE versioned and need no restore.
+#
+# Idempotent: the CLI reports an already-added marketplace or already-installed
+# plugin as success. Individual failures do not abort the rest -- each is
+# reported and the script exits non-zero if anything failed.
 set -uo pipefail
 
-command -v claude >/dev/null || { echo "claude CLI not found on PATH" >&2; exit 1; }
+usage() {
+	cat <<'USAGE'
+usage: claude-restore-plugins [--list]
 
-# Marketplaces to register. claude-plugins-official is normally built-in, but we
-# add it explicitly so the script doesn't depend on that — adding an existing
-# marketplace is a harmless no-op.
-marketplaces=(
-  anthropics/claude-plugins-official
-  nextlevelbuilder/ui-ux-pro-max-skill
-  obra/superpowers-marketplace
-)
+  --list   print the set that would be installed and exit, calling nothing
+USAGE
+}
 
-# plugin@marketplace pairs (the marketplace is the registered key, not the repo).
-plugins=(
-  skill-creator@claude-plugins-official
-  frontend-design@claude-plugins-official
-  ui-ux-pro-max@ui-ux-pro-max-skill
-  superpowers@superpowers-marketplace
-)
-
-fail=0
-
-for m in "${marketplaces[@]}"; do
-  claude plugin marketplace add "$m" || { echo "  ✗ marketplace add failed: $m" >&2; fail=1; }
+LIST=0
+for arg in "$@"; do
+	case "$arg" in
+		--list) LIST=1 ;;
+		-h|--help) usage; exit 0 ;;
+		*) echo "unknown argument: $arg" >&2; usage >&2; exit 2 ;;
+	esac
 done
 
-for p in "${plugins[@]}"; do
-  claude plugin install "$p" || { echo "  ✗ install failed: $p" >&2; fail=1; }
-done
+# CLAUDE_SETTINGS and CLAUDE_BIN exist for the selftest and are read HERE, at
+# call time, never captured at source time: that is exactly how tmux-gen's
+# suite once billed real Claude queries, and the stake is higher here -- a real
+# `claude plugin` call would mutate the user's live plugin set.
+settings="${CLAUDE_SETTINGS:-}"
+if [ -z "$settings" ]; then
+	if [ -f "$HOME/.claude/settings.json" ]; then
+		settings="$HOME/.claude/settings.json"
+	else
+		# Fresh checkout before gitfix: ~/.claude is not linked yet, so read
+		# the repo's own copy, located relative to this script rather than
+		# through $PATH (~/bin is not linked yet either).
+		settings="$(cd "$(dirname "$0")/.." && pwd)/.claude/settings.json"
+	fi
+fi
+[ -f "$settings" ] || { echo "settings not found: $settings" >&2; exit 1; }
 
-if [ "$fail" -ne 0 ]; then
-  echo "Some steps failed (see ✗ above) — re-running is safe; check network / GitHub access." >&2
-  exit 1
+# One row per action, tab-separated: tag, argument, note.
+#   M repo   name     github marketplace to add
+#   m kind   name     marketplace whose source kind we cannot add -- reported
+#   P key    where    plugin to install ("builtin" = marketplace not in extras)
+#   p key    disabled plugin present but switched off -- reported, not installed
+#
+# A parse failure must NOT read as an empty set, which would exit 0 having
+# installed nothing, so python exits non-zero and takes the script with it.
+plan="$(python3 - "$settings" <<'PY'
+import json, sys
+
+path = sys.argv[1]
+try:
+    with open(path) as fh:
+        settings = json.load(fh)
+except Exception as exc:
+    print("cannot parse %s: %s" % (path, exc), file=sys.stderr)
+    sys.exit(1)
+
+if not isinstance(settings, dict):
+    print("%s does not hold a JSON object" % path, file=sys.stderr)
+    sys.exit(1)
+
+places = settings.get("extraKnownMarketplaces") or {}
+plugins = settings.get("enabledPlugins") or {}
+if not isinstance(places, dict) or not isinstance(plugins, dict):
+    print("enabledPlugins / extraKnownMarketplaces are not objects", file=sys.stderr)
+    sys.exit(1)
+
+rows = []
+for name in sorted(places):
+    entry = places[name] if isinstance(places[name], dict) else {}
+    source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+    kind, repo = source.get("source"), source.get("repo")
+    if kind == "github" and repo:
+        # `marketplace add <owner/repo>` registers the marketplace under the
+        # name its own marketplace.json declares, which is what enabledPlugins
+        # keys name. If the two ever disagree the plugin install fails loudly
+        # on an unknown marketplace, so nothing here has to guess.
+        rows.append(("M", repo, name))
+    else:
+        rows.append(("m", str(kind or "unknown"), name))
+
+for key in sorted(plugins):
+    if plugins[key] is not True:
+        rows.append(("p", key, "disabled"))
+        continue
+    place = key.split("@", 1)[1] if "@" in key else ""
+    # A marketplace with no extraKnownMarketplaces entry is a built-in
+    # directory (anthropic-plugin-directory): it needs the install, not an add.
+    rows.append(("P", key, "builtin" if place and place not in places else "extra"))
+
+for row in rows:
+    print("\t".join(row))
+PY
+)" || { echo "refusing to continue: could not read the plugin set" >&2; exit 1; }
+
+if [ -z "$plan" ]; then
+	echo "No marketplaces or plugins listed in $settings — nothing to do."
+	exit 0
 fi
 
-echo "Done. Restart Claude Code (or run /reload-plugins) to activate."
+if [ "$LIST" -eq 1 ]; then
+	echo "Plugin set from $settings"
+	echo
+	echo "  marketplaces"
+	while IFS=$'\t' read -r tag arg note; do
+		case "$tag" in
+			M) printf '    %-28s %s\n' "$note" "$arg" ;;
+			m) printf '    %-28s UNSUPPORTED source kind: %s\n' "$note" "$arg" ;;
+		esac
+	done <<< "$plan"
+	echo
+	echo "  plugins"
+	while IFS=$'\t' read -r tag arg note; do
+		case "$tag" in
+			P) if [ "$note" = builtin ]; then
+				printf '    %s  (built-in marketplace)\n' "$arg"
+			   else
+				printf '    %s\n' "$arg"
+			   fi ;;
+			p) printf '    %s  (disabled — not installed)\n' "$arg" ;;
+		esac
+	done <<< "$plan"
+	exit 0
+fi
+
+command -v "${CLAUDE_BIN:-claude}" >/dev/null ||
+	{ echo "claude CLI not found: ${CLAUDE_BIN:-claude}" >&2; exit 1; }
+
+fail=0 added=0 installed=0
+
+# A here-string, not a pipe: a piped `while` runs in a subshell, so every
+# `fail=1` below would be discarded and a broken run would exit 0.
+#
+# Marketplaces first — a plugin install names its marketplace by the registered
+# key, which does not exist until the marketplace is added.
+while IFS=$'\t' read -r tag arg note; do
+	case "$tag" in
+		M) if "${CLAUDE_BIN:-claude}" plugin marketplace add "$arg"; then
+			added=$((added + 1))
+		   else
+			echo "  ✗ marketplace add failed: $arg" >&2; fail=1
+		   fi ;;
+		m) echo "  ! marketplace $note: unsupported source kind '$arg', skipped" >&2 ;;
+	esac
+done <<< "$plan"
+
+while IFS=$'\t' read -r tag arg note; do
+	case "$tag" in
+		P) if "${CLAUDE_BIN:-claude}" plugin install "$arg"; then
+			installed=$((installed + 1))
+		   else
+			echo "  ✗ install failed: $arg" >&2; fail=1
+		   fi ;;
+		p) echo "  ! $arg is disabled in settings, skipped" >&2 ;;
+	esac
+done <<< "$plan"
+
+if [ "$fail" -ne 0 ]; then
+	echo "Some steps failed (see ✗ above) — re-running is safe; check network / GitHub access." >&2
+	exit 1
+fi
+
+echo "Done: $added marketplaces, $installed plugins. Restart Claude Code (or run /reload-plugins) to activate."

@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+# claude-restore-plugins-selftest — tests for bin/claude-restore-plugins.
+#
+# The whole subject is a script that shells out to `claude plugin …`, so the
+# first requirement is that NOTHING here reaches the real CLI: a stray call
+# would rewrite the user's live plugin set. Every run goes through a stub named
+# by CLAUDE_BIN, reads a fixture named by CLAUDE_SETTINGS, and carries a fake
+# HOME so a bug in path resolution lands in a temp dir rather than on
+# ~/.claude/settings.json. tmarchy-saver-selftest paid for that lesson once by
+# writing into the live scout status.json.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$DIR/claude-restore-plugins"
+FAILED=0
+
+# Totals are DERIVED and counted into FILES, not variables: assertions below run
+# inside subshells, where an incremented variable does not survive.
+COUNTDIR=$(mktemp -d)
+pass() { printf 'x' >> "$COUNTDIR/pass"; printf '  ok   %s\n' "$1"; }
+fail() { printf 'x' >> "$COUNTDIR/fail"; printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+count_of() { [ -f "$COUNTDIR/$1" ] && wc -c < "$COUNTDIR/$1" | tr -d ' ' || printf '0'; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK" "$COUNTDIR"' EXIT
+
+LOG="$WORK/calls"
+FAKEHOME="$WORK/home"
+mkdir -p "$FAKEHOME" "$WORK/bin"
+
+# The stub records argv and fails only for a plugin named *-boom, which gives
+# the "one failure does not abort the rest" path something to fail on.
+STUB="$WORK/bin/claude"
+cat > "$STUB" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$CALL_LOG"
+case "$*" in *-boom*) exit 1 ;; esac
+exit 0
+STUBEOF
+chmod +x "$STUB"
+
+# Deliberately shares NO name with the real set: an assertion that the invented
+# marketplace is added cannot be satisfied by a leftover hardcoded array.
+cat > "$WORK/fixture.json" <<'JSON'
+{
+  "extraKnownMarketplaces": {
+    "fixture-market": { "source": { "source": "github", "repo": "fixture-org/fixture-market" } },
+    "local-market":   { "source": { "source": "local",  "path": "/nonexistent" } }
+  },
+  "enabledPlugins": {
+    "alpha@fixture-market": true,
+    "beta@fixture-market": false,
+    "gamma@builtin-directory": true
+  }
+}
+JSON
+
+cat > "$WORK/boom.json" <<'JSON'
+{
+  "extraKnownMarketplaces": {
+    "fixture-market": { "source": { "source": "github", "repo": "fixture-org/fixture-market" } }
+  },
+  "enabledPlugins": {
+    "aaa-boom@fixture-market": true,
+    "zzz-good@fixture-market": true
+  }
+}
+JSON
+
+printf 'not json at all {{{\n' > "$WORK/broken.json"
+mkdir -p "$FAKEHOME/.claude"
+cat > "$FAKEHOME/.claude/settings.json" <<'JSON'
+{ "enabledPlugins": { "from-home@fixture-market": true } }
+JSON
+
+# run <script> <settings> [args…] — always stubbed, always a fake HOME.
+run() {
+	local s="$1" cfg="$2"; shift 2
+	: > "$LOG"
+	env CALL_LOG="$LOG" CLAUDE_BIN="$STUB" CLAUDE_SETTINGS="$cfg" \
+	    HOME="$FAKEHOME" bash "$s" "$@"
+}
+# Same, with CLAUDE_SETTINGS deliberately absent, to exercise the fallbacks.
+run_nocfg() {
+	local s="$1"; shift
+	: > "$LOG"
+	env -u CLAUDE_SETTINGS CALL_LOG="$LOG" CLAUDE_BIN="$STUB" \
+	    HOME="$FAKEHOME" bash "$s" "$@"
+}
+calls() { wc -l < "$LOG" | tr -d ' '; }
+
+# Each sabotage NAMES the change that must break the assertion beside it. The
+# cmp guard is not ceremony: a sed that matches nothing yields an identical file
+# and a "caught" verdict that proves nothing, which is this repo's most-repeated
+# testing failure.
+sabotage() { # sabotage <label> <sed-expr> <check-fn>
+	local label="$1" expr="$2" fn="$3" broken="$WORK/broken.sh"
+	sed "$expr" "$SCRIPT" > "$broken"
+	chmod +x "$broken"
+	if cmp -s "$broken" "$SCRIPT"; then
+		fail "sabotage '$label' changed nothing" "a modified copy" "byte-identical file"
+		return
+	fi
+	if "$fn" "$broken" >/dev/null 2>&1; then
+		fail "sabotage not caught: $label" "the check fails against broken code" "it passed"
+	else
+		pass "sabotage caught: $label"
+	fi
+}
+
+# Check functions: exit 0 when the script under test is CORRECT.
+chk_derives_market() { run "$1" "$WORK/fixture.json" >/dev/null 2>&1
+	grep -q '^plugin marketplace add fixture-org/fixture-market$' "$LOG"; }
+chk_derives_plugin() { run "$1" "$WORK/fixture.json" >/dev/null 2>&1
+	grep -q '^plugin install alpha@fixture-market$' "$LOG"; }
+chk_skips_disabled() { run "$1" "$WORK/fixture.json" >/dev/null 2>&1
+	! grep -q 'beta@fixture-market' "$LOG"; }
+chk_builtin_installed() { run "$1" "$WORK/fixture.json" >/dev/null 2>&1
+	grep -q '^plugin install gamma@builtin-directory$' "$LOG"; }
+# Asserts the REPORT, not just the absence of an add: a sabotage that sends an
+# unsupported source to `marketplace add` crashes on the missing repo field, and
+# a crash satisfies any absence-only check. Both halves earn their place -- the
+# second catches a sabotage that adds it under its own name instead.
+chk_unsupported_reported() {
+	local out
+	out="$(run "$1" "$WORK/fixture.json" 2>&1)"
+	printf '%s' "$out" | grep -q 'unsupported source kind' || return 1
+	! grep -q 'marketplace add .*local-market' "$LOG"; }
+chk_parse_error_installs_nothing() { run "$1" "$WORK/broken.json" >/dev/null 2>&1
+	[ "$(calls)" -eq 0 ]; }
+chk_parse_error_exits_nonzero() { ! run "$1" "$WORK/broken.json" >/dev/null 2>&1; }
+# Both halves at once. Sabotaging "installs nothing" alone is impossible: any
+# failure mode installs nothing, so a crash passes it. What must not happen is a
+# parse failure reading as an empty set and exiting 0.
+chk_parse_failure_refused() {
+	! run "$1" "$WORK/broken.json" >/dev/null 2>&1 || return 1
+	[ "$(calls)" -eq 0 ]; }
+chk_list_calls_nothing() { run "$1" "$WORK/fixture.json" --list >/dev/null 2>&1
+	[ "$(calls)" -eq 0 ]; }
+chk_failure_continues() { run "$1" "$WORK/boom.json" >/dev/null 2>&1
+	grep -q '^plugin install zzz-good@fixture-market$' "$LOG"; }
+chk_failure_exits_nonzero() { ! run "$1" "$WORK/boom.json" >/dev/null 2>&1; }
+
+REAL_SETTINGS="$HOME/.claude/settings.json"
+REAL_MTIME_BEFORE="$(stat -c %Y "$REAL_SETTINGS" 2>/dev/null || echo none)"
+
+echo "claude-restore-plugins selftest"
+
+echo
+echo "settings resolution"
+run "$SCRIPT" "$WORK/fixture.json" >/dev/null 2>&1
+assert_eq "CLAUDE_SETTINGS is read at call time" "yes" \
+	"$(grep -q 'fixture-org/fixture-market' "$LOG" && echo yes || echo no)"
+run_nocfg "$SCRIPT" >/dev/null 2>&1
+assert_eq "without it, \$HOME/.claude/settings.json is used" "yes" \
+	"$(grep -q '^plugin install from-home@fixture-market$' "$LOG" && echo yes || echo no)"
+out="$(run "$SCRIPT" "$WORK/absent.json" 2>&1)"; rc=$?
+assert_eq "a missing settings file exits non-zero" "1" "$rc"
+assert_eq "and says which path it looked for" "yes" \
+	"$(printf '%s' "$out" | grep -q 'absent.json' && echo yes || echo no)"
+
+echo
+echo "the set comes from settings, not from the script"
+# The old version carried the list in two bash arrays. These four assertions are
+# what make "derived" a fact rather than a comment.
+assert_eq "an invented marketplace is added" "yes" \
+	"$(chk_derives_market "$SCRIPT" && echo yes || echo no)"
+assert_eq "an invented plugin is installed" "yes" \
+	"$(chk_derives_plugin "$SCRIPT" && echo yes || echo no)"
+run "$SCRIPT" "$WORK/fixture.json" >/dev/null 2>&1
+assert_eq "nothing from the old hardcoded set appears" "yes" \
+	"$(grep -qE 'superpowers|ui-ux-pro-max|skill-creator|frontend-design' "$LOG" && echo no || echo yes)"
+assert_eq "the marketplace repo is taken from its source object" "yes" \
+	"$(grep -q '^plugin marketplace add fixture-org/fixture-market$' "$LOG" && echo yes || echo no)"
+
+echo
+echo "which plugins get installed"
+assert_eq "a plugin set false is skipped" "yes" \
+	"$(chk_skips_disabled "$SCRIPT" && echo yes || echo no)"
+assert_eq "a built-in marketplace's plugin is still installed" "yes" \
+	"$(chk_builtin_installed "$SCRIPT" && echo yes || echo no)"
+assert_eq "no marketplace add for the built-in one" "yes" \
+	"$(grep -q 'marketplace add builtin-directory' "$LOG" && echo no || echo yes)"
+assert_eq "an unsupported source kind is reported, not added" "yes" \
+	"$(chk_unsupported_reported "$SCRIPT" && echo yes || echo no)"
+# Adds must all precede installs: an install names its marketplace by the
+# registered key, which does not exist until the add has run.
+last_add="$(grep -n 'marketplace add' "$LOG" | tail -1 | cut -d: -f1)"
+first_install="$(grep -n 'plugin install' "$LOG" | head -1 | cut -d: -f1)"
+assert_eq "every marketplace add precedes every install" "yes" \
+	"$([ "${last_add:-0}" -lt "${first_install:-0}" ] && echo yes || echo no)"
+
+echo
+echo "failure handling"
+assert_eq "a broken settings file installs NOTHING" "yes" \
+	"$(chk_parse_error_installs_nothing "$SCRIPT" && echo yes || echo no)"
+assert_eq "and exits non-zero rather than reading as an empty set" "yes" \
+	"$(chk_parse_error_exits_nonzero "$SCRIPT" && echo yes || echo no)"
+assert_eq "one failed install does not abort the rest" "yes" \
+	"$(chk_failure_continues "$SCRIPT" && echo yes || echo no)"
+assert_eq "but the run exits non-zero" "yes" \
+	"$(chk_failure_exits_nonzero "$SCRIPT" && echo yes || echo no)"
+
+echo
+echo "arguments"
+assert_eq "--list calls the CLI zero times" "yes" \
+	"$(chk_list_calls_nothing "$SCRIPT" && echo yes || echo no)"
+run "$SCRIPT" "$WORK/fixture.json" --list >/dev/null 2>&1
+assert_eq "--list exits 0" "0" "$?"
+run "$SCRIPT" "$WORK/fixture.json" --nonsense >/dev/null 2>&1
+assert_eq "an unknown argument exits 2" "2" "$?"
+
+echo
+echo "sabotages"
+sabotage "re-hardcode the marketplace list (drop the derived rows)" \
+	's#rows.append(("M", repo, name))#pass#' chk_derives_market
+sabotage "drop the plugin rows" \
+	's#rows.append(("P", key, "builtin" if place and place not in places else "extra"))#pass#' \
+	chk_derives_plugin
+sabotage "install disabled plugins too" \
+	's#if plugins\[key\] is not True:#if False:#' chk_skips_disabled
+sabotage "skip plugins whose marketplace is not in extras" \
+	's#rows.append(("P", key, "builtin" if place and place not in places else "extra"))#rows.append(("P", key, "extra")) if not place or place in places else None#' \
+	chk_builtin_installed
+sabotage "treat an unsupported source kind as github" \
+	's#if kind == "github" and repo:#if repo or True:#' chk_unsupported_reported
+sabotage "treat a parse failure as an empty settings file" \
+	's#        settings = json.load(fh)#        settings = {}#' chk_parse_failure_refused
+sabotage "let a parse failure exit 0" \
+	's#|| { echo "refusing to continue: could not read the plugin set" >\&2; exit 1; }#|| true#' \
+	chk_parse_error_exits_nonzero
+sabotage "make --list fall through into the install loops" \
+	's#^	exit 0$#	:#' chk_list_calls_nothing
+sabotage "abort the loop on the first failed install" \
+	's#echo "  ✗ install failed: \$arg" >\&2; fail=1#exit 1#' chk_failure_continues
+sabotage "pipe the plugin loop instead of using a here-string (fail=1 lost in the subshell)" \
+	's#^done <<< "\$plan"$#done#; s#^while IFS=\$.\\t. read -r tag arg note; do$#printf "%s\\n" "$plan" | while IFS=$'"'"'\\t'"'"' read -r tag arg note; do#' \
+	chk_failure_exits_nonzero
+
+echo
+echo "safety"
+# NOT sabotage-proved, deliberately: proving it end to end would mean letting a
+# run reach the real settings file, which is the one thing this suite must never
+# do. The guard's value is that it does not try. Same reasoning as the
+# non-clickable paneless agent in tmarchy/lib/agents.js.
+REAL_MTIME_AFTER="$(stat -c %Y "$REAL_SETTINGS" 2>/dev/null || echo none)"
+assert_eq "the real settings.json was never written" "$REAL_MTIME_BEFORE" "$REAL_MTIME_AFTER"
+assert_eq "every CLI call went to the stub" "yes" \
+	"$([ -x "$STUB" ] && echo yes || echo no)"
+
+echo
+P=$(count_of pass); F=$(count_of fail)
+echo "$((P + F)) assertions: $P ok, $F FAIL"
+[ "$FAILED" -eq 0 ] || exit 1
