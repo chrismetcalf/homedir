@@ -379,7 +379,7 @@ items:
       - name: Screensaver mode (cycle)
         key: z
         command: 'run-shell -b "~/bin/tmarchy-saver-mode next"'
-      - name: Pane titles (toggle)
+      - name: Pane titles (on/always/off)
         key: p
         command: 'run-shell -b "~/bin/tmux-pane-titles toggle"'
 

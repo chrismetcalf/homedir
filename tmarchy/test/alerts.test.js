@@ -266,3 +266,31 @@ test('a trimmed entry has no clickable region', () => {
   }
   assert.ok(sawTrim, 'the sweep must include widths that actually trim')
 })
+
+// The toast's surface is the top border row now (bin/tmarchy-toast): one
+// global option, so it reaches every client at once -- but only where that row
+// is displayed. This decides who still needs the status-line copy, and both
+// directions matter: send to a client that HAS the row and the same agent is
+// announced twice, skip one that has not and it hears nothing at all.
+//
+// Sabotage: compare against 'on' instead of 'top' (pane-border-status has no
+// 'on' value, so every client would get the status line again, and anyone
+// looking at a border row would be told twice).
+test('statusLineTtys: only the clients that cannot see the border row', () => {
+  const clients = [
+    { tty: '/dev/pts/1', border: 'top' },
+    { tty: '/dev/pts/2', border: 'off' },
+    { tty: '/dev/pts/3', border: '' },
+    { tty: '/dev/pts/4', border: 'bottom' },
+  ]
+  assert.deepStrictEqual(a.statusLineTtys(clients),
+    ['/dev/pts/2', '/dev/pts/3', '/dev/pts/4'],
+    'a client with a top row is served by the row itself')
+  // bottom is deliberately NOT treated as covered: the toast format is set on
+  // the border, but a row under the pane is not "up top" and the point of the
+  // whole feature is where it appears.
+  assert.deepStrictEqual(a.statusLineTtys([]), [], 'no clients is no messages')
+  assert.deepStrictEqual(a.statusLineTtys(null), [], 'and null is not a crash')
+  assert.deepStrictEqual(a.statusLineTtys([{ border: 'off' }]), [],
+    'a client with no tty is dropped rather than sent an empty -c')
+})

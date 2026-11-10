@@ -29,6 +29,16 @@ set -uo pipefail
 
 OPT='@tmarchy-pane-titles'
 
+# The option is the LIVE value; this file is what survives a server restart --
+# the same split tmarchy's theme already uses (~/.local/state/tmarchy/theme).
+# Without it the preference is lost on every `prefix + r`, which for a host
+# running `always` means the border row silently disappears and the toasts
+# bin/tmarchy-toast writes into it stop being seen, with nothing on screen to
+# say why. Read at CALL time, and overridable so a suite never touches the
+# real one: the existing "an unset preference reads as on" assertion would
+# otherwise read whatever this host happens to have chosen.
+STATE="${TMUX_PANE_TITLES_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/tmarchy/pane-titles}"
+
 # Every tmux call goes through here, and the override is read at CALL time --
 # never captured at source time. That is the tmux-gen lesson (an override
 # resolved at source time had every test run hitting the real, billed binary),
@@ -36,17 +46,39 @@ OPT='@tmarchy-pane-titles'
 # would rewrite pane-border-status on every real window.
 tmux_cmd() { ${TMUX_PANE_TITLES_TMUX:-tmux} "$@"; }
 
-# on (default) | off. The preference is a PREFERENCE: `off` means never show
-# them, `on` means show them where they are worth a row -- it is not a promise
-# that every window has a border. Same split as the sidebar's @sidebar, where
-# width decides whether the preference is honoured right now.
+# on (default) | off | always. The preference is a PREFERENCE: `off` means
+# never show them, `on` means show them where they are worth a row -- it is not
+# a promise that every window has a border. Same split as the sidebar's
+# @sidebar, where width decides whether the preference is honoured right now.
+#
+# `always` exists for bin/tmarchy-toast: a toast is written into a row that is
+# already there, because TOGGLING the row per toast sends the pane a SIGWINCH
+# each way (measured: 20 rows -> 19 -> 20), which on a Claude pane is two full
+# redraws of the transcript. On a host where every window holds one agent, `on`
+# shows no row at all, so there would be nowhere for a toast to appear.
 pref() {
     local v
     v="$(tmux_cmd show -gv "$OPT" 2>/dev/null)"
+    # Unset means nothing has chosen yet on this server, so fall back to the
+    # persisted choice and only then to the default.
+    [ -z "$v" ] && [ -r "$STATE" ] && IFS= read -r v < "$STATE"
     case "$v" in
-        off|0|no) printf 'off' ;;
-        *)        printf 'on' ;;
+        off|0|no)     printf 'off' ;;
+        always|all|2) printf 'always' ;;
+        *)            printf 'on' ;;
     esac
+}
+
+# Written tmp-then-rename: pref() reads this file, and a half-written one
+# would be read as a preference nobody chose.
+persist() {  # persist <value>
+    local dir tmp
+    dir="$(dirname "$STATE")"
+    mkdir -p "$dir" 2>/dev/null || return 0
+    tmp="$STATE.$$"
+    printf '%s\n' "$1" > "$tmp" 2>/dev/null || return 0
+    mv -f "$tmp" "$STATE" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+    return 0
 }
 
 # Pure: the decision is a function of the preference and the pane count, so it
@@ -57,6 +89,9 @@ want_for() {  # want_for <pref> <pane-count>
     case "$n" in
         ''|*[!0-9]*) printf 'off'; return 0 ;;
     esac
+    # `always` still refuses an unparseable count above: a window we cannot
+    # measure is one we leave alone either way.
+    [ "$p" = always ] && { printf 'top'; return 0; }
     # Two panes is the first count where a border tells you something the tab
     # does not already say.
     if [ "$n" -ge 2 ]; then printf 'top'; else printf 'off'; fi
@@ -96,27 +131,37 @@ ensure() {
     apply_to "$id" "$n"
 }
 
+# Three ways round, on -> always -> off, because `on` is invisible on a host
+# where every window holds one pane: a two-state toggle there flips between
+# "nothing" and "nothing", which reads as a broken key.
+next_pref() {  # next_pref <current>
+    case "${1:-on}" in
+        on)     printf 'always' ;;
+        always) printf 'off' ;;
+        *)      printf 'on' ;;
+    esac
+}
+
 toggle() {
-    if [ "$(pref)" = on ]; then
-        tmux_cmd set-option -g "$OPT" off
-    else
-        tmux_cmd set-option -g "$OPT" on
-    fi
+    local want; want="$(next_pref "$(pref)")"
+    tmux_cmd set-option -g "$OPT" "$want"
+    persist "$want"
     sweep
     # Reported rather than silent, and it names what actually happened: a key
     # that says "on" while nothing appears reads as broken, and the next thing
     # you do about a broken key is press it again -- which turns it back off.
-    local p; p="$(pref)"
-    if [ "$p" = on ]; then
-        tmux_cmd display-message "pane titles: on (shown on windows with 2+ panes)"
-    else
-        tmux_cmd display-message "pane titles: off"
-    fi
+    case "$(pref)" in
+        on)     tmux_cmd display-message "pane titles: on (windows with 2+ panes)" ;;
+        always) tmux_cmd display-message "pane titles: always (every window -- toasts need this)" ;;
+        *)      tmux_cmd display-message "pane titles: off" ;;
+    esac
 }
 
 status() {
     printf 'pane titles\n\n'
     printf '  preference       %s  (%s)\n' "$(pref)" "$OPT"
+    printf '  persisted        %s  (%s)\n' \
+        "$([ -r "$STATE" ] && tr -d '\n' < "$STATE" || echo '(none)')" "$STATE"
     printf '  allow-set-title  %s  (off would stop Claude naming its own pane)\n' \
         "$(tmux_cmd show -gv allow-set-title 2>/dev/null)"
     printf '\n  %-12s %-7s %-6s %s\n' window panes border title
@@ -133,6 +178,9 @@ case "${1:-ensure}" in
     ensure) ensure "${2:-}" ;;
     sweep)  sweep ;;
     toggle) toggle ;;
+    # Set a mode outright, so a binding or a doctor can ask for one rather than
+    # cycling until it lands on it.
+    on|off|always) tmux_cmd set-option -g "$OPT" "$1"; persist "$1"; sweep ;;
     status) status ;;
     -h|--help)
         sed -n '4,20p' "$0" | sed 's/^# \{0,1\}//'

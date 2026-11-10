@@ -68,6 +68,22 @@ function announcePlan(states, previous, windowNames) {
   return { nextState: encodeState(waiting), text: fresh.length ? formatToast(names) : null }
 }
 
+// Which clients still need the STATUS-LINE toast. The toast's surface is now
+// the top border row (bin/tmarchy-toast), which is one global option and so
+// reaches every client at once -- but only where that row is actually
+// displayed. A client whose current window has no top border would otherwise
+// get nothing at all, and sending both to a client that HAS the row announces
+// the same agent twice, once at the top and once at the bottom.
+//
+// Pure, taking [{tty, border}] rather than asking tmux, so the rule is
+// testable: the tick is the wrong place to discover that `top` was compared
+// against the wrong string.
+function statusLineTtys(clients) {
+  return (clients || [])
+    .filter((c) => c && c.tty && c.border !== 'top')
+    .map((c) => c.tty)
+}
+
 // --- the sticky banner ------------------------------------------------------
 
 // Fold the current waiters into the accumulated list. Entries are added once,
@@ -167,6 +183,6 @@ function bannerLine(entries, inner) {
 }
 
 module.exports = {
-  newlyWaiting, encodeState, decodeState, formatToast, announcePlan,
+  newlyWaiting, encodeState, decodeState, formatToast, announcePlan, statusLineTtys,
   stickyUpdate, bannerTitle, bannerEntries, bannerLine, bannerLayout, ago,
 }

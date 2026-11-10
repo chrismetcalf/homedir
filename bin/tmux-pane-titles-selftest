@@ -48,6 +48,12 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+# The preference is persisted now, so the suite needs its own file: reading
+# the real one makes "unset reads as on" depend on what this host last chose,
+# and writing it would change the user's live display from a test run.
+TMUX_PANE_TITLES_STATE="$(mktemp)"; rm -f "$TMUX_PANE_TITLES_STATE"
+export TMUX_PANE_TITLES_STATE
+
 echo "tmux-pane-titles selftest"
 
 echo "the gate (pure, no server)"
@@ -63,7 +69,23 @@ echo "the gate (pure, no server)"
   # nowhere. The sidebar fails OPEN for the same reason in reverse: degrading
   # to what the host did before the feature existed.
   assert_eq "a nonsense count falls back to no border" "off" "$(want_for on x)"
-  assert_eq "an empty count falls back to no border"   "off" "$(want_for on '')" )
+  assert_eq "an empty count falls back to no border"   "off" "$(want_for on '')"
+  # `always` exists for bin/tmarchy-toast: a toast is written into a row that
+  # is already there, because toggling the row per toast sends the pane a
+  # SIGWINCH each way (measured, 20 -> 19 -> 20) -- two full redraws of a
+  # Claude transcript per notification. On a host where every window holds one
+  # agent, `on` shows no row at all and a toast would never be seen.
+  assert_eq "always gives a single pane a border"  "top" "$(want_for always 1)"
+  assert_eq "always covers a bare window too"      "top" "$(want_for always 0)"
+  assert_eq "always still refuses a nonsense count" "off" "$(want_for always x)"
+  assert_eq "off still beats always"               "off" "$(want_for off 5)"
+  # Three ways round: on -> off would flip between "nothing" and "nothing" on
+  # a single-pane host, and a key that reports success while nothing appears
+  # reads as broken -- the next thing you do about it is press it again.
+  assert_eq "the toggle cycles on -> always"  "always" "$(next_pref on)"
+  assert_eq "then always -> off"              "off"    "$(next_pref always)"
+  assert_eq "then off -> on"                  "on"     "$(next_pref off)"
+  assert_eq "and an unknown value lands on on" "on"    "$(next_pref wat)" )
 
 echo "server: one window at a time"
 TM -f /dev/null new-session -d -x 80 -y 20 -s "$SESS" >/dev/null 2>&1
@@ -113,6 +135,34 @@ assert_eq "off removes the border from a split window" "off" "$(border_of "$W2")
 TM set-option -g '@tmarchy-pane-titles' on
 "$SCRIPT" sweep
 assert_eq "on brings it back without a second keypress" "top" "$(border_of "$W2")"
+# The mode that makes toasts visible, against a real server rather than the
+# pure gate: W1 is the single-pane window.
+TM set-option -g '@tmarchy-pane-titles' always
+"$SCRIPT" sweep
+assert_eq "always gives the single-pane window a row" "top" "$(border_of "$W1")"
+assert_eq "and keeps the split one" "top" "$(border_of "$W2")"
+TM set-option -g '@tmarchy-pane-titles' on
+"$SCRIPT" sweep
+assert_eq "back to on, the single-pane window loses it again" "off" "$(border_of "$W1")"
+# Set outright rather than cycled, so a binding or a doctor can ask for a mode.
+"$SCRIPT" always
+assert_eq "the always subcommand sets and sweeps" "top" "$(border_of "$W1")"
+
+echo "server: the preference survives a restart"
+# The option lives in the server and dies with it. A host running `always`
+# would silently lose its border row on every prefix + r -- and with it the
+# row bin/tmarchy-toast writes into, with nothing on screen to say why.
+assert_eq "setting a mode persists it" "always" "$(cat "$TMUX_PANE_TITLES_STATE")"
+TM set-option -gu '@tmarchy-pane-titles' 2>/dev/null
+assert_eq "an unset option falls back to the persisted choice" "always" \
+    "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; pref' "$SCRIPT")"
+"$SCRIPT" sweep
+assert_eq "so the row comes back without being asked twice" "top" "$(border_of "$W1")"
+rm -f "$TMUX_PANE_TITLES_STATE"
+TM set-option -gu '@tmarchy-pane-titles' 2>/dev/null
+assert_eq "with no file and no option it is on" "on" \
+    "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; pref' "$SCRIPT")"
+"$SCRIPT" on
 
 echo "server: status reports rather than changes"
 BEFORE="$(border_of "$W2")"
@@ -166,6 +216,21 @@ chk_pref_defaults_on() {
     TM set-option -gu '@tmarchy-pane-titles' 2>/dev/null
     [ "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; pref' "$1")" = on ]
 }
+chk_always_shows_one_pane() {
+    [ "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; want_for always 1' "$1")" = top ]
+}
+chk_toggle_cycles() {
+    [ "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; next_pref on' "$1")" = always ]
+}
+chk_pref_falls_back_to_file() {
+    local f out
+    f="$(mktemp)"; printf 'always\n' > "$f"
+    TM set-option -gu '@tmarchy-pane-titles' 2>/dev/null
+    out="$(TMUX_PANE_TITLES_LIB=1 TMUX_PANE_TITLES_STATE="$f" \
+        bash -c '. "$0"; pref' "$1")"
+    rm -f "$f"
+    [ "$out" = always ]
+}
 
 sabotage "the two-pane gate stops gating" \
     's#if \[ "$n" -ge 2 \]#if [ "$n" -ge 0 ]#' chk_gate_holds
@@ -174,7 +239,21 @@ sabotage "the option is set globally instead of per window" \
 sabotage "the sweep goes back to being session-scoped" \
     's#list-windows -a -F #list-windows -F #' chk_sweep_is_server_wide
 sabotage "an unset preference reads as off" \
-    's#\*)        printf .on. ;;#*)        printf "off" ;;#' chk_pref_defaults_on
+    's#\*)            printf .on. ;;#*)            printf "off" ;;#' chk_pref_defaults_on
+# `always` is what makes the row exist on a single-pane window, which is the
+# only place bin/tmarchy-toast has to draw: with `on` and one agent per window
+# there is no row anywhere, so a toast would be written and never seen.
+sabotage "always stops overriding the two-pane gate" \
+    's#\[ "$p" = always \] && { printf .top.; return 0; }##' chk_always_shows_one_pane
+# Three ways round, because on -> off on this host flips between "nothing" and
+# "nothing" -- a key that appears broken is one you press again.
+sabotage "the toggle goes back to two states" \
+    "s#on)     printf 'always' ;;#on)     printf 'off' ;;#" chk_toggle_cycles
+# Lose this and the preference is forgotten on every server restart: the row
+# vanishes and the toasts written into it stop being seen.
+sabotage "the persisted preference stops being read" \
+    's#\[ -z "$v" \] && \[ -r "$STATE" \] && IFS= read -r v < "$STATE"##' \
+    chk_pref_falls_back_to_file
 
 printf '\n'
 [ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }

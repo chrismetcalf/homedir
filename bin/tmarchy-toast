@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# tmarchy-toast — a transient alert on the TOP BORDER ROW of the active pane.
+#
+# "herdr style toasts, but up top like the screensaver", and the surface was
+# forced rather than chosen. The three things tmux can draw at the top:
+#
+#   - display-popup is the only true floating box, and it is modal. Measured
+#     through a real pty master (a `printf > $tty` writes OUTPUT, not input, so
+#     the first version of that harness proved nothing): a key typed while a
+#     popup is up is SWALLOWED and gone for good, not queued. The man page adds
+#     that panes stop updating while one is present. A notification that fires
+#     because an agent wants you, and that eats what you were typing in another
+#     agent's pane, is the wrong trade.
+#   - a second status line cannot be at the top while the bar is at the bottom:
+#     status-position is one global option for every status line.
+#   - the pane border row CAN be at the top, costs no input and freezes
+#     nothing. That is this.
+#
+# The row is not free -- pane-border-status top takes a 20-row window to 19 --
+# and toggling it per toast sends the pane a real SIGWINCH each way (measured:
+# WINCH to 19, WINCH back to 20), which on a Claude pane is two full redraws of
+# the transcript. So this never toggles the row: it writes into a row that is
+# already there, which is what `tmux-pane-titles always` is for.
+#
+#   show <text> [--dwell N]   raise it (bumps the generation, rings the bell)
+#   expire <gen>              sleep, then clear IF that generation still owns it
+#   clear                     clear it now
+#   status                    what is up, for how long, and whether it is visible
+#
+# Sourced with TMARCHY_TOAST_LIB=1 it defines its functions and exits, so the
+# pure parts are testable with no tmux server.
+set -uo pipefail
+
+OPT='@tmarchy-toast'
+GEN_OPT='@tmarchy-toast-gen'
+DWELL_OPT='@tmarchy-toast-dwell'
+BELL_OPT='@tmarchy-toast-bell'
+DWELL_DEFAULT=6
+DWELL_MAX=60
+
+# Read at CALL time, never captured at source time -- the tmux-gen lesson, and
+# here the stake is the live server: a suite that escaped onto it would be
+# writing @tmarchy-toast over the user's own border rows.
+tmux_cmd() { ${TMARCHY_TOAST_TMUX:-tmux} "$@"; }
+
+# The text carries WINDOW NAMES, which are not ours: a worktree name, an ssh
+# host, whatever Claude Code called its session. Two things are stripped.
+#
+# Control bytes, because the value is written to a tmux option and rendered on
+# every redraw -- an ESC there would be an escape sequence straight to the
+# terminal, the same reasoning as tmux-gen's and tmux-files' gates.
+#
+# And the `#` of a `#[`, because a style directive that arrives by SUBSTITUTION
+# is still parsed when the row is drawn, so a window named `#[fg=red]` could
+# restyle the row. Only `#[` -- `#5` in a name is fine, and a `#(...)` needs no
+# handling at all: an option value is NOT expanded recursively, which was
+# measured rather than assumed (`#(touch <file>)` as the toast text left no
+# file behind after three redraws, and `#{pane_title}` came back verbatim).
+sanitise() {
+    local t="${1:-}"
+    t="$(printf '%s' "$t" | tr -d '[:cntrl:]')"
+    printf '%s' "${t//'#['/'['}"
+}
+
+# Digits, within bounds, or the default. A garbage option must not mean "no
+# toast ever" or "a toast that never goes away".
+dwell() {
+    local v
+    v="$(tmux_cmd show -gv "$DWELL_OPT" 2>/dev/null)"
+    case "$v" in
+        ''|*[!0-9]*) printf '%s' "$DWELL_DEFAULT"; return 0 ;;
+    esac
+    [ "$v" -lt 1 ] && { printf '%s' "$DWELL_DEFAULT"; return 0; }
+    [ "$v" -gt "$DWELL_MAX" ] && { printf '%s' "$DWELL_MAX"; return 0; }
+    printf '%s' "$v"
+}
+
+# On by default: the bell was asked for on wait. Off is one set-option away,
+# because a bell is the part of a notification most likely to be unwelcome in
+# someone else's room.
+bell_wanted() {
+    local v
+    v="$(tmux_cmd show -gv "$BELL_OPT" 2>/dev/null)"
+    case "$v" in
+        off|0|no|false) printf 'off' ;;
+        *)              printf 'on' ;;
+    esac
+}
+
+# A generation, not a timestamp: two toasts a second apart would share a
+# timestamp at one-second resolution, and the whole job of this number is to
+# tell them apart so an early expiry cannot clear a later toast.
+next_gen() {
+    local v
+    v="$(tmux_cmd show -gv "$GEN_OPT" 2>/dev/null)"
+    case "$v" in
+        ''|*[!0-9]*) printf '1' ;;
+        *)           printf '%s' $((v + 1)) ;;
+    esac
+}
+
+cur_gen() {
+    local v
+    v="$(tmux_cmd show -gv "$GEN_OPT" 2>/dev/null)"
+    case "$v" in
+        ''|*[!0-9]*) printf '0' ;;
+        *)           printf '%s' "$v" ;;
+    esac
+}
+
+# A BEL byte is output, not input, so writing it to a client's tty is safe and
+# changes no cell on screen -- the same shape .claude/shellfish-notify.sh uses
+# to get an OSC sequence to the terminal. Every attached client, because the
+# one you are sitting at is not knowable from here.
+ring() {
+    [ "$(bell_wanted)" = on ] || return 0
+    local tty
+    while IFS= read -r tty; do
+        [ -n "$tty" ] || continue
+        printf '\a' > "$tty" 2>/dev/null || true
+    done <<< "$(tmux_cmd list-clients -F '#{client_tty}' 2>/dev/null)"
+    return 0
+}
+
+show() {
+    local text g
+    text="$(sanitise "${1:-}")"
+    # Nothing to say is not an error, but it must not blank a live toast
+    # either: that would make an empty announcement act as a `clear`.
+    [ -n "$text" ] || { printf 'tmarchy-toast: refusing an empty toast\n' >&2; return 2; }
+    g="$(next_gen)"
+    # Generation FIRST, text second. The other order leaves a window in which
+    # a pending expiry from the previous toast sees its own generation still
+    # current and clears the new text immediately.
+    tmux_cmd set-option -g "$GEN_OPT" "$g" 2>/dev/null
+    tmux_cmd set-option -g "$OPT" "$text" 2>/dev/null
+    ring
+    # The timer is a backgrounded subshell of THIS script, not `run-shell -b`.
+    # run-shell's argument is format-expanded and would need this script's path
+    # interpolated into a shell string -- the two hazards tmux-files paid for.
+    # A function call needs neither.
+    #
+    # Both streams are redirected, and that is load-bearing rather than tidy:
+    # the caller is tmarchy-tick, which runs this through execSync, and a
+    # background child holding the inherited stdout pipe open would make the
+    # TICK block for the whole dwell.
+    ( expire "$g" ) >/dev/null 2>&1 </dev/null &
+    disown 2>/dev/null || true
+    return 0
+}
+
+# Sleep, THEN check. The check has to happen after the wait, because the whole
+# point is to notice a toast raised while we were asleep -- checking first and
+# clearing blindly afterwards is the bug this guards against.
+expire() {
+    local g="${1:-}" n
+    case "$g" in ''|*[!0-9]*) return 2 ;; esac
+    n="$(dwell)"
+    sleep "$n"
+    [ "$(cur_gen)" = "$g" ] || return 0
+    clear
+}
+
+clear() { tmux_cmd set-option -g "$OPT" '' 2>/dev/null; return 0; }
+
+# A toast written to a row that is not displayed is invisible, and on screen
+# that looks exactly like no toast at all -- so this says which it is.
+status() {
+    local up n
+    up="$(tmux_cmd show -gv "$OPT" 2>/dev/null)"
+    printf 'tmarchy-toast\n\n'
+    printf '  showing      %s\n' "${up:-(nothing)}"
+    printf '  generation   %s\n' "$(cur_gen)"
+    printf '  dwell        %ss  (%s)\n' "$(dwell)" "$DWELL_OPT"
+    printf '  bell         %s  (%s)\n' "$(bell_wanted)" "$BELL_OPT"
+    n="$(tmux_cmd list-windows -a -F '#{pane-border-status}' 2>/dev/null | grep -c '^top$')"
+    printf '  rows visible %s window(s) with a top border\n' "$n"
+    if [ "$n" = 0 ]; then
+        printf '\n  Nothing would be seen: no window has pane-border-status top.\n'
+        printf '  Turn the row on with `tmux-pane-titles always`.\n'
+    fi
+    printf '\n  pane titles  %s  (@tmarchy-pane-titles)\n' \
+        "$(tmux_cmd show -gv @tmarchy-pane-titles 2>/dev/null || echo unset)"
+}
+
+[ "${TMARCHY_TOAST_LIB:-}" = "1" ] && return 0
+
+case "${1:-status}" in
+    show)   shift
+            TEXT=""
+            while [ $# -gt 0 ]; do
+                case "$1" in
+                    --dwell)   tmux_cmd set-option -g "$DWELL_OPT" "${2:-}" 2>/dev/null; shift 2 ;;
+                    --dwell=*) tmux_cmd set-option -g "$DWELL_OPT" "${1#--dwell=}" 2>/dev/null; shift ;;
+                    *)         TEXT="$1"; shift ;;
+                esac
+            done
+            show "$TEXT" ;;
+    expire) expire "${2:-}" ;;
+    clear)  clear ;;
+    status) status ;;
+    -h|--help) sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) printf 'tmarchy-toast: unknown command: %s\n' "$1" >&2; exit 2 ;;
+esac

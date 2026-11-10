@@ -9,6 +9,7 @@
 // Renamed from bin/tmux-scout-window-tint; its per-window scout logic now lives
 // in lib/scout.js and still colours the tabs exactly as it did.
 const path = require('node:path')
+const { execFileSync } = require('node:child_process')
 const { setOptions } = require('../lib/tmux')
 const { loadSegments, renderSegments } = require('../lib/segments')
 const { currentContext, allWindows, allPanes, hasContext } = require('../lib/context')
@@ -16,7 +17,7 @@ const { sshHostUnder } = require('../segments.d/remote')
 const { renamePlan, planToOps } = require('../lib/ssh-name')
 const { scoutStates, scoutSubagents } = require('../lib/scout')
 const { tmux } = require('../lib/tmux')
-const { decodeState, announcePlan } = require('../lib/alerts')
+const { decodeState, announcePlan, statusLineTtys } = require('../lib/alerts')
 
 // How long the toast sits in the status line. Long enough to read across the
 // room, short enough not to hide the bar you were looking at.
@@ -41,10 +42,35 @@ function announcePlan_(states, windowNames) {
     decodeState(tmux(['show-option', '-gqv', '@alert-waiting'])), windowNames)
 }
 
+// The toast's surface is now the TOP BORDER ROW of the active pane -- "up top
+// like the screensaver" -- which bin/tmarchy-toast owns: it is one global
+// option that bar.conf's pane-border-format branches on, plus a generation and
+// a timer. Shelled out to rather than reimplemented here so the generation
+// guard, the bell and the sanitising have exactly one definition; it costs one
+// fork per alert EDGE, never per tick.
+const TOAST_BIN = process.env.TMARCHY_TOAST_BIN
+  || path.join(__dirname, '..', '..', 'bin', 'tmarchy-toast')
+
 function announce(text) {
+  try {
+    execFileSync(TOAST_BIN, ['show', text], { stdio: ['ignore', 'ignore', 'ignore'] })
+  } catch {
+    // A missing or failing toast tool must not cost the fallback below.
+  }
+  // The status line stays, but ONLY for clients that cannot see the row: with
+  // the border on, sending both would announce the same agent twice, once at
+  // the top and once at the bottom. A client whose current window has no top
+  // border would otherwise get nothing at all.
   const ttys = tmux(['list-clients', '-F', '#{client_tty}']).trim().split('\n').filter(Boolean)
+  // One query per client, and only on an alert edge -- #{pane-border-status}
+  // with -c resolves in that client's current window, which is the only
+  // window whose row it could read.
+  const clients = ttys.map((tty) => ({
+    tty,
+    border: tmux(['display-message', '-p', '-c', tty, '#{pane-border-status}']).trim(),
+  }))
   const argv = []
-  for (const tty of ttys) {
+  for (const tty of statusLineTtys(clients)) {
     if (argv.length) argv.push(';')
     argv.push('display-message', '-c', tty, '-d', String(TOAST_MS), text)
   }

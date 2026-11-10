@@ -1,0 +1,317 @@
+#!/usr/bin/env bash
+# tmarchy-toast-selftest — the toast on the top border row.
+#
+# Three layers, because three different things can be wrong:
+#
+#   1. the pure parts (sanitising, dwell, bell, generations) with no server;
+#   2. the FORMAT, expanded by a real tmux from the line grepped out of
+#      bar.conf -- never a retyped copy, because a reconstruction would keep
+#      passing after the real one broke, and this format has already broken
+#      once in a way nothing else would have caught (see the comma trap below);
+#   3. the row actually reaching a client's screen, which needs a real pty:
+#      `capture-pane` cannot see a border row at all (verified -- it returns
+#      nothing for that row).
+#
+# Every tmux call the tool makes is diverted to a throwaway socket through
+# TMARCHY_TOAST_TMUX, read at CALL time. The stake is the live server: a suite
+# that escaped onto it would be writing @tmarchy-toast over real border rows.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$DIR/.." && pwd)"
+TOAST="$DIR/tmarchy-toast"
+BARCONF="$REPO/tmarchy/bar.conf"
+FAILED=0
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_contains() { case "$3" in *"$2"*) pass "$1" ;; *) fail "$1" "to contain: $2" "$3" ;; esac; }
+assert_lacks() { case "$3" in *"$2"*) fail "$1" "NOT to contain: $2" "$3" ;; *) pass "$1" ;; esac; }
+
+SOCK="toast-selftest-$$"
+TT() { /usr/bin/tmux -L "$SOCK" "$@"; }
+export TMARCHY_TOAST_TMUX="/usr/bin/tmux -L $SOCK"
+
+cleanup() {
+    # Only a server whose EVERY session is one of ours, checked per session --
+    # the exact-match guard bin/tmux-pane-titles-selftest shipped with left a
+    # stray server behind the first time it needed a second session.
+    local s all_ours=1
+    while IFS= read -r s; do
+        [ -n "$s" ] || continue
+        case "$s" in toast-selftest-*) ;; *) all_ours=0 ;; esac
+    done <<< "$(TT list-sessions -F '#{session_name}' 2>/dev/null)"
+    [ "$all_ours" = 1 ] && TT kill-server 2>/dev/null
+    rm -f "/tmp/tmux-$(id -u)/$SOCK" 2>/dev/null
+}
+trap cleanup EXIT
+
+echo "the pure parts"
+# shellcheck source=tmarchy-toast
+TMARCHY_TOAST_LIB=1 . "$TOAST"
+
+# The text carries window names, which are not ours. A control byte would be
+# written into an option that is rendered on every redraw, i.e. an escape
+# sequence straight to the terminal -- tmux-gen's and tmux-files' reasoning.
+assert_eq "a tab is stripped" "ab" "$(sanitise "$(printf 'a\tb')")"
+assert_eq "an ESC is stripped" "ab" "$(sanitise "$(printf 'a\033b')")"
+assert_eq "a CR is stripped" "ab" "$(sanitise "$(printf 'a\rb')")"
+# A style directive that arrives by SUBSTITUTION is still parsed when the row
+# is drawn, so a window named #[fg=red] could restyle it.
+assert_eq "a style directive is defused" "[fg=red]x" "$(sanitise '#[fg=red]x')"
+# ...but only that sequence: a # in a name is ordinary text, and #(...) needs
+# no handling because an option value is not expanded recursively -- measured,
+# not assumed: `#(touch <file>)` as the toast left no file after three redraws.
+assert_eq "an ordinary hash survives" "window #5" "$(sanitise 'window #5')"
+assert_eq "a shell-out needs no defusing" "#(id)" "$(sanitise '#(id)')"
+assert_eq "plain text is untouched" "otto needs you" "$(sanitise 'otto needs you')"
+
+TT -f /dev/null new-session -d -s "$SOCK" -n w -x 80 -y 20 cat 2>/dev/null \
+    || { echo "  skip (could not start a throwaway server)"; exit 0; }
+
+# A garbage option must not mean "no toast ever" or "one that never leaves".
+assert_eq "dwell defaults to 6" "6" "$(dwell)"
+TT set -g @tmarchy-toast-dwell 9; assert_eq "dwell honours a sane value" "9" "$(dwell)"
+TT set -g @tmarchy-toast-dwell 0; assert_eq "dwell refuses 0" "6" "$(dwell)"
+TT set -g @tmarchy-toast-dwell abc; assert_eq "dwell refuses garbage" "6" "$(dwell)"
+TT set -g @tmarchy-toast-dwell 9999; assert_eq "dwell is capped" "60" "$(dwell)"
+TT set -g @tmarchy-toast-dwell 3
+
+assert_eq "the bell is on by default" "on" "$(bell_wanted)"
+TT set -g @tmarchy-toast-bell off; assert_eq "and off when asked" "off" "$(bell_wanted)"
+TT set -g @tmarchy-toast-bell on
+
+# A generation, not a timestamp: two toasts a second apart would share a
+# timestamp at one-second resolution, and telling them apart is the whole job.
+TT set -g @tmarchy-toast-gen ''
+assert_eq "an unset generation starts at 1" "1" "$(next_gen)"
+TT set -g @tmarchy-toast-gen junk
+assert_eq "a garbage generation starts at 1" "1" "$(next_gen)"
+assert_eq "and reads as 0" "0" "$(cur_gen)"
+TT set -g @tmarchy-toast-gen 7
+assert_eq "it increments" "8" "$(next_gen)"
+
+echo "raising and clearing"
+TT set -g @tmarchy-toast-gen 0
+TT set -g @tmarchy-toast ''
+"$TOAST" show 'otto needs you' >/dev/null
+assert_eq "show sets the option" "otto needs you" "$(TT show -gv @tmarchy-toast)"
+assert_eq "and bumps the generation" "1" "$(TT show -gv @tmarchy-toast-gen)"
+"$TOAST" show 'home-assistant needs you' >/dev/null
+assert_eq "a second toast replaces the text" "home-assistant needs you" \
+    "$(TT show -gv @tmarchy-toast)"
+assert_eq "and bumps the generation again" "2" "$(TT show -gv @tmarchy-toast-gen)"
+# Nothing to say must not act as a clear.
+OUT="$("$TOAST" show '' 2>&1)"; RC=$?
+assert_eq "an empty toast is refused" "2" "$RC"
+assert_contains "and says so" "refusing an empty toast" "$OUT"
+assert_eq "and the live toast is untouched" "home-assistant needs you" \
+    "$(TT show -gv @tmarchy-toast)"
+"$TOAST" clear
+assert_eq "clear empties it" "" "$(TT show -gv @tmarchy-toast)"
+
+echo "the generation guard"
+# Set by hand, so no background timer is in play: with a real `show` the
+# toast's own expiry fires during the test's own sleep and everything looks
+# cleared for the wrong reason (which is how the first draft of this check
+# "passed").
+TT set -g @tmarchy-toast 'live toast'
+TT set -g @tmarchy-toast-gen 7
+TT set -g @tmarchy-toast-dwell 1
+"$TOAST" expire 5
+assert_eq "a stale expiry leaves a newer toast alone" "live toast" \
+    "$(TT show -gv @tmarchy-toast)"
+"$TOAST" expire 7
+assert_eq "its own expiry clears it" "" "$(TT show -gv @tmarchy-toast)"
+TT set -g @tmarchy-toast 'still here'
+"$TOAST" expire '' 2>/dev/null; RC=$?
+assert_eq "a non-numeric generation exits 2" "2" "$RC"
+assert_eq "and changes nothing" "still here" "$(TT show -gv @tmarchy-toast)"
+"$TOAST" clear
+
+# The caller is tmarchy-tick, through execSync. A background child holding the
+# inherited stdout pipe open would block the TICK for the whole dwell -- and
+# the bar with it. $( ) makes stdout a pipe here, which is exactly that case.
+TT set -g @tmarchy-toast-dwell 30
+START=$(date +%s)
+_=$("$TOAST" show 'timing check')
+END=$(date +%s)
+[ $((END - START)) -lt 5 ] \
+    && pass "show returns immediately even with a 30s dwell" \
+    || fail "show returns immediately even with a 30s dwell" "<5s" "$((END - START))s"
+TT set -g @tmarchy-toast-dwell 3
+"$TOAST" clear
+
+echo "the real format, expanded by tmux"
+# Grepped out of bar.conf and expanded, never retyped. The comma trap is why:
+# #{?cond,a,b} splits its arms on commas, and a bare comma inside #[...] is
+# one of them -- so `#[fg=x,bold]` cut the arm in half and the toast text
+# landed in the ELSE branch, rendering nothing at all. A reconstruction in this
+# file would have been written correctly and proved nothing.
+FMT="$(grep -m1 '^set -g pane-border-format' "$BARCONF" | sed -e 's/^set -g pane-border-format "//' -e 's/"$//')"
+[ -n "$FMT" ] && pass "the format line is in bar.conf" \
+    || fail "the format line is in bar.conf" "a set -g pane-border-format line" "nothing"
+TT set -g pane-border-format "$FMT"
+for kv in "@theme-border colour240" "@theme-accent colour33" \
+          "@theme-dim colour245" "@theme-wait colour203"; do
+    TT set -g ${kv% *} ${kv#* }
+done
+TT set -w -t "$SOCK:w" pane-border-status top
+TT select-pane -t "$SOCK:w" -T 'PANE TITLE'
+
+TT set -g @tmarchy-toast ''
+EXP_OFF="$(TT display-message -p -t "$SOCK:w" '#{E:pane-border-format}')"
+assert_contains "with no toast the row shows the pane title" "PANE TITLE" "$EXP_OFF"
+TT set -g @tmarchy-toast 'TOASTTEXT needs you'
+EXP_ON="$(TT display-message -p -t "$SOCK:w" '#{E:pane-border-format}')"
+assert_contains "with a toast up the row shows the toast" "TOASTTEXT needs you" "$EXP_ON"
+assert_lacks "and not the title as well" "PANE TITLE" "$EXP_ON"
+assert_contains "painted in the theme's wait colour" "colour203" "$EXP_ON"
+
+# A global toast rendered per pane would repeat itself once per pane of a
+# split, so the format gates on pane_active. The inactive pane keeps its title.
+TT split-window -d -t "$SOCK:w"
+ACTIVE="$(TT list-panes -t "$SOCK:w" -F '#{pane_active}#{E:pane-border-format}' | grep '^1')"
+INACTIVE="$(TT list-panes -t "$SOCK:w" -F '#{pane_active}#{E:pane-border-format}' | grep '^0')"
+assert_contains "a split window toasts on the active pane" "TOASTTEXT" "$ACTIVE"
+assert_lacks "and not on the others" "TOASTTEXT" "$INACTIVE"
+TT kill-pane -t "$SOCK:w.1" 2>/dev/null
+
+echo "status reports whether anything would be seen"
+# A toast written to a row that is not displayed is invisible, and on screen
+# that is indistinguishable from no toast at all.
+assert_contains "it counts the windows with a row" "1 window(s)" "$("$TOAST" status)"
+TT set -w -t "$SOCK:w" pane-border-status off
+ST="$("$TOAST" status)"
+assert_contains "and says plainly when there are none" "Nothing would be seen" "$ST"
+assert_contains "naming the command that fixes it" "tmux-pane-titles always" "$ST"
+TT set -w -t "$SOCK:w" pane-border-status top
+
+echo "on a real client's screen"
+# capture-pane cannot see a border row, so this needs a pty. Searching the
+# TAIL of a pty stream is not searching the stream -- a first version of this
+# check looked at the last 60 characters and concluded a cleared toast lingers
+# on screen, which is simply false.
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "  skip (no python3)"
+else
+    PTY_OUT="$(python3 - "$SOCK" <<'PY'
+import os, pty, struct, fcntl, termios, subprocess, sys, time
+sock = sys.argv[1]; TMUX = "/usr/bin/tmux"
+def tt(*a): subprocess.run([TMUX, "-L", sock] + list(a), capture_output=True)
+tt("set", "-g", "status", "off")
+m, s = pty.openpty()
+fcntl.ioctl(s, termios.TIOCSWINSZ, struct.pack("HHHH", 20, 80, 0, 0))
+os.set_blocking(m, False)
+p = subprocess.Popen([TMUX, "-L", sock, "attach", "-t", sock],
+                     stdin=s, stdout=s, stderr=s,
+                     env=dict(os.environ, TERM="xterm-256color"))
+def drain(t=1.2):
+    out = b""; end = time.time() + t
+    while time.time() < end:
+        try: out += os.read(m, 65536)
+        except BlockingIOError: time.sleep(0.05)
+    return out.decode("utf-8", "replace")
+time.sleep(2); drain()
+tt("set", "-g", "@tmarchy-toast", "SCREENTOAST")
+shown = drain()
+tt("set", "-g", "@tmarchy-toast", "")
+back = drain()
+p.terminate()
+print("drawn=%s reverted=%s" % ("SCREENTOAST" in shown, "PANE TITLE" in back))
+PY
+)"
+    assert_contains "the toast reaches the client's screen" "drawn=True" "$PTY_OUT"
+    # Setting the option repaints the row; so does clearing it. Neither needs a
+    # refresh-client, which was worth knowing -- a toast that lingered after
+    # expiry would have been the headline bug of this feature.
+    assert_contains "and clearing it repaints the title" "reverted=True" "$PTY_OUT"
+fi
+
+echo "sabotage proofs"
+sabotage() {
+    local file="$1" label="$2" expr="$3" fn="$4" broken
+    broken="$(mktemp)"; sed "$expr" "$file" > "$broken"; chmod +x "$broken"
+    if cmp -s "$broken" "$file"; then
+        fail "sabotage '$label' changed nothing" "a modified copy" "byte-identical file"
+        rm -f "$broken"; return
+    fi
+    if "$fn" "$broken" >/dev/null 2>&1; then
+        fail "sabotage not caught: $label" "the check fails against broken code" "it passed"
+    else
+        pass "sabotage caught: $label"
+    fi
+    rm -f "$broken"
+}
+
+# Each check asserts something POSITIVE about the broken copy -- an exact
+# value, a count, a present marker -- because a check that asserts only an
+# absence is satisfied by a copy that merely crashed.
+chk_guard_holds() {
+    TT set -g @tmarchy-toast 'guard probe'
+    TT set -g @tmarchy-toast-gen 42
+    "$1" expire 11 >/dev/null 2>&1
+    [ "$(TT show -gv @tmarchy-toast)" = "guard probe" ]
+}
+chk_sanitises() {
+    local out
+    out="$(TMARCHY_TOAST_LIB=1; . "$1" 2>/dev/null; sanitise "$(printf 'a\033b')")"
+    [ "$out" = "ab" ]
+}
+chk_show_is_async() {
+    local s e
+    TT set -g @tmarchy-toast-dwell 30
+    s=$(date +%s); _=$(timeout 8 "$1" show 'async probe'); e=$(date +%s)
+    TT set -g @tmarchy-toast-dwell 3
+    [ $((e - s)) -lt 5 ] && [ "$(TT show -gv @tmarchy-toast)" = "async probe" ]
+}
+chk_format_shows_toast() {
+    local fmt exp
+    fmt="$(grep -m1 '^set -g pane-border-format' "$1" | sed -e 's/^set -g pane-border-format "//' -e 's/"$//')"
+    # No line at all means the sabotage mangled the file rather than breaking
+    # the format. Report PASSED, i.e. "not caught", so it is investigated --
+    # never silently judged against the format still set on the server.
+    [ -n "$fmt" ] || return 0
+    TT set -g pane-border-format "$fmt"
+    TT set -g @tmarchy-toast 'TOASTTEXT needs you'
+    exp="$(TT display-message -p -t "$SOCK:w" '#{E:pane-border-format}')"
+    TT set -g pane-border-format "$FMT"
+    case "$exp" in *"TOASTTEXT needs you"*) return 0 ;; esac
+    return 1
+}
+chk_only_active_pane() {
+    local fmt inactive
+    fmt="$(grep -m1 '^set -g pane-border-format' "$1" | sed -e 's/^set -g pane-border-format "//' -e 's/"$//')"
+    # No line at all means the sabotage mangled the file rather than breaking
+    # the format. Report PASSED, i.e. "not caught", so it is investigated --
+    # never silently judged against the format still set on the server.
+    [ -n "$fmt" ] || return 0
+    TT set -g pane-border-format "$fmt"
+    TT set -g @tmarchy-toast 'TOASTTEXT needs you'
+    TT split-window -d -t "$SOCK:w"
+    inactive="$(TT list-panes -t "$SOCK:w" -F '#{pane_active}#{E:pane-border-format}' | grep '^0')"
+    TT kill-pane -t "$SOCK:w.1" 2>/dev/null
+    TT set -g pane-border-format "$FMT"
+    case "$inactive" in *TOASTTEXT*) return 1 ;; esac
+    [ -n "$inactive" ]
+}
+
+# THE bug this guard exists for: a short toast's expiry clearing the row out
+# from under a toast raised a moment later.
+sabotage "$TOAST" "a stale expiry clears a newer toast" \
+    's#\[ "$(cur_gen)" = "$g" \] || return 0##' chk_guard_holds
+sabotage "$TOAST" "the text stops being sanitised" \
+    "s#tr -d '\\[:cntrl:\\]'#cat#" chk_sanitises
+# Lose the redirection and the background child holds the caller's stdout pipe
+# open, which blocks tmarchy-tick -- and the whole bar -- for the dwell.
+sabotage "$TOAST" "the timer holds the caller's stdout open" \
+    's#) >/dev/null 2>&1 </dev/null &#) \&#' chk_show_is_async
+# The comma trap, pinned against bar.conf itself.
+sabotage "$BARCONF" "the toast style is one #[fg=...,bold] directive" \
+    's|#\[fg=#{@theme-wait}\]#\[bold\]|#[fg=#{@theme-wait},bold]|' chk_format_shows_toast
+sabotage "$BARCONF" "the toast is not gated on the active pane" \
+    's|#{&&:#{pane_active},#{@tmarchy-toast}}|#{@tmarchy-toast}|' chk_only_active_pane
+
+printf '\n'
+[ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
+printf 'FAILURES\n'; exit 1
