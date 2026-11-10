@@ -135,9 +135,16 @@ state_decor() {
     esac
 }
 
+# Emission order is sessions, PANES, then windows, and the pane/window order is
+# load-bearing rather than incidental: frecency_sort breaks ties on NR, i.e. on
+# input order (see lib/tmux-frecency.sh, which says so), so emitting panes first
+# is exactly "a pane outranks a window it ties with" -- and nothing more. A
+# window you actually pick keeps its place above them, which is why this is a
+# reorder here and not a partition after the sort. Sessions are left where they
+# were: they were already above both, and moving them was not asked for.
 rows_from_lists() {
     local sessions="${1:-}" windows="${2:-}" panes="${3:-}"
-    local name count id sess idx wname state cmd i
+    local name count id sess idx wname state cmd i row wrows=""
 
     while IFS=$'\t' read -r name count; do
         [ -n "$name" ] || continue
@@ -182,10 +189,15 @@ rows_from_lists() {
         # it displays. The frecency key is a separate hidden field because the
         # id itself is useless as one -- @2 is a different window after every
         # restart, while the session and window name persist.
-        printf '%s\twin\t%s%s [win]  %s:%s %s%s%s  %s%s%s\t%s\twin:%s:%s\n' \
+        # Held back rather than printed: the pane loop below needs the state
+        # index this loop builds, so the windows have to be WALKED first even
+        # though they are EMITTED last. printf -v rather than a command
+        # substitution per row -- that would be a fork per window.
+        printf -v row '%s\twin\t%s%s [win]  %s:%s %s%s%s  %s%s%s\t%s\twin:%s:%s\n' \
             "$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" \
             "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
             "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname"
+        wrows="$wrows$row"
     done <<< "$windows"
 
     # Six fields: the label is what the row SHOWS, the command is what it keys
@@ -211,6 +223,8 @@ rows_from_lists() {
             "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
             "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname" "$cmd"
     done <<< "$panes"
+
+    printf '%s' "$wrows"
 }
 # Field 4 of each row, read positionally. Pure: it takes the rows rather than
 # asking tmux, so the filter is testable from fixtures with no server.

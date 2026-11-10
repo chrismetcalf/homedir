@@ -32,7 +32,10 @@ assert_eq "one row per input line" "8" "$(printf '%s\n' "$out" | wc -l)"
 
 # Target must be field 1 so the action never has to parse display text.
 assert_eq "session target is the name" "main" "$(printf '%s\n' "$out" | grep -m1 'sess' | cut -f1)"
-assert_eq "window target is the id"    "@2"   "$(printf '%s\n' "$out" | grep -m1 'otto-relay' | cut -f1)"
+# By kind, not by first match: pane rows carry the window name too, and since
+# they now sort above the window rows a grep -m1 would answer with the pane.
+assert_eq "window target is the id"    "@2"   \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $1}')"
 assert_eq "pane target is the id"      "%2"   "$(printf '%s\n' "$out" | grep -m1 'node' | cut -f1)"
 
 # Tags let a query be narrowed by typing "win" / "pane" / "sess".
@@ -196,7 +199,10 @@ printf '%s\n' "$out" | cut -f3 | grep -q '\[win\]' \
   && pass "tag survives alongside the glyph" || fail "tag survives alongside the glyph" "[win]" "$(printf '%s\n' "$out" | cut -f3 | head -3)"
 
 # Field 2 is the kind and fzf never shows it; act_on depends on it exactly.
-assert_eq "kind field is exact" "sess sess win win win win pane pane" \
+# Panes ahead of windows is the ranking (see rows_from_lists): frecency_sort
+# breaks ties on input order, so this sequence IS "a pane outranks a window it
+# ties with".
+assert_eq "kind field is exact" "sess sess pane pane win win win win" \
     "$(printf '%s\n' "$out" | cut -f2 | tr '\n' ' ' | sed 's/ $//')"
 
 echo "state decoration"
@@ -379,7 +385,9 @@ echo "state filter"
 assert_eq "filter_by_state all is identity" "8" "$(filter_by_state "$out" all | grep -c .)"
 assert_eq "a wait filter keeps the window and the pane inheriting it" "2" \
     "$(filter_by_state "$out" wait | grep -c .)"
-assert_eq "and keeps exactly those two targets" "@2 %2" \
+# Pane first, window second: the filter preserves the ranking order, and the
+# ranking now puts a pane above the window it ties with.
+assert_eq "and keeps exactly those two targets" "%2 @2" \
     "$(filter_by_state "$out" wait | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
 # A session has no scout state of its own, so it has nothing to match and must
 # drop out rather than ride along on every filter.
@@ -407,6 +415,21 @@ GOTO_BINDS="$(grep 'reload(' "$DIR/tmux-goto" | grep -v '^[[:space:]]*#')"
 assert_contains "reload bodies go through \$RL, not a pasted path" 'reload($RL' "$GOTO_BINDS"
 assert_eq "no binding interpolates the resolved path" "0" \
     "$(printf '%s\n' "$GOTO_BINDS" | grep -c 'TMUX_GOTO_LIBDIR\|[$]DIR')"
+
+echo "panes outrank the windows they tie with"
+RANKF="$(mktemp)"; : > "$RANKF"
+RANK_ROWS="$(rows_from_lists "" "$WINS" "$PANES")"
+assert_eq "an unused list ranks every pane above every window" "pane win" \
+    "$(frecency_sort "$RANK_ROWS" "$RANKF" frecency_key_goto | cut -f2 | uniq | tr '\n' ' ' | sed 's/ $//')"
+# The other half, and the reason this is a tie-break rather than a partition
+# after the sort: a window you actually use keeps its place. A partition would
+# pass the assertion above while burying an hourly window under every pane.
+printf 'win:main:otto-relay\t9\t%s\n' "$(date +%s)" > "$RANKF"
+assert_eq "a used window still outranks the panes" "win" \
+    "$(frecency_sort "$RANK_ROWS" "$RANKF" frecency_key_goto | head -1 | cut -f2)"
+assert_eq "and it is the used one, not just any window" "win:main:otto-relay" \
+    "$(frecency_sort "$RANK_ROWS" "$RANKF" frecency_key_goto | head -1 | cut -f5)"
+rm -f "$RANKF"
 
 echo "esc clears the filter, and only when there is one"
 ESCF="$(mktemp)"
@@ -502,6 +525,11 @@ sabotage "$DIR/tmux-goto" "the frecency key moves onto the title" \
     's#"$state" "$sess" "$wname" "$cmd"#"$state" "$sess" "$wname" "$label"#' \
     chk_pane_keys_on_command
 
+chk_panes_before_windows() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "" "$WINS" "$PANES")
+      [ "$(printf '%s\n' "$o" | cut -f2 | uniq | tr '\n' ' ')" = "pane win " ] )
+}
 chk_esc_clears() {
     local f out; f="$(mktemp)"; printf 'wait\n' > "$f"
     out="$(TMUX_GOTO_STATE="$f" env -u TMUX_GOTO_LIB "$1" --esc 2>/dev/null)"; rm -f "$f"
@@ -512,6 +540,10 @@ chk_esc_aborts_unfiltered() {
     [ "$(env -u TMUX_GOTO_STATE -u TMUX_GOTO_LIB "$1" --esc 2>/dev/null)" = "abort" ]
 }
 
+# Holding the window rows back is the whole ranking: print them in their own
+# loop and panes fall below them again, with every row still looking correct.
+sabotage "$DIR/tmux-goto" "window rows print before the panes again" \
+    's#wrows="$wrows$row"#printf "%s" "$row"#' chk_panes_before_windows
 sabotage "$DIR/tmux-goto" "esc aborts even with a filter on" \
     "s#printf 'reload(%s all).*#printf abort#" chk_esc_clears
 sabotage "$DIR/tmux-goto" "an unknown state reads as filtered, so esc never exits" \
