@@ -58,9 +58,14 @@ const NOW = Number(process.env.TMUX_AGENTS_NOW) || Date.now()
 const STATES = ['wait', 'busy', 'done', 'idle']
 let want = 'all'
 let countsOnly = false
+// --json exists for bin/tmarchy-agent (and the skill behind it), so a consumer
+// that needs structured data reuses THIS classifier instead of parsing the
+// picker's display text back apart. Same reason state became its own field.
+let jsonOnly = false
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i]
   if (a === '--counts') { countsOnly = true; continue }
+  if (a === '--json') { jsonOnly = true; continue }
   if (a === '--state') { want = process.argv[++i] || ''; continue }
   if (a.startsWith('--state=')) { want = a.slice('--state='.length); continue }
   process.stderr.write('tmux-agents-rows: unknown argument: ' + a + '\n')
@@ -175,6 +180,23 @@ for (const r of rows) counts[r.state]++
 if (countsOnly) {
   process.stdout.write(STATES.map((s) => s + '=' + counts[s]).join(' ')
     + ' total=' + rows.length + '\n')
+  process.exit(0)
+}
+
+if (jsonOnly) {
+  const out = rows
+    .filter((r) => want === 'all' || r.state === want)
+    .map((r) => ({
+      pane: r.pane,
+      state: r.state,
+      // Seconds, not the raw ms, and null rather than -1 when unknown: -1 is a
+      // sentinel a consumer has to know about, and one that forgets it reports
+      // an agent as having waited negative time.
+      seconds: r.ms >= 0 ? Math.floor(r.ms / 1000) : null,
+      label: r.label,
+      detail: r.detail,
+    }))
+  process.stdout.write(JSON.stringify(out) + '\n')
   process.exit(0)
 }
 

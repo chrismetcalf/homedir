@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# tmarchy-agent — inspect and prompt the agents in this tmux server.
+#
+# The CLI behind .claude/skills/tmarchy. It exists so the skill is
+# documentation rather than logic: every rule below is testable without a model
+# in the loop, which a SKILL.md full of instructions is not.
+#
+# CLASSIFICATION IS NOT REDONE HERE. `tmux-agents-rows --json` answers what is
+# running and in what state, so the bar, prefix + ~, prefix + A and this tool
+# cannot disagree. This repo has already paid twice for a second opinion about
+# agent state (sessionState() duplicated in two files; three sources of truth
+# for the plugin set).
+#
+#   list [--state S]             every live agent, as JSON
+#   read <pane> [--lines N]      that pane's recent output
+#   focus <pane>                 go there
+#   prompt <pane> <text> [--submit] [--wait] [--until S] [--timeout MS]
+#
+# What it will NOT do. Each is a refusal with a reason, not a missing feature:
+#   - type a control byte into a pane      (CR submits; ESC reaches readline)
+#   - press Enter unless asked             (--submit is opt-in)
+#   - target the calling pane              (an agent prompting itself loops)
+#   - target a pane that is not an agent   (a stale id would type into a shell)
+#   - wait without a bound                 (--timeout is capped)
+set -uo pipefail
+
+SELF="${BASH_SOURCE[0]}"
+if command -v readlink >/dev/null 2>&1; then
+    SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+fi
+DIR="$(dirname "$SELF")"
+
+ROWS_BIN="${TMARCHY_AGENT_ROWS_BIN:-$DIR/tmux-agents-rows}"
+# Read at CALL time, never captured at source time -- the tmux-gen lesson,
+# where a source-time override had every test run hitting the real billed
+# binary. The stake here is higher: an escaped run types into live panes.
+tmux_cmd() { ${TMARCHY_AGENT_TMUX:-tmux} "$@"; }
+
+# A --wait can never be unbounded, however it is asked for. Ten minutes is
+# already longer than anything worth blocking a caller on.
+WAIT_CAP_MS=600000
+WAIT_DEFAULT_MS=120000
+
+die() { printf 'tmarchy-agent: %s\n' "$1" >&2; exit "${2:-1}"; }
+
+# Pure, and bash-3.2 safe (no =~, which macOS's bash predates in places).
+# NOTHING reaches a tmux command line without passing this: the agents.js rule,
+# where `pane` is the only provider field allowed near argv and must match %\d+
+# exactly.
+is_pane_id() {
+    case "${1:-}" in
+        %*) : ;;
+        *)  return 1 ;;
+    esac
+    local digits="${1#%}"
+    [ -n "$digits" ] || return 1
+    case "$digits" in
+        *[!0-9]*) return 1 ;;
+    esac
+    return 0
+}
+
+# Pure. Kept separate from its one call site so the suite can hammer it with
+# payloads directly -- it is the single thing standing between a model's text
+# and a shell prompt.
+has_control_byte() {
+    case "${1-}" in
+        *[[:cntrl:]]*) return 0 ;;
+    esac
+    return 1
+}
+
+# TMUX_AGENTS_CURRENT is deliberately emptied: the picker hides the pane you
+# are in (you are already there), but an agent that cannot see ITSELF in the
+# list has no way to tell which row it must not target. It is marked instead.
+agents_json() {
+    TMUX_AGENTS_CURRENT="" "$ROWS_BIN" --json --state "${1:-all}"
+}
+
+agent_state() {  # agent_state <pane> -> its state, or nothing if not an agent
+    agents_json all 2>/dev/null | python3 -c '
+import json, sys
+try:
+    rows = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for a in rows:
+    if a.get("pane") == sys.argv[1]:
+        print(a.get("state", ""))
+        break
+' "$1" 2>/dev/null
+}
+
+require_agent() {  # the refusal that stops a stale id typing into a shell
+    local pane="$1" st
+    st="$(agent_state "$pane")"
+    [ -n "$st" ] || die "$pane is not a live agent (try: tmarchy-agent list)"
+    printf '%s' "$st"
+}
+
+cmd_list() {
+    local state=all
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --state) state="${2:-all}"; shift 2 ;;
+            --state=*) state="${1#--state=}"; shift ;;
+            *) die "list: unknown argument: $1" 2 ;;
+        esac
+    done
+    local panes_tsv agents_out
+    panes_tsv="$(tmux_cmd list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_title}' 2>/dev/null)"
+    agents_out="$(agents_json "$state")" || die "could not read the agent list"
+    # Passed as an ARGUMENT, not piped. `python3 -` takes its script from
+    # stdin, so a heredoc here consumes stdin and a pipe into it is silently
+    # discarded -- which made this return [] against three live agents.
+    python3 - "$panes_tsv" "${TMUX_PANE:-}" "$agents_out" <<'PY'
+import json, sys
+
+info = {}
+for line in (sys.argv[1] or "").splitlines():
+    f = line.split("\t")
+    if len(f) >= 5:
+        info[f[0]] = {"session": f[1], "windowIndex": f[2], "window": f[3], "name": f[4]}
+
+me = sys.argv[2]
+try:
+    rows = json.loads(sys.argv[3])
+except Exception:
+    rows = []
+
+out = []
+for a in rows:
+    row = dict(a)
+    row.update(info.get(a.get("pane", ""), {}))
+    row["self"] = (a.get("pane") == me and me != "")
+    out.append(row)
+print(json.dumps(out, indent=2))
+PY
+}
+
+cmd_read() {
+    local pane="${1:-}" lines=50
+    shift || true
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --lines) lines="${2:-50}"; shift 2 ;;
+            --lines=*) lines="${1#--lines=}"; shift ;;
+            *) die "read: unknown argument: $1" 2 ;;
+        esac
+    done
+    is_pane_id "$pane" || die "read: not a pane id: ${pane:-<missing>}" 2
+    case "$lines" in
+        ''|*[!0-9]*) die "read: --lines wants a number, got: $lines" 2 ;;
+    esac
+    # Reading is allowed on ANY pane, not just an agent's: it changes nothing,
+    # and a shell pane's output is sometimes exactly what you need to see. The
+    # pane id is still validated, because it reaches a command line.
+    tmux_cmd capture-pane -p -t "$pane" -S "-$lines"
+}
+
+cmd_focus() {
+    local pane="${1:-}"
+    is_pane_id "$pane" || die "focus: not a pane id: ${pane:-<missing>}" 2
+    # Three separate calls in this order, not a batched list -- the same
+    # sequence bin/tmux-agents and tmux-scout-next-wait use. A bare select-pane
+    # does nothing from another session, and a batched list would lose the
+    # switch-client too if the pane vanished mid-call.
+    local sess win
+    sess="$(tmux_cmd display-message -p -t "$pane" '#{session_name}' 2>/dev/null)"
+    win="$(tmux_cmd display-message -p -t "$pane" '#{window_id}' 2>/dev/null)"
+    [ -n "$sess" ] || die "focus: $pane does not resolve to a pane"
+    tmux_cmd switch-client -t "$sess" 2>/dev/null
+    [ -n "$win" ] && tmux_cmd select-window -t "$win" 2>/dev/null
+    tmux_cmd select-pane -t "$pane"
+}
+
+wait_for() {  # wait_for <pane> <state> <ms>
+    local pane="$1" want="$2" ms="$3" waited=0 st=""
+    case "$ms" in
+        ''|*[!0-9]*) ms=$WAIT_DEFAULT_MS ;;
+    esac
+    [ "$ms" -gt "$WAIT_CAP_MS" ] && ms=$WAIT_CAP_MS
+    while [ "$waited" -lt "$ms" ]; do
+        st="$(agent_state "$pane")"
+        if [ "$st" = "$want" ]; then
+            printf '%s\n' "$st"
+            return 0
+        fi
+        sleep 1
+        waited=$((waited + 1000))
+    done
+    printf 'tmarchy-agent: timed out after %sms waiting for %s (state: %s)\n' \
+        "$ms" "$want" "${st:-unknown}" >&2
+    return 1
+}
+
+cmd_prompt() {
+    local pane="${1:-}" text="" submit=0 dowait=0 until_state=idle timeout=$WAIT_DEFAULT_MS
+    shift || true
+    # The text is the first non-flag argument, so a prompt beginning with a
+    # dash cannot be read as a flag.
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --submit) submit=1; shift ;;
+            --wait) dowait=1; shift ;;
+            --until) until_state="${2:-idle}"; shift 2 ;;
+            --until=*) until_state="${1#--until=}"; shift ;;
+            --timeout) timeout="${2:-$WAIT_DEFAULT_MS}"; shift 2 ;;
+            --timeout=*) timeout="${1#--timeout=}"; shift ;;
+            --) shift; [ -n "$text" ] || { text="${1:-}"; shift || true; } ;;
+            *) if [ -z "$text" ]; then text="$1"; shift; else die "prompt: unexpected argument: $1" 2; fi ;;
+        esac
+    done
+
+    is_pane_id "$pane" || die "prompt: not a pane id: ${pane:-<missing>}" 2
+    [ -n "$text" ] || die "prompt: nothing to say" 2
+
+    # EVERY refusal is settled before anything is typed. This one was ordered
+    # after the insert at first, so `--wait` without `--submit` refused the
+    # call having ALREADY put the text in the pane -- a refusal that is not a
+    # refusal. Caught by running it against a live pane, which is exactly the
+    # test the suite now does on a scratch socket instead.
+    if [ "$dowait" = 1 ] && [ "$submit" != 1 ]; then
+        die "--wait needs --submit: an unsubmitted prompt changes no state" 2
+    fi
+    case "$timeout" in
+        ''|*[!0-9]*) die "prompt: --timeout wants milliseconds, got: $timeout" 2 ;;
+    esac
+    case "$until_state" in
+        wait|busy|done|idle) ;;
+        *) die "prompt: --until wants wait, busy, done or idle, got: $until_state" 2 ;;
+    esac
+
+    # An agent prompting itself inserts into its own prompt and, with --submit,
+    # drives itself in a loop. There is no legitimate use.
+    if [ -n "${TMUX_PANE:-}" ] && [ "$pane" = "$TMUX_PANE" ]; then
+        die "refusing to prompt the calling pane ($pane)"
+    fi
+
+    # Checked BEFORE the control-byte gate so the clearer refusal wins when the
+    # target is wrong as well as the payload.
+    local state
+    state="$(require_agent "$pane")" || exit 1
+
+    # The gate. Not newline-only: CR submits a line exactly like Enter, ESC
+    # reaches readline's dispatcher (ESC then C-e performs command substitution
+    # with no keypress and no visible trace), C-o executes, and C-u/BS silently
+    # discard what came before. Byte-identical reasoning to bin/tmux-gen, which
+    # is where this was first paid for.
+    if has_control_byte "$text"; then
+        die "refusing: the text contains a control byte"
+    fi
+
+    # `-l` or tmux reads the tokens as KEY NAMES; `--` or a payload starting
+    # with a dash parses as flags (-R silently resets the pane's terminal).
+    local err
+    if ! err="$(tmux_cmd send-keys -t "$pane" -l -- "$text" 2>&1)"; then
+        die "insert failed: ${err:-send-keys exited non-zero}; nothing was typed"
+    fi
+
+    # A SEPARATE call, and only when asked. Default is insert-without-submit,
+    # the same contract bin/tmux-gen and bin/tmux-files offer: you see what
+    # landed before it runs.
+    if [ "$submit" = 1 ]; then
+        tmux_cmd send-keys -t "$pane" Enter
+    fi
+
+    if [ "$dowait" = 1 ]; then
+        wait_for "$pane" "$until_state" "$timeout"
+    else
+        printf 'inserted into %s (was %s)%s\n' "$pane" "$state" \
+            "$([ "$submit" = 1 ] && printf ', submitted' || printf ', not submitted')"
+    fi
+}
+
+usage() { sed -n '2,27p' "$SELF" | sed 's/^# \{0,1\}//'; }
+
+[ "${TMARCHY_AGENT_LIB:-}" = "1" ] && return 0
+
+case "${1:-}" in
+    list)   shift; cmd_list "$@" ;;
+    read)   shift; cmd_read "$@" ;;
+    focus)  shift; cmd_focus "$@" ;;
+    prompt) shift; cmd_prompt "$@" ;;
+    ''|-h|--help|help) usage ;;
+    *) die "unknown command: $1 (list, read, focus, prompt)" 2 ;;
+esac

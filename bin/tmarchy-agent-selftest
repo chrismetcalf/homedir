@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+# tmarchy-agent-selftest — tests for bin/tmarchy-agent.
+#
+# The pure gates run with nothing attached. The rest needs a real pane,
+# because the whole subject is what reaches a prompt -- so it runs on a
+# throwaway socket with a throwaway bash, and every tmux call the tool makes is
+# diverted there through TMARCHY_AGENT_TMUX. The agent list is a stub via
+# TMARCHY_AGENT_ROWS_BIN, so no scout status file is touched and no real agent
+# is ever a target.
+#
+# The central check is tmux-gen's canary, for the same reason it exists there:
+# "we do not press Enter" is only believable if a line that WOULD have run is
+# shown not to have run. The submitted case is the barrier proving the shell
+# really does execute what it is handed.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOL="$DIR/tmarchy-agent"
+FAILED=0
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_contains() { case "$3" in *"$2"*) pass "$1" ;; *) fail "$1" "to contain: $2" "$3" ;; esac; }
+refutes() { case "$3" in *"$2"*) fail "$1" "NOT to contain: $2" "$3" ;; *) pass "$1" ;; esac; }
+
+TMUX_BIN="${TMUX_BIN:-tmux}"
+WORK="$(mktemp -d)"
+SOCK="$WORK/sock"
+SESS="tmarchyagent-selftest-$$"
+TM() { $TMUX_BIN -S "$SOCK" "$@"; }
+
+cleanup() {
+    local s all_ours=1 any=0
+    while IFS= read -r s; do
+        [ -n "$s" ] || continue
+        any=1
+        case "$s" in "$SESS"|"$SESS"-*) ;; *) all_ours=0 ;; esac
+    done <<< "$(TM list-sessions -F '#{session_name}' 2>/dev/null)"
+    if [ "$any" = 1 ] && [ "$all_ours" = 1 ]; then TM kill-server 2>/dev/null; fi
+    rm -rf "$WORK"
+}
+trap cleanup EXIT HUP INT TERM
+
+echo "tmarchy-agent selftest"
+
+echo "pure gates"
+( export TMARCHY_AGENT_LIB=1
+  # shellcheck source=/dev/null
+  . "$TOOL"
+  assert_eq "a pane id is accepted"          "yes" "$(is_pane_id '%12' && echo yes || echo no)"
+  assert_eq "single digit too"               "yes" "$(is_pane_id '%0' && echo yes || echo no)"
+  assert_eq "a window id is not a pane id"   "no"  "$(is_pane_id '@3' && echo yes || echo no)"
+  assert_eq "a session name is not"          "no"  "$(is_pane_id 'main' && echo yes || echo no)"
+  assert_eq "a bare % is not"                "no"  "$(is_pane_id '%' && echo yes || echo no)"
+  assert_eq "trailing junk is not"           "no"  "$(is_pane_id '%1x' && echo yes || echo no)"
+  assert_eq "a target spec is not"           "no"  "$(is_pane_id '%1:2' && echo yes || echo no)"
+  assert_eq "empty is not"                   "no"  "$(is_pane_id '' && echo yes || echo no)"
+
+  # Every one of these does something the moment it reaches a prompt, which is
+  # why the gate is on [[:cntrl:]] and not on newline alone.
+  assert_eq "a newline is a control byte"    "yes" "$(has_control_byte "$(printf 'a\nb')" && echo yes || echo no)"
+  assert_eq "a CR is too (it submits)"       "yes" "$(has_control_byte "$(printf 'a\rb')" && echo yes || echo no)"
+  assert_eq "an ESC is too (readline)"       "yes" "$(has_control_byte "$(printf 'a\033b')" && echo yes || echo no)"
+  assert_eq "a TAB is too"                   "yes" "$(has_control_byte "$(printf 'a\tb')" && echo yes || echo no)"
+  assert_eq "a C-o is too (it executes)"     "yes" "$(has_control_byte "$(printf 'a\017b')" && echo yes || echo no)"
+  assert_eq "a NUL-adjacent C-u is too"      "yes" "$(has_control_byte "$(printf 'a\025b')" && echo yes || echo no)"
+  assert_eq "plain text passes"              "no"  "$(has_control_byte 'git status --short' && echo yes || echo no)"
+  assert_eq "punctuation passes"             "no"  "$(has_control_byte 'ls ~/x && echo "ok"' && echo yes || echo no)" )
+
+echo "a real pane"
+TM -f /dev/null new-session -d -x 80 -y 20 -s "$SESS" 'bash --norc --noprofile' >/dev/null 2>&1
+PANE="$(TM display-message -p -t "$SESS" '#{pane_id}')"
+sleep 1  # let bash reach its prompt before anything is typed at it
+
+# PANE IDS ARE ONLY UNIQUE WITHIN A SERVER, and this bit hard: the scratch
+# session's first pane is %0, and so is the pane this suite is usually run
+# from, so the tool's self-pane refusal fired on EVERY insert here. Every
+# insert assertion failed, and -- worse -- the sabotage that removes the
+# refusal-before-insert ordering reported as "not caught", because a different
+# refusal was masking it. That is the vacuity this repo keeps paying for, in a
+# new shape: not a check that cannot fail, but a check failing for the wrong
+# reason and hiding a real one.
+#
+# Emptied rather than unset so the behaviour is explicit, and set back to a
+# real value only by the tests that are ABOUT the self refusal.
+export TMUX_PANE=""
+
+# The stub agent list: this pane, and nothing else. No scout, no status.json.
+ROWS="$WORK/rows-stub"
+cat > "$ROWS" <<STUB
+#!/usr/bin/env bash
+printf '[{"pane":"%s","state":"idle","seconds":5,"label":"fixture","detail":""}]\n' "$PANE"
+STUB
+chmod +x "$ROWS"
+export TMARCHY_AGENT_ROWS_BIN="$ROWS"
+export TMARCHY_AGENT_TMUX="$TMUX_BIN -S $SOCK"
+
+CANARY="$WORK/canary"
+PAYLOAD="touch $CANARY"
+pane_text() { TM capture-pane -p -t "$PANE" 2>/dev/null; }
+
+echo "list"
+LIST_OUT="$("$TOOL" list 2>&1)"
+assert_contains "list reports the stubbed pane" "$PANE" "$LIST_OUT"
+assert_contains "list carries the state" '"state": "idle"' "$LIST_OUT"
+# An agent that cannot see itself has no way to know which row it must not
+# target, so self is MARKED rather than omitted the way the picker omits it.
+assert_contains "list marks whether a row is the caller" '"self"' "$LIST_OUT"
+assert_contains "the caller's own pane is marked true" 'true' \
+    "$(TMUX_PANE="$PANE" "$TOOL" list 2>&1)"
+
+echo "refusals insert NOTHING"
+# The bug this suite was written around: these checks all passed while the
+# insert happened FIRST and the refusal came after -- a refusal that is not a
+# refusal. Each one now asserts the pane is still clean.
+try_refused() {  # try_refused <label> <args...>
+    local label="$1"; shift
+    local out; out="$("$TOOL" prompt "$@" 2>&1)"
+    local rc=$?
+    [ "$rc" != 0 ] || { fail "$label: refused" "non-zero exit" "exit 0"; return; }
+    pass "$label: refused"
+    refutes "$label: nothing was typed" "$CANARY" "$(pane_text)"
+}
+try_refused "a non-pane target"      "notapane" "$PAYLOAD"
+try_refused "a pane that is no agent" "%999" "$PAYLOAD"
+try_refused "empty text"             "$PANE" ""
+try_refused "--wait without --submit" "$PANE" "$PAYLOAD" --wait
+try_refused "a bad --until"          "$PANE" "$PAYLOAD" --until nope
+try_refused "a bad --timeout"        "$PANE" "$PAYLOAD" --timeout abc
+# A control byte in the payload, which is the whole point of the gate.
+NL_PAYLOAD="$(printf 'touch %s\nsleep 0' "$CANARY")"
+try_refused "a control byte"         "$PANE" "$NL_PAYLOAD"
+assert_eq "no refusal created the canary" "no" "$([ -e "$CANARY" ] && echo yes || echo no)"
+
+echo "the caller's own pane"
+SELF_OUT="$(TMUX_PANE="$PANE" "$TOOL" prompt "$PANE" "$PAYLOAD" 2>&1)"; SELF_RC=$?
+assert_eq "prompting itself is refused" "1" "$SELF_RC"
+assert_contains "and says why" "calling pane" "$SELF_OUT"
+assert_eq "self-refusal created nothing" "no" "$([ -e "$CANARY" ] && echo yes || echo no)"
+
+echo "insert without submit (the canary)"
+"$TOOL" prompt "$PANE" "$PAYLOAD" >/dev/null 2>&1
+sleep 1
+assert_contains "the text reaches the prompt" "touch" "$(pane_text)"
+# The promise. If this file exists, the tool pressed Enter when it said it
+# would not.
+assert_eq "and is NOT executed" "no" "$([ -e "$CANARY" ] && echo yes || echo no)"
+
+echo "insert with --submit (the barrier)"
+# Proves the pane really does execute what it is handed -- without which the
+# check above would pass against a pane that executes nothing at all, which is
+# how an earlier tmux-gen harness passed against sabotaged code.
+"$TOOL" prompt "$PANE" "" --submit >/dev/null 2>&1   # clear the pending line
+TM send-keys -t "$PANE" C-u 2>/dev/null
+"$TOOL" prompt "$PANE" "$PAYLOAD" --submit >/dev/null 2>&1
+sleep 1.5
+assert_eq "--submit runs the line" "yes" "$([ -e "$CANARY" ] && echo yes || echo no)"
+
+echo "send-keys is called safely"
+TM send-keys -t "$PANE" C-u 2>/dev/null
+# Without `--`, a payload starting with a dash parses as send-keys FLAGS; -R
+# silently resets the pane's terminal rather than typing anything.
+"$TOOL" prompt "$PANE" "-R" >/dev/null 2>&1
+sleep 0.5
+assert_contains "a payload starting with a dash is typed, not parsed" "-R" "$(pane_text)"
+TM send-keys -t "$PANE" C-u 2>/dev/null
+# Without `-l`, tmux reads the token as a KEY NAME, so this would press Enter
+# instead of typing the word.
+"$TOOL" prompt "$PANE" "Enter" >/dev/null 2>&1
+sleep 0.5
+assert_contains "the word Enter is typed, not pressed" "Enter" "$(pane_text)"
+
+echo "read and focus"
+TM send-keys -t "$PANE" C-u 2>/dev/null
+"$TOOL" prompt "$PANE" "READMARKER" >/dev/null 2>&1
+sleep 0.5
+assert_contains "read returns the pane's content" "READMARKER" \
+    "$("$TOOL" read "$PANE" --lines 5 2>&1)"
+assert_eq "read refuses a non-pane" "2" "$("$TOOL" read notapane >/dev/null 2>&1; echo $?)"
+assert_eq "read refuses a non-numeric --lines" "2" \
+    "$("$TOOL" read "$PANE" --lines x >/dev/null 2>&1; echo $?)"
+assert_eq "focus refuses a non-pane" "2" "$("$TOOL" focus notapane >/dev/null 2>&1; echo $?)"
+
+echo "sabotage proofs"
+sabotage() {
+    local label="$1" expr="$2" fn="$3" broken="$WORK/broken"
+    sed "$expr" "$TOOL" > "$broken"; chmod +x "$broken"
+    if cmp -s "$broken" "$TOOL"; then
+        fail "sabotage '$label' changed nothing" "a modified copy" "byte-identical file"
+        return
+    fi
+    if "$fn" "$broken" >/dev/null 2>&1; then
+        fail "sabotage not caught: $label" "the check fails against broken code" "it passed"
+    else
+        pass "sabotage caught: $label"
+    fi
+    rm -f "$broken"
+}
+
+# Each check asserts something POSITIVE -- a refusal AND a clean pane, or an
+# exact string in the pane. A check that only said "the canary is absent" would
+# be satisfied by a sabotage that crashed the tool before it did anything.
+chk_refusal_is_a_refusal() {    # --wait without --submit must type nothing
+    TM send-keys -t "$PANE" C-u 2>/dev/null; rm -f "$CANARY"
+    "$1" prompt "$PANE" "$PAYLOAD" --wait >/dev/null 2>&1 && return 1
+    case "$(pane_text)" in *touch*) return 1 ;; esac
+    return 0
+}
+chk_control_byte_refused() {
+    local out; out="$("$1" prompt "$PANE" "$NL_PAYLOAD" 2>&1)" && return 1
+    printf '%s' "$out" | grep -q 'control byte'
+}
+chk_self_refused() {
+    local out; out="$(TMUX_PANE="$PANE" "$1" prompt "$PANE" "$PAYLOAD" 2>&1)" && return 1
+    printf '%s' "$out" | grep -q 'calling pane'
+}
+chk_non_agent_refused() {
+    local out; out="$("$1" prompt "%999" "$PAYLOAD" 2>&1)" && return 1
+    printf '%s' "$out" | grep -q 'not a live agent'
+}
+chk_dash_payload_typed() {
+    TM send-keys -t "$PANE" C-u 2>/dev/null
+    "$1" prompt "$PANE" "-R" >/dev/null 2>&1
+    sleep 0.5
+    case "$(pane_text)" in *-R*) return 0 ;; esac
+    return 1
+}
+chk_keyname_typed() {
+    TM send-keys -t "$PANE" C-u 2>/dev/null
+    "$1" prompt "$PANE" "Enter" >/dev/null 2>&1
+    sleep 0.5
+    case "$(pane_text)" in *Enter*) return 0 ;; esac
+    return 1
+}
+
+# THE regression this file exists for: the refusal ordered after the insert.
+sabotage "a refusal lands after the text is already typed" \
+    's#    if \[ "$dowait" = 1 \] \&\& \[ "$submit" != 1 \]; then#    if false; then#' \
+    chk_refusal_is_a_refusal
+sabotage "the control-byte gate is removed" \
+    's#if has_control_byte "$text"; then#if false; then#' chk_control_byte_refused
+sabotage "the calling pane may be targeted" \
+    's#if \[ -n "${TMUX_PANE:-}" \] \&\& \[ "$pane" = "$TMUX_PANE" \]; then#if false; then#' \
+    chk_self_refused
+sabotage "any pane may be targeted, agent or not" \
+    's#    \[ -n "$st" \] || die#    [ -n "$st" ] || : die#' chk_non_agent_refused
+sabotage "send-keys loses its -- guard" \
+    's#send-keys -t "$pane" -l -- "$text"#send-keys -t "$pane" -l "$text"#' chk_dash_payload_typed
+sabotage "send-keys loses its -l guard" \
+    's#send-keys -t "$pane" -l -- "$text"#send-keys -t "$pane" -- "$text"#' chk_keyname_typed
+
+printf '\n'
+[ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
+printf 'FAILURES\n'; exit 1
