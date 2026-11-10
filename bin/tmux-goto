@@ -135,16 +135,42 @@ state_decor() {
     esac
 }
 
-# Emission order is sessions, PANES, then windows, and the pane/window order is
-# load-bearing rather than incidental: frecency_sort breaks ties on NR, i.e. on
-# input order (see lib/tmux-frecency.sh, which says so), so emitting panes first
-# is exactly "a pane outranks a window it ties with" -- and nothing more. A
-# window you actually pick keeps its place above them, which is why this is a
-# reorder here and not a partition after the sort. Sessions are left where they
-# were: they were already above both, and moving them was not asked for.
+# Rows for the three kinds, with ONE deliberate exception: a window holding
+# exactly one pane is emitted as a single MERGED row tagged [win/pane] instead
+# of as a window row and a pane row saying the same thing. Every Claude Code
+# window on this host is that shape, so the two rows were duplicates -- same
+# destination, same name, same title, and every query matched both of them.
+#
+# The merged row keeps the WINDOW's id, kind, action and frecency key, and that
+# choice is what makes merging cheap rather than a redesign: `win:<sess>:<name>`
+# keys carry all the ranking history this picker has accumulated (88 picks on
+# one window here), and promote_and_filter pins the previously-active window by
+# matching its window id against the row's target -- so Enter-is-alt-tab needs
+# no change at all. Keeping the pane's id instead would have orphaned the
+# history and silently broken the pin, since no row would have matched it.
+# Splitting that window later does not change the row's identity; it just
+# stops being merged, which is why the glyph stays GLYPH_WIN for both.
+#
+# A window we saw NO panes for keeps a plain window row: that is not a real
+# tmux state, so it means the pane list was empty or truncated, and losing the
+# only row for a window is worse than showing one that is slightly redundant.
+#
+# Emission order is sessions, panes, then windows -- load-bearing rather than
+# incidental, because frecency_sort breaks ties on NR, i.e. on input order (see
+# lib/tmux-frecency.sh, which says so). Emitting panes first is exactly "a pane
+# outranks a window it ties with" and nothing more; a window you actually pick
+# keeps its place above them. With merging, that only decides the order inside
+# a split window, since a single-pane window now produces one row rather than
+# two of them competing.
+#
+# Tags are padded to a common width so the name column lines up: the tag is
+# there to be TYPED (a glyph cannot be), and [win/pane] matching both `win` and
+# `pane` is the point of spelling it out rather than shortening it.
 rows_from_lists() {
     local sessions="${1:-}" windows="${2:-}" panes="${3:-}"
-    local name count id sess idx wname state cmd i row wrows=""
+    local name count id sess idx wname state cmd label sb i row wrows=""
+    local key found n ppane plabel
+    local merged_keys=()
 
     while IFS=$'\t' read -r name count; do
         [ -n "$name" ] || continue
@@ -157,9 +183,50 @@ rows_from_lists() {
         # session's target IS its name, which is already the visible label.
         # Field 4 is empty: a session has no scout state of its own, which is
         # also what correctly drops session rows out of a state filter.
-        printf '%s\tsess\t%s [sess] %s  (%s windows)\t\tsess:%s\n' \
+        printf '%s\tsess\t%s [sess]     %s  (%s windows)\t\tsess:%s\n' \
             "$name" "$GLYPH_SESS" "$name" "$count" "$name"
     done <<< "$sessions"
+
+    # Pass one over the panes: how many each window has, and -- when it has
+    # exactly one -- that pane's id and label, so the window row can absorb
+    # them. The windows have to be walked before the pane ROWS can be built
+    # (they inherit the window's state) and after this count exists (it decides
+    # whether a window row is merged), which is why the panes are read twice.
+    # Two here-strings per invocation, not per row: the cost this file cares
+    # about is a fork per pane, which is what made the picker take 1.5s.
+    local pc_keys=() pc_n=() pc_pane=() pc_label=()
+    while IFS=$'\t' read -r id sess idx wname cmd label sb; do
+        [ -n "$id" ] || continue
+        # The window sidebar is not a destination -- it is 24 columns of chrome
+        # prefix + W puts in every window -- and it would do double damage
+        # here: a junk row of its own, AND every window ceasing to look
+        # single-paned, which is what the merge keys on. Identified by the pane
+        # option bin/tmux-sidebar-ensure sets, carried in as field 7 so this
+        # stays pure; a `list-panes -f` would have hidden the rule inside a
+        # tmux query no fixture can reach.
+        #
+        # The query emits 0/1 rather than the raw option, which is empty on an
+        # ordinary pane, because tab is an IFS-WHITESPACE character: `IFS=$'\t'
+        # read` collapses a run of tabs into one delimiter, so an empty field
+        # mid-record shifts every field after it. An unset option would make
+        # the label land in `sb` on exactly the panes that are not sidebars.
+        [ "$sb" = "1" ] && continue
+        [ -n "$label" ] || label="$cmd"
+        key="${sess}:${idx}"
+        found=-1; i=0
+        while [ "$i" -lt "${#pc_keys[@]}" ]; do
+            if [ "${pc_keys[$i]}" = "$key" ]; then found=$i; break; fi
+            i=$((i + 1))
+        done
+        if [ "$found" -lt 0 ]; then
+            pc_keys[${#pc_keys[@]}]="$key"
+            pc_n[${#pc_n[@]}]=1
+            pc_pane[${#pc_pane[@]}]="$id"
+            pc_label[${#pc_label[@]}]="$label"
+        else
+            pc_n[$found]=$(( ${pc_n[$found]} + 1 ))
+        fi
+    done <<< "$panes"
 
     # Index states by session:window so pane rows can inherit them. scout sets
     # @scout-state per window, but an agent lives in a pane, and the pane row
@@ -182,25 +249,45 @@ rows_from_lists() {
     local win_keys=() win_vals=()
     while IFS=$'\t' read -r id sess idx wname state; do
         [ -n "$id" ] || continue
-        win_keys[${#win_keys[@]}]="${sess}:${idx}"
-        win_vals[${#win_vals[@]}]="${state}"
+        key="${sess}:${idx}"
+        win_keys[${#win_keys[@]}]="$key"
+        win_vals[${#win_vals[@]}]="$state"
         state_decor "$state"
-        # The id is appended, dimmed, so it can be typed: fzf matches only what
-        # it displays. The frecency key is a separate hidden field because the
-        # id itself is useless as one -- @2 is a different window after every
-        # restart, while the session and window name persist.
+        n=0; ppane=""; plabel=""
+        i=0
+        while [ "$i" -lt "${#pc_keys[@]}" ]; do
+            if [ "${pc_keys[$i]}" = "$key" ]; then
+                n="${pc_n[$i]}"; ppane="${pc_pane[$i]}"; plabel="${pc_label[$i]}"
+                break
+            fi
+            i=$((i + 1))
+        done
+        # The ids are appended, dimmed, so they can be typed: fzf matches only
+        # what it displays, and `tmarchy-agent` wants the %pane. The frecency
+        # key is a separate hidden field because an id is useless as one -- @2
+        # is a different window after every restart, while the session and
+        # window name persist.
+        #
         # Held back rather than printed: the pane loop below needs the state
-        # index this loop builds, so the windows have to be WALKED first even
-        # though they are EMITTED last. printf -v rather than a command
-        # substitution per row -- that would be a fork per window.
-        printf -v row '%s\twin\t%s%s [win]  %s:%s %s%s%s  %s%s%s\t%s\twin:%s:%s\n' \
-            "$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" \
-            "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
-            "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname"
+        # index this loop builds, so the windows are WALKED first even though
+        # they are EMITTED last. printf -v rather than a command substitution
+        # per row -- that would be a fork per window.
+        if [ "$n" = 1 ]; then
+            merged_keys[${#merged_keys[@]}]="$key"
+            printf -v row '%s\twin\t%s%s [win/pane] %s:%s %s  %s%s%s  %s%s %s%s\t%s\twin:%s:%s\n' \
+                "$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" "$plabel" \
+                "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
+                "$C_DIM" "$id" "$ppane" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname"
+        else
+            printf -v row '%s\twin\t%s%s [win]      %s:%s %s%s%s  %s%s%s\t%s\twin:%s:%s\n' \
+                "$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" \
+                "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
+                "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname"
+        fi
         wrows="$wrows$row"
     done <<< "$windows"
 
-    # Six fields: the label is what the row SHOWS, the command is what it keys
+    # Seven fields: the label is what the row SHOWS, the command is what it keys
     # on. They have to be separate. A pane running an agent is titled by Claude
     # Code itself ("✳ otto"), which is far more use on screen than the fifth
     # "claude" in a column of them -- but it changes when a session is renamed,
@@ -208,17 +295,30 @@ rows_from_lists() {
     # resolves the label, including the fall back to the command for a pane
     # that set no title of its own (such a pane reports the HOSTNAME), so this
     # stays pure and needs no host_short of its own.
-    while IFS=$'\t' read -r id sess idx wname cmd label; do
+    while IFS=$'\t' read -r id sess idx wname cmd label sb; do
         [ -n "$id" ] || continue
+        [ "$sb" = "1" ] && continue
         [ -n "$label" ] || label="$cmd"
+        key="${sess}:${idx}"
         state=""
         i=0
         while [ "$i" -lt "${#win_keys[@]}" ]; do
-            if [ "${win_keys[$i]}" = "${sess}:${idx}" ]; then state="${win_vals[$i]}"; break; fi
+            if [ "${win_keys[$i]}" = "$key" ]; then state="${win_vals[$i]}"; break; fi
             i=$((i + 1))
         done
+        # Skipped only when a merged row was actually EMITTED for this window
+        # -- which is not the same test as "this window has one pane". A pane
+        # whose window is absent from the windows list has no merged row to be
+        # represented by, and dropping it would lose its only row.
+        found=0
+        i=0
+        while [ "$i" -lt "${#merged_keys[@]}" ]; do
+            if [ "${merged_keys[$i]}" = "$key" ]; then found=1; break; fi
+            i=$((i + 1))
+        done
+        [ "$found" = 1 ] && continue
         state_decor "$state"
-        printf '%s\tpane\t%s%s [pane] %s:%s %s  %s%s%s  %s%s%s\t%s\tpane:%s:%s:%s\n' \
+        printf '%s\tpane\t%s%s [pane]     %s:%s %s  %s%s%s  %s%s%s\t%s\tpane:%s:%s:%s\n' \
             "$id" "$STATE_COLOUR" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$label" \
             "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
             "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname" "$cmd"
@@ -348,7 +448,7 @@ _collect_rows_raw() {
     rows_from_lists \
         "$(tmux list-sessions -F '#{session_name}'$'\t''#{session_windows}' 2>/dev/null)" \
         "$(tmux list-windows -a -F '#{window_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{@scout-state}' 2>/dev/null)" \
-        "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}'$'\t''#{?#{==:#{pane_title},#{host_short}},#{pane_current_command},#{pane_title}}' 2>/dev/null)"
+        "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}'$'\t''#{?#{==:#{pane_title},#{host_short}},#{pane_current_command},#{pane_title}}'$'\t''#{?#{@sidebar-pane},1,0}' 2>/dev/null)"
 }
 
 # Dispatch on the row's own kind field, never on the target's first character

@@ -24,11 +24,16 @@ echo "rows_from_lists"
 
 SESS=$'main\t3\nother\t1'
 WINS=$'@1\tmain\t1\thomedir\t\n@2\tmain\t2\totto-relay\twait\n@9\tother\t1\tmy project\t\n@7\tmain\t4\tidle-win\tidle'
-PANES=$'%1\tmain\t1\thomedir\tzsh\tzsh\n%2\tmain\t2\totto-relay\tnode\t✳ otto'
+# Three panes across two windows: main:1 has one (so it MERGES with its
+# window row) and main:2 has two (so it does not). %3 carries no title, which
+# is what the command fall-back is asserted against.
+PANES=$'%1\tmain\t1\thomedir\tzsh\tzsh\n%2\tmain\t2\totto-relay\tnode\t✳ otto\n%3\tmain\t2\totto-relay\tbash\t'
 
 out=$(rows_from_lists "$SESS" "$WINS" "$PANES")
 
-assert_eq "one row per input line" "8" "$(printf '%s\n' "$out" | wc -l)"
+# NOT one row per input line any more: nine inputs, eight rows, because
+# main:1 and its only pane are one merged row.
+assert_eq "nine inputs, eight rows" "8" "$(printf '%s\n' "$out" | wc -l)"
 
 # Target must be field 1 so the action never has to parse display text.
 assert_eq "session target is the name" "main" "$(printf '%s\n' "$out" | grep -m1 'sess' | cut -f1)"
@@ -52,13 +57,13 @@ printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fa
 # version of this assertion looked for empty square brackets while the row
 # renders angle brackets, so it passed no matter how broken the guard was.
 assert_eq "unset scout state renders nothing" \
-    "$(printf '@1\twin\t󰖯 [win]  main:1 homedir  @1\t\twin:main:homedir')" \
-    "$(printf '%s\n' "$out" | grep -m1 '\[win\]  main:1 homedir')"
+    "$(printf '@9\twin\t󰖯 [win]      other:1 my project  @9\t\twin:other:my project')" \
+    "$(printf '%s\n' "$out" | grep -m1 'my project')"
 
 # "idle" is the common case — marking every idle window defeats the point of a
 # marker, which is to make the windows wanting your attention stand out.
 assert_eq "idle state renders no marker" \
-    "$(printf '@7\twin\t󰖯 [win]  main:4 idle-win  @7\tidle\twin:main:idle-win')" \
+    "$(printf '@7\twin\t󰖯 [win]      main:4 idle-win  @7\tidle\twin:main:idle-win')" \
     "$(printf '%s\n' "$out" | grep -m1 'idle-win')"
 
 # A window name with a space must survive intact.
@@ -130,11 +135,20 @@ else
         echo "  skip (could not start a throwaway server)"
     else
         TT new-window -t gototest -n second
+        # Window 0 is split, so it keeps a window row AND a row per pane;
+        # window 1 stays single-paned, so it merges. Window 2 is the active
+        # one and is excluded, which is why a third window is needed to see
+        # window 1's row at all.
+        TT split-window -d -t gototest:0
+        TT new-window -t gototest -n third
         active_before=$(TT list-windows -t gototest -F '#{window_index} #{window_active}' | awk '$2==1{print $1}')
-        assert_eq "second window starts active" "1" "$active_before"
+        assert_eq "third window starts active" "2" "$active_before"
 
         first_id=$(TT list-windows -t gototest -F '#{window_id} #{window_index}' | awk '$2==0{print $1}')
-        first_pane=$(TT list-panes -a -F '#{pane_id} #{window_index}' | awk '$2==0{print $1}')
+        # head -1: window 0 has two panes now, and both match.
+        first_pane=$(TT list-panes -a -F '#{pane_id} #{window_index}' | awk '$2==0{print $1}' | head -1)
+        second_id=$(TT list-windows -t gototest -F '#{window_id} #{window_index}' | awk '$2==1{print $1}')
+        second_pane=$(TT list-panes -a -F '#{pane_id} #{window_index}' | awk '$2==1{print $1}' | head -1)
 
         tmux() { TT "$@"; }
 
@@ -142,7 +156,18 @@ else
         printf '%s\n' "$rows" | grep -q "^${first_id}$(printf '\t')" \
           && pass "real server: window row present" || fail "real server: window row present" "$first_id" "$rows"
         printf '%s\n' "$rows" | grep -q "^${first_pane}$(printf '\t')" \
-          && pass "real server: pane row present" || fail "real server: pane row present" "$first_pane" "$rows"
+          && pass "real server: a split window still has pane rows" \
+          || fail "real server: a split window still has pane rows" "$first_pane" "$rows"
+        # The merge, against a real server rather than a fixture: one row for
+        # the single-pane window, carrying its pane id, and no row of its own
+        # for that pane.
+        srow=$(printf '%s\n' "$rows" | grep -m1 "^${second_id}$(printf '\t')")
+        case "$srow" in
+            *"[win/pane]"*"$second_pane"*) pass "real server: the single-pane window is merged" ;;
+            *) fail "real server: the single-pane window is merged" "[win/pane] … $second_pane" "$srow" ;;
+        esac
+        assert_eq "real server: and its pane has no row of its own" "0" \
+            "$(printf '%s\n' "$rows" | grep -c "^${second_pane}$(printf '\t')")"
 
         # The case that matters: a target in a window that is NOT active. A
         # same-window check would pass even if nothing moved.
@@ -152,7 +177,7 @@ else
 
         TT select-window -t gototest:1
         act_on "$(printf '%s\n' "$rows" | grep -m1 "^${first_pane}$(printf '\t')")"
-        assert_eq "real server: pane row changes active window" "0" \
+        assert_eq "real server: a pane row changes active window" "0" \
             "$(TT list-windows -t gototest -F '#{window_index} #{window_active}' | awk '$2==1{print $1}')"
 
         unset -f tmux
@@ -227,11 +252,73 @@ printf '%s\n' "$out3" | grep -q '󰄬 done' \
 
 # scout marks the window, but the agent is a pane -- the pane row is as likely
 # to be the one picked, so it inherits its window's state.
-assert_eq "pane inherits its window state" "1" \
+assert_eq "both panes of a window inherit its state" "2" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /otto-relay/' | grep -c '󰀦 wait')"
-assert_eq "pane in an unmarked window stays unmarked" \
-    "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh  %%1\t\tpane:main:homedir:zsh')" \
-    "$(printf '%s\n' "$out" | grep -m1 '^%1')"
+
+echo "a single-pane window merges with its pane"
+# The whole row, exactly, because every part of it is load-bearing: the
+# [win/pane] tag (typeable as either word), the pane's title where the window
+# row used to show nothing, BOTH ids so the %pane can still be typed or handed
+# to tmarchy-agent, the window's own id as the target, and the WINDOW frecency
+# key -- which is what keeps this picker's accumulated ranking and keeps
+# promote_and_filter's pin (a window-id match) working.
+assert_eq "the merged row is the window row, with the pane folded in" \
+    "$(printf '@1\twin\t󰖯 [win/pane] main:1 homedir  zsh  @1 %%1\t\twin:main:homedir')" \
+    "$(printf '%s\n' "$out" | grep -m1 '^@1')"
+assert_eq "its kind stays win, so act_on selects the window" "win" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="@1" {print $2}')"
+assert_eq "and its key stays the window's" "win:main:homedir" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="@1" {print $5}')"
+# The pane is still reachable -- it is named in the merged row -- but it no
+# longer has a row of its own, which is the duplicate this removes.
+assert_eq "the pane id is still in the display" "1" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="@1" {print $3}' | grep -c '%1')"
+assert_eq "and the merged window contributes exactly one row" "1" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$3 ~ /main:1 homedir/' | grep -c .)"
+# A split window keeps both kinds: the window row means "go there, whichever
+# pane was active", which a pane-only list cannot say.
+assert_eq "a split window is not merged" "[win]" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="@2" {print $3}' | grep -o '\[win[^]]*\]')"
+assert_eq "and still lists each of its panes" "3" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$3 ~ /otto-relay/' | grep -c .)"
+# Fails OPEN: a window with no panes in the list is not a real tmux state, so
+# it means the pane list was empty or truncated -- and losing the only row for
+# a window is worse than keeping one that is merely redundant.
+assert_eq "a window we saw no panes for keeps a plain row" "[win]" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="@9" {print $3}' | grep -o '\[win[^]]*\]')"
+# Same rule from the other side: suppression keys on a merged row having been
+# emitted, not on the pane count, so an orphan pane keeps its row.
+assert_eq "a pane whose window is absent keeps its row" "1" \
+    "$(rows_from_lists "" "" "$(printf '%%9\tmain\t1\tw\tnode\t')" | grep -c .)"
+
+# The claim that made merging cheap rather than a redesign: promote_and_filter
+# pins the previously-active window by matching a WINDOW id against the row's
+# target, and a merged row still carries one -- so Enter-is-alt-tab needed no
+# change. Give the merged row the pane's id instead and the pin matches
+# nothing, silently, while every row still looks right.
+PIN=$(promote_and_filter "$out" "@2" "%2" "" "@1")
+assert_eq "the last-window pin lands on a merged row" "@1" \
+    "$(printf '%s\n' "$PIN" | head -1 | cut -f1)"
+assert_eq "and the pinned row is not repeated below it" "1" \
+    "$(printf '%s\n' "$PIN" | cut -f1 | grep -cx '@1')"
+
+echo "the window sidebar is not a destination"
+# prefix + W puts a 24-column strip of chrome in every window, and it would do
+# double damage here: a junk row of its own, AND every window ceasing to look
+# single-paned, which is what the merge keys on.
+SBWINS=$'@5\tmain\t9\twsb\t'
+SBPANES=$'%5\tmain\t9\twsb\tbash\tbash\t1\n%6\tmain\t9\twsb\tclaude\t✳ x\t0'
+sbout=$(rows_from_lists "" "$SBWINS" "$SBPANES")
+assert_eq "a window holding a sidebar and one agent yields one row" "1" \
+    "$(printf '%s\n' "$sbout" | grep -c .)"
+assert_eq "and that row is merged, not a plain window row" "1" \
+    "$(printf '%s\n' "$sbout" | grep -c '\[win/pane\]')"
+assert_eq "it names the agent pane, not the sidebar" "1" \
+    "$(printf '%s\n' "$sbout" | grep -c '✳ x')"
+assert_eq "the sidebar pane id appears nowhere" "0" \
+    "$(printf '%s\n' "$sbout" | grep -c '%5')"
+assert_contains "the panes query asks tmux for the sidebar flag" '#{@sidebar-pane}' \
+    "$(grep 'list-panes -a' "$DIR/tmux-goto")"
 
 # Session names are user-supplied and may contain glob characters, so the state
 # lookup compares with = rather than matching the stored key as a shell pattern.
@@ -241,7 +328,9 @@ assert_eq "pane in an unmarked window stays unmarked" \
 # does not save you here the way it would for a bare "*", which is why the
 # fixture needs two session names rather than two windows.
 GLOBWINS=$'@1\ta*\t1\tone\twait\n@2\tab\t1\ttwo\t'
-GLOBPANES=$'%1\ta*\t1\tone\tclaude\n%2\tab\t1\ttwo\tzsh'
+# Two panes per window, so neither merges and the PANE rows this is about
+# still exist.
+GLOBPANES=$'%1\ta*\t1\tone\tclaude\n%3\ta*\t1\tone\tzsh\n%2\tab\t1\ttwo\tzsh\n%4\tab\t1\ttwo\tzsh'
 globout=$(rows_from_lists "" "$GLOBWINS" "$GLOBPANES")
 assert_eq "a glob session name does not smear state onto another session" "0" \
     "$(printf '%s\n' "$globout" | awk -F'\t' '$2=="pane" && $1=="%2"' | grep -c '󰀦 wait')"
@@ -372,8 +461,11 @@ assert_eq "the title is nowhere in the key" "0" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" {print $5}' | grep -c '✳')"
 # A pane that set no title reports the HOSTNAME, so tmux resolves the fallback
 # in the format and this stays pure -- no host_short needed here.
-assert_contains "a shell pane still shows its command" "zsh" \
-    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $1=="%1" {print $3}')"
+assert_contains "a titleless pane still shows its command" "bash" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $1=="%3" {print $3}')"
+# And the merged row takes its label from its pane the same way.
+assert_contains "a merged row shows its pane's label" "zsh" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$1=="@1" {print $3}')"
 # An empty label must not blank the column.
 assert_contains "an empty label falls back to the command" "node" \
     "$(rows_from_lists "" "" "$(printf '%%9\tmain\t1\tw\tnode\t')" | cut -f3)"
@@ -381,13 +473,14 @@ assert_contains "the panes query asks tmux for the fallback" '#{==:#{pane_title}
     "$(grep 'list-panes -a' "$DIR/tmux-goto")"
 
 echo "state filter"
-# @2 (otto-relay) is wait and %2 inherits it, so two of the eight rows are wait.
+# @2 (otto-relay) is wait and both its panes inherit it, so three of the eight
+# rows are wait.
 assert_eq "filter_by_state all is identity" "8" "$(filter_by_state "$out" all | grep -c .)"
-assert_eq "a wait filter keeps the window and the pane inheriting it" "2" \
+assert_eq "a wait filter keeps the window and both panes inheriting it" "3" \
     "$(filter_by_state "$out" wait | grep -c .)"
 # Pane first, window second: the filter preserves the ranking order, and the
 # ranking now puts a pane above the window it ties with.
-assert_eq "and keeps exactly those two targets" "%2 @2" \
+assert_eq "and keeps exactly those three targets" "%2 %3 @2" \
     "$(filter_by_state "$out" wait | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
 # A session has no scout state of its own, so it has nothing to match and must
 # drop out rather than ride along on every filter.
@@ -400,8 +493,11 @@ assert_eq "an unset state reads as empty, not as the key" "" \
     "$(state_of_row "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /main:1 homedir/')")"
 
 echo "counts and header"
-assert_eq "counts_line tallies the rows given it" "wait=2 busy=0 done=0 total=8" "$(counts_line "$out")"
-assert_contains "header marks the active filter" "[wait(2)]" "$(header_line "$out" wait)"
+assert_eq "counts_line tallies the rows given it" "wait=3 busy=0 done=0 total=8" "$(counts_line "$out")"
+# A merged row is counted ONCE, where the window and its pane used to be
+# counted twice -- the header now says how many places want you, not how many
+# rows mention them.
+assert_contains "header marks the active filter" "[wait(3)]" "$(header_line "$out" wait)"
 assert_contains "header keeps the other counts visible" "done(0)" "$(header_line "$out" wait)"
 assert_contains "header totals under all" "[all(8)]" "$(header_line "$out" all)"
 # ctrl-i IS Tab, and most rows here carry no state at all, so an idle filter
@@ -487,7 +583,7 @@ chk_key_is_last() {
 chk_filter_narrows() {
     ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
       o=$(rows_from_lists "$SESS" "$WINS" "$PANES")
-      [ "$(filter_by_state "$o" wait | grep -c .)" = 2 ] )
+      [ "$(filter_by_state "$o" wait | grep -c .)" = 3 ] )
 }
 chk_header_marks_active() {
     ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
@@ -530,6 +626,27 @@ chk_panes_before_windows() {
       o=$(rows_from_lists "" "$WINS" "$PANES")
       [ "$(printf '%s\n' "$o" | cut -f2 | uniq | tr '\n' ' ')" = "pane win " ] )
 }
+chk_merges_single_pane() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "" "$WINS" "$PANES")
+      [ "$(printf '%s\n' "$o" | awk -F'\t' '$1=="@1" {print $3}' | grep -c '\[win/pane\]')" = 1 ] )
+}
+chk_no_duplicate_pane_row() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "" "$WINS" "$PANES")
+      [ "$(printf '%s\n' "$o" | awk -F'\t' '$3 ~ /main:1 homedir/' | grep -c .)" = 1 ] )
+}
+chk_pin_reaches_merged_row() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "" "$WINS" "$PANES")
+      r=$(promote_and_filter "$o" "@2" "%2" "" "@1" | head -1)
+      [ "${r%%$'\t'*}" = "@1" ] )
+}
+chk_sidebar_excluded() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "" "$SBWINS" "$SBPANES")
+      [ "$(printf '%s\n' "$o" | grep -c .)" = 1 ] && printf '%s\n' "$o" | grep -q '✳ x' )
+}
 chk_esc_clears() {
     local f out; f="$(mktemp)"; printf 'wait\n' > "$f"
     out="$(TMUX_GOTO_STATE="$f" env -u TMUX_GOTO_LIB "$1" --esc 2>/dev/null)"; rm -f "$f"
@@ -544,6 +661,20 @@ chk_esc_aborts_unfiltered() {
 # loop and panes fall below them again, with every row still looking correct.
 sabotage "$DIR/tmux-goto" "window rows print before the panes again" \
     's#wrows="$wrows$row"#printf "%s" "$row"#' chk_panes_before_windows
+sabotage "$DIR/tmux-goto" "a single-pane window stops merging" \
+    's#if \[ "$n" = 1 \]; then#if false; then#' chk_merges_single_pane
+# The other half: merge the window row but keep the pane row too, and the
+# duplicate is back with nothing on screen to say which to pick.
+sabotage "$DIR/tmux-goto" "the merged window's pane row comes back" \
+    's#\[ "$found" = 1 \] && continue##' chk_no_duplicate_pane_row
+# Enter-is-alt-tab, which the merge quietly depends on keeping.
+sabotage "$DIR/tmux-goto" "a merged row carries its pane's id as the target" \
+    's#"$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" "$plabel"#"$ppane" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" "$plabel"#' \
+    chk_pin_reaches_merged_row
+# With the sidebar on, ignoring the flag costs BOTH things at once: a chrome
+# row in the picker and every window losing its merge.
+sabotage "$DIR/tmux-goto" "the sidebar flag is ignored" \
+    's#\[ "$sb" = "1" \] && continue##g' chk_sidebar_excluded
 sabotage "$DIR/tmux-goto" "esc aborts even with a filter on" \
     "s#printf 'reload(%s all).*#printf abort#" chk_esc_clears
 sabotage "$DIR/tmux-goto" "an unknown state reads as filtered, so esc never exits" \
