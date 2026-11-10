@@ -8,6 +8,7 @@ FAILED=0
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
 assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+assert_contains() { case "$3" in *"$2"*) pass "$1" ;; *) fail "$1" "to contain: $2" "$3" ;; esac; }
 
 export TMUX_GOTO_LIB=1
 # shellcheck source=/dev/null
@@ -48,13 +49,13 @@ printf '%s\n' "$out" | grep -q 'wait' && pass "scout state shown when set" || fa
 # version of this assertion looked for empty square brackets while the row
 # renders angle brackets, so it passed no matter how broken the guard was.
 assert_eq "unset scout state renders nothing" \
-    "$(printf '@1\twin\t󰖯 [win]  main:1 homedir  @1\twin:main:homedir')" \
+    "$(printf '@1\twin\t󰖯 [win]  main:1 homedir  @1\t\twin:main:homedir')" \
     "$(printf '%s\n' "$out" | grep -m1 '\[win\]  main:1 homedir')"
 
 # "idle" is the common case — marking every idle window defeats the point of a
 # marker, which is to make the windows wanting your attention stand out.
 assert_eq "idle state renders no marker" \
-    "$(printf '@7\twin\t󰖯 [win]  main:4 idle-win  @7\twin:main:idle-win')" \
+    "$(printf '@7\twin\t󰖯 [win]  main:4 idle-win  @7\tidle\twin:main:idle-win')" \
     "$(printf '%s\n' "$out" | grep -m1 'idle-win')"
 
 # A window name with a space must survive intact.
@@ -223,7 +224,7 @@ printf '%s\n' "$out3" | grep -q '󰄬 done' \
 assert_eq "pane inherits its window state" "1" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /otto-relay/' | grep -c '󰀦 wait')"
 assert_eq "pane in an unmarked window stays unmarked" \
-    "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh  %%1\tpane:main:homedir:zsh')" \
+    "$(printf '%%1\tpane\t󱂬 [pane] main:1 homedir  zsh  %%1\t\tpane:main:homedir:zsh')" \
     "$(printf '%s\n' "$out" | grep -m1 '^%1')"
 
 # Session names are user-supplied and may contain glob characters, so the state
@@ -261,11 +262,11 @@ echo "frecency"
 # The key must survive a tmux restart. Window ids do not: @2 is a different
 # window after every restart, so keying on the target would rank nothing.
 assert_eq "a window key is session and name, not the id" "win:main:otto-relay" \
-    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $4}')"
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $5}')"
 assert_eq "a session key is its name" "sess:main" \
-    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $4; exit}')"
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $5; exit}')"
 assert_eq "a pane key includes its command" "pane:main:otto-relay:node" \
-    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /node/ {print $4}')"
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /node/ {print $5}')"
 assert_eq "frecency_key_goto reads the last field" "win:main:otto-relay" \
     "$(frecency_key_goto "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/')")"
 
@@ -277,18 +278,19 @@ printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/ {print $3}' | 
 assert_eq "a session row does not repeat its name" "1" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $3; exit}' | grep -o 'main' | grep -c .)"
 
-# Every row must have exactly the four fields act_on and fzf depend on.
-assert_eq "every row has four fields" "0" \
-    "$(printf '%s\n' "$out" | awk -F'\t' 'NF != 4' | grep -c .)"
+# Every row must have exactly the five fields act_on, the filter and fzf
+# depend on: target, kind, display, state, frecency key.
+assert_eq "every row has five fields" "0" \
+    "$(printf '%s\n' "$out" | awk -F'\t' 'NF != 5' | grep -c .)"
 
 echo "promote_and_filter"
-PF=$'main\tsess\tS main\tsess:main
-other\tsess\tS other\tsess:other
-@1\twin\tW one\twin:main:one
-@2\twin\tW two\twin:main:two
-@3\twin\tW three\twin:main:three
-%1\tpane\tP one\tpane:main:one:zsh
-%2\tpane\tP two\tpane:main:two:zsh'
+PF=$'main\tsess\tS main\t\tsess:main
+other\tsess\tS other\t\tsess:other
+@1\twin\tW one\t\twin:main:one
+@2\twin\tW two\twait\twin:main:two
+@3\twin\tW three\t\twin:main:three
+%1\tpane\tP one\t\tpane:main:one:zsh
+%2\tpane\tP two\t\tpane:main:two:zsh'
 
 got=$(promote_and_filter "$PF" "@1" "%1" "main" "@3")
 
@@ -304,7 +306,7 @@ assert_eq "everything else survives" "other @2 %2" \
     "$(printf '%s\n' "$got" | tail -n +2 | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
 # Other sessions are still somewhere to go.
 assert_eq "another session is kept" "1" "$(printf '%s\n' "$got" | cut -f1 | grep -cx 'other')"
-assert_eq "the promoted row keeps all four fields" "4" \
+assert_eq "the promoted row keeps all five fields" "5" \
     "$(printf '%s\n' "$got" | head -1 | awk -F'\t' '{print NF}')"
 
 # A fresh session has no last window at all.
@@ -351,5 +353,88 @@ assert_eq "and they keep their order" "main other" \
 UND=$'my_session\t1'
 assert_eq "an underscore elsewhere is not hidden" "1" \
     "$(rows_from_lists "$UND" "" "" | grep -c .)"
+
+echo "state filter"
+# @2 (otto-relay) is wait and %2 inherits it, so two of the eight rows are wait.
+assert_eq "filter_by_state all is identity" "8" "$(filter_by_state "$out" all | grep -c .)"
+assert_eq "a wait filter keeps the window and the pane inheriting it" "2" \
+    "$(filter_by_state "$out" wait | grep -c .)"
+assert_eq "and keeps exactly those two targets" "@2 %2" \
+    "$(filter_by_state "$out" wait | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+# A session has no scout state of its own, so it has nothing to match and must
+# drop out rather than ride along on every filter.
+assert_eq "session rows drop out of a state filter" "0" \
+    "$(filter_by_state "$out" wait | cut -f3 | grep -c '\[sess\]')"
+assert_eq "a filter nothing matches yields nothing" "0" "$(filter_by_state "$out" done | grep -c .)"
+assert_eq "state_of_row reads field 4" "wait" \
+    "$(state_of_row "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/')")"
+assert_eq "an unset state reads as empty, not as the key" "" \
+    "$(state_of_row "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /main:1 homedir/')")"
+
+echo "counts and header"
+assert_eq "counts_line tallies the rows given it" "wait=2 busy=0 done=0 total=8" "$(counts_line "$out")"
+assert_contains "header marks the active filter" "[wait(2)]" "$(header_line "$out" wait)"
+assert_contains "header keeps the other counts visible" "done(0)" "$(header_line "$out" wait)"
+assert_contains "header totals under all" "[all(8)]" "$(header_line "$out" all)"
+# ctrl-i IS Tab, and most rows here carry no state at all, so an idle filter
+# would mean "almost everything". It gets no key and must not advertise one.
+assert_eq "no key is advertised for idle" "0" "$(header_line "$out" all | grep -c 'idle(')"
+
+echo "bindings"
+assert_contains "display still shows field 3 only" "--with-nth=3 " "$(cat "$DIR/tmux-goto")"
+assert_eq "all four filter keys are bound" "4" "$(grep -c 'ctrl-[wbda]:reload' "$DIR/tmux-goto")"
+GOTO_BINDS="$(grep 'reload(' "$DIR/tmux-goto" | grep -v '^[[:space:]]*#')"
+assert_contains "reload bodies go through \$rl, not a pasted path" 'reload($rl' "$GOTO_BINDS"
+assert_eq "no binding interpolates the resolved path" "0" \
+    "$(printf '%s\n' "$GOTO_BINDS" | grep -c 'TMUX_GOTO_LIBDIR\|[$]DIR')"
+
+echo "sabotage proofs"
+sabotage() {
+    local file="$1" label="$2" expr="$3" fn="$4" broken
+    broken="$(mktemp)"; sed "$expr" "$file" > "$broken"; chmod +x "$broken"
+    if cmp -s "$broken" "$file"; then
+        fail "sabotage '$label' changed nothing" "a modified copy" "byte-identical file"
+        rm -f "$broken"; return
+    fi
+    if "$fn" "$broken" >/dev/null 2>&1; then
+        fail "sabotage not caught: $label" "the check fails against broken code" "it passed"
+    else
+        pass "sabotage caught: $label"
+    fi
+    rm -f "$broken"
+}
+
+# Each check sources the BROKEN copy in a subshell and asserts something
+# POSITIVE about it -- an exact key, an exact count, a present marker. A check
+# asserting only an absence would be satisfied by a sabotage that merely
+# crashed the source, which is the vacuity bin/claude-restore-plugins-selftest
+# shipped twice on its first run.
+chk_key_is_last() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "$SESS" "$WINS" "$PANES")
+      r=$(printf '%s\n' "$o" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/')
+      [ "$(frecency_key_goto "$r")" = "win:main:otto-relay" ] )
+}
+chk_filter_narrows() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "$SESS" "$WINS" "$PANES")
+      [ "$(filter_by_state "$o" wait | grep -c .)" = 2 ] )
+}
+chk_header_marks_active() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "$SESS" "$WINS" "$PANES")
+      header_line "$o" wait | grep -q '\[wait(' )
+}
+
+# THE trap this row shape was designed around. frecency_key_goto reads the LAST
+# field, so a state appended after the key silently BECOMES the frecency key:
+# the ranking this picker is built on is destroyed while every row still looks
+# perfectly correct on screen. That is why state sits at field 4.
+sabotage "$DIR/tmux-goto" "state lands after the frecency key" \
+    's#\\t%s\\twin:%s:%s\\n#\\twin:%s:%s\\t%s\\n#' chk_key_is_last
+sabotage "$DIR/tmux-goto" "filter_by_state treats every filter as all" \
+    's#\[ "$want" = all \]#true#' chk_filter_narrows
+sabotage "$DIR/tmux-goto" "the header stops marking the active filter" \
+    's#item="\[$item\]"#:#' chk_header_marks_active
 
 exit "$FAILED"

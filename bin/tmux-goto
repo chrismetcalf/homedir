@@ -5,10 +5,16 @@
 # would bury the few dozen rows you actually want to reach. prefix + F keeps its
 # nine tmux-fzf modes for the "do something" intent.
 #
-# Rows are "TARGET<TAB>KIND<TAB>DISPLAY" and fzf shows only from field 3, so
-# the action always has an unambiguous %3 / @7 / session name to act on, plus
-# a kind field naming what it is. Parsing either back out of display text would
-# break on window names containing spaces, or on a leading glyph.
+# Rows are "TARGET<TAB>KIND<TAB>DISPLAY<TAB>STATE<TAB>FRECENCY-KEY" and fzf
+# shows only field 3, so the action always has an unambiguous %3 / @7 / session
+# name to act on, plus a kind field naming what it is. Parsing either back out
+# of display text would break on window names containing spaces, or on a
+# leading glyph.
+#
+# STATE sits at field 4 rather than at the end ON PURPOSE: frecency_key_goto
+# reads the LAST field, so appending state there would have silently made the
+# state the frecency key and quietly destroyed the ranking this picker is built
+# around -- with every row still looking perfectly correct on screen.
 #
 # Sourced with TMUX_GOTO_LIB=1 it defines its functions and exits, so the
 # selftest can exercise the pure parts with no tmux server involved.
@@ -21,6 +27,10 @@ if command -v readlink >/dev/null 2>&1; then
     TMUX_GOTO_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
 fi
 TMUX_GOTO_LIBDIR="$(dirname "$TMUX_GOTO_SELF")/lib"
+# fzf hands reload()/transform-header() bodies to `sh -c`, so the path reaches
+# them through the ENVIRONMENT and is referenced as "$TMUX_GOTO_SELF" there --
+# never interpolated. See bin/tmux-files for what a pasted path does.
+export TMUX_GOTO_SELF
 # shellcheck source=lib/tmux-theme.sh
 [ -r "$TMUX_GOTO_LIBDIR/tmux-theme.sh" ] && . "$TMUX_GOTO_LIBDIR/tmux-theme.sh"
 
@@ -99,7 +109,9 @@ rows_from_lists() {
         case "$name" in _*) continue ;; esac
         # No dim target appended here, unlike the window and pane rows: a
         # session's target IS its name, which is already the visible label.
-        printf '%s\tsess\t%s [sess] %s  (%s windows)\tsess:%s\n' \
+        # Field 4 is empty: a session has no scout state of its own, which is
+        # also what correctly drops session rows out of a state filter.
+        printf '%s\tsess\t%s [sess] %s  (%s windows)\t\tsess:%s\n' \
             "$name" "$GLYPH_SESS" "$name" "$count" "$name"
     done <<< "$sessions"
 
@@ -131,10 +143,10 @@ rows_from_lists() {
         # it displays. The frecency key is a separate hidden field because the
         # id itself is useless as one -- @2 is a different window after every
         # restart, while the session and window name persist.
-        printf '%s\twin\t%s%s [win]  %s:%s %s%s%s  %s%s%s\twin:%s:%s\n' \
+        printf '%s\twin\t%s%s [win]  %s:%s %s%s%s  %s%s%s\t%s\twin:%s:%s\n' \
             "$id" "$STATE_COLOUR" "$GLYPH_WIN" "$sess" "$idx" "$wname" \
             "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
-            "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$sess" "$wname"
+            "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname"
     done <<< "$windows"
 
     while IFS=$'\t' read -r id sess idx wname cmd; do
@@ -146,12 +158,72 @@ rows_from_lists() {
             i=$((i + 1))
         done
         state_decor "$state"
-        printf '%s\tpane\t%s%s [pane] %s:%s %s  %s%s%s  %s%s%s\tpane:%s:%s:%s\n' \
+        printf '%s\tpane\t%s%s [pane] %s:%s %s  %s%s%s  %s%s%s\t%s\tpane:%s:%s:%s\n' \
             "$id" "$STATE_COLOUR" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$cmd" \
             "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
-            "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$sess" "$wname" "$cmd"
+            "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname" "$cmd"
     done <<< "$panes"
 }
+# Field 4 of each row, read positionally. Pure: it takes the rows rather than
+# asking tmux, so the filter is testable from fixtures with no server.
+state_of_row() {
+    local rest="${1:-}"
+    rest=${rest#*$'\t'}      # kind \t display \t state \t key
+    rest=${rest#*$'\t'}      # display \t state \t key
+    rest=${rest#*$'\t'}      # state \t key
+    printf '%s' "${rest%%$'\t'*}"
+}
+
+filter_by_state() {
+    local rows="${1:-}" want="${2:-all}" row
+    if [ "$want" = all ]; then printf '%s' "$rows"; return 0; fi
+    while IFS= read -r row; do
+        [ -n "$row" ] || continue
+        [ "$(state_of_row "$row")" = "$want" ] && printf '%s\n' "$row"
+    done <<< "$rows"
+    return 0
+}
+
+# Sets CS_* rather than printing a line somebody then has to parse -- the
+# string form below exists only for --counts and the selftest. A header that
+# needed a parser would be a second definition of the counts format.
+count_states() {
+    local rows="${1:-}" row
+    CS_WAIT=0; CS_BUSY=0; CS_DONE=0; CS_TOTAL=0
+    while IFS= read -r row; do
+        [ -n "$row" ] || continue
+        CS_TOTAL=$((CS_TOTAL + 1))
+        case "$(state_of_row "$row")" in
+            wait)   CS_WAIT=$((CS_WAIT + 1)) ;;
+            busy)   CS_BUSY=$((CS_BUSY + 1)) ;;
+            "done") CS_DONE=$((CS_DONE + 1)) ;;
+        esac
+    done <<< "$rows"
+}
+
+counts_line() { count_states "${1:-}"; printf 'wait=%s busy=%s done=%s total=%s' \
+    "$CS_WAIT" "$CS_BUSY" "$CS_DONE" "$CS_TOTAL"; }
+
+# Counts come from the UNFILTERED rows, so the header still reads busy(1) while
+# the list shows only waits. No key for idle: Ctrl-I *is* Tab, and most rows
+# here carry no state at all, so an idle filter would mean "almost everything".
+header_line() {
+    local rows="${1:-}" active="${2:-all}" out="" key st n item
+    count_states "$rows"
+    for st in wait busy "done" all; do
+        case "$st" in
+            wait)   key=w; n=$CS_WAIT ;;
+            busy)   key=b; n=$CS_BUSY ;;
+            "done") key=d; n=$CS_DONE ;;
+            *)      key=a; n=$CS_TOTAL ;;
+        esac
+        item="$st($n)"
+        [ "$st" = "$active" ] && item="[$item]"
+        out="$out  ^$key $item"
+    done
+    printf '%s' "${out#  }"
+}
+
 frecency_key_goto() {
     local row="${1:-}"
     printf '%s' "${row##*$'\t'}"
@@ -243,27 +315,68 @@ main() {
         printf 'tmux-goto: fzf is not installed\n' >&2
         exit 1
     fi
+    # An initial filter, so a binding can open the picker pre-narrowed.
+    local initial=all
+    case "${1:-}" in
+        --state)   initial="${2:-all}" ;;
+        --state=*) initial="${1#--state=}" ;;
+    esac
+    case "$initial" in
+        wait|busy|"done"|all) ;;
+        *)  # Exit 2 rather than widening to all: a typo in a binding would
+            # otherwise look exactly like the filter not working.
+            printf 'tmux-goto: %s is not a state to filter by (wait, busy, done, all)\n' \
+                "$initial" >&2
+            exit 2 ;;
+    esac
     load_theme
-    local choice rows
-    rows=$(collect_rows)
+    local choice rows all_rows
+    all_rows=$(collect_rows)
+    rows=$(filter_by_state "$all_rows" "$initial")
     # Legitimately possible: one session, one window, one pane means every row
     # is somewhere you already are. Say so rather than opening an empty picker
     # that just looks broken.
     if [ -z "$rows" ]; then
-        printf '\ntmux-goto: nowhere else to go -- this is the only window\n'
-        printf 'and pane in the only session.\n\n  [any key] close  '
+        # Two different empties. "Nowhere else to go" is about the server; a
+        # filter matching nothing is about the filter, and borrowing the first
+        # message for the second would claim you are alone in one window when
+        # you are not.
+        if [ -n "$all_rows" ] && [ "$initial" != all ]; then
+            count_states "$all_rows"
+            printf '\ntmux-goto: nothing is %s (%s rows).\n\n  [any key] close  ' \
+                "$initial" "$CS_TOTAL"
+        else
+            printf '\ntmux-goto: nowhere else to go -- this is the only window\n'
+            printf 'and pane in the only session.\n\n  [any key] close  '
+        fi
         IFS= read -r -n1 -s _ </dev/tty 2>/dev/null || true
         exit 0
     fi
-    # --with-nth=3 exactly, NOT 3..: field 4 carries the frecency key and must
-    # stay hidden. --tiebreak=index so equal-scoring matches keep the frecency
-    # order; the default `length` ranks by row width and would undo the sort.
+    # --with-nth=3 exactly, NOT 3..: fields 4 and 5 carry the state and the
+    # frecency key and must stay hidden. --tiebreak=index so equal-scoring
+    # matches keep the frecency order; the default `length` ranks by row width
+    # and would undo the sort -- including after every reload below.
     # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    local rl="\"\$TMUX_GOTO_SELF\" --rows" hd="\"\$TMUX_GOTO_SELF\" --header"
     choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index $(fzf_theme_opts) \
         --delimiter=$'\t' --with-nth=3 \
+        --header="$(header_line "$all_rows" "$initial")" \
+        --bind "ctrl-w:reload($rl wait)+transform-header($hd wait)" \
+        --bind "ctrl-b:reload($rl busy)+transform-header($hd busy)" \
+        --bind "ctrl-d:reload($rl done)+transform-header($hd done)" \
+        --bind "ctrl-a:reload($rl all)+transform-header($hd all)" \
         --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
     frecency_record "$(frecency_path goto)" "$(frecency_key_goto "$choice")"
     act_on "$choice"
 }
+
+# Called by the reload/transform-header bindings, not by hand. --header needs
+# no theme: colours live in the display text, and the counts it reports come
+# from the state field, which load_theme does not touch.
+case "${1:-}" in
+    --rows)   [ "${TMUX_GOTO_LIB:-}" = "1" ] || { load_theme; filter_by_state "$(collect_rows)" "${2:-all}"; exit 0; } ;;
+    --header) [ "${TMUX_GOTO_LIB:-}" = "1" ] || { header_line "$(collect_rows)" "${2:-all}"; exit 0; } ;;
+    --counts) [ "${TMUX_GOTO_LIB:-}" = "1" ] || { counts_line "$(collect_rows)"; printf '\n'; exit 0; } ;;
+esac
 
 [ "${TMUX_GOTO_LIB:-}" = "1" ] || main "$@"
