@@ -24,7 +24,7 @@ echo "rows_from_lists"
 
 SESS=$'main\t3\nother\t1'
 WINS=$'@1\tmain\t1\thomedir\t\n@2\tmain\t2\totto-relay\twait\n@9\tother\t1\tmy project\t\n@7\tmain\t4\tidle-win\tidle'
-PANES=$'%1\tmain\t1\thomedir\tzsh\n%2\tmain\t2\totto-relay\tnode'
+PANES=$'%1\tmain\t1\thomedir\tzsh\tzsh\n%2\tmain\t2\totto-relay\tnode\t✳ otto'
 
 out=$(rows_from_lists "$SESS" "$WINS" "$PANES")
 
@@ -266,7 +266,7 @@ assert_eq "a window key is session and name, not the id" "win:main:otto-relay" \
 assert_eq "a session key is its name" "sess:main" \
     "$(printf '%s\n' "$out" | awk -F'\t' '$2=="sess"{print $5; exit}')"
 assert_eq "a pane key includes its command" "pane:main:otto-relay:node" \
-    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $3 ~ /node/ {print $5}')"
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $1=="%2" {print $5}')"
 assert_eq "frecency_key_goto reads the last field" "win:main:otto-relay" \
     "$(frecency_key_goto "$(printf '%s\n' "$out" | awk -F'\t' '$2=="win" && $3 ~ /otto-relay/')")"
 
@@ -354,6 +354,26 @@ UND=$'my_session\t1'
 assert_eq "an underscore elsewhere is not hidden" "1" \
     "$(rows_from_lists "$UND" "" "" | grep -c .)"
 
+echo "pane rows show the title, and key on the command"
+# A pane running an agent is titled by Claude Code itself, which beats the
+# fifth "claude" in a column of them. But the title moves on /rename, so the
+# frecency key must stay on the command or the ranking resets every rename.
+assert_contains "an agent pane displays its title" "✳ otto" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $1=="%2" {print $3}')"
+assert_eq "...and still keys on the command" "pane:main:otto-relay:node" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $1=="%2" {print $5}')"
+assert_eq "the title is nowhere in the key" "0" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" {print $5}' | grep -c '✳')"
+# A pane that set no title reports the HOSTNAME, so tmux resolves the fallback
+# in the format and this stays pure -- no host_short needed here.
+assert_contains "a shell pane still shows its command" "zsh" \
+    "$(printf '%s\n' "$out" | awk -F'\t' '$2=="pane" && $1=="%1" {print $3}')"
+# An empty label must not blank the column.
+assert_contains "an empty label falls back to the command" "node" \
+    "$(rows_from_lists "" "" "$(printf '%%9\tmain\t1\tw\tnode\t')" | cut -f3)"
+assert_contains "the panes query asks tmux for the fallback" '#{==:#{pane_title},#{host_short}}' \
+    "$(grep 'list-panes -a' "$DIR/tmux-goto")"
+
 echo "state filter"
 # @2 (otto-relay) is wait and %2 inherits it, so two of the eight rows are wait.
 assert_eq "filter_by_state all is identity" "8" "$(filter_by_state "$out" all | grep -c .)"
@@ -436,5 +456,24 @@ sabotage "$DIR/tmux-goto" "filter_by_state treats every filter as all" \
     's#\[ "$want" = all \]#true#' chk_filter_narrows
 sabotage "$DIR/tmux-goto" "the header stops marking the active filter" \
     's#item="\[$item\]"#:#' chk_header_marks_active
+
+chk_pane_shows_title() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "$SESS" "$WINS" "$PANES")
+      printf '%s\n' "$o" | awk -F'\t' '$1=="%2" {print $3}' | grep -q '✳ otto' )
+}
+chk_pane_keys_on_command() {
+    ( export TMUX_GOTO_LIB=1; . "$1" 2>/dev/null || exit 1
+      o=$(rows_from_lists "$SESS" "$WINS" "$PANES")
+      [ "$(printf '%s\n' "$o" | awk -F'\t' '$1=="%2" {print $5}')" = "pane:main:otto-relay:node" ] )
+}
+
+sabotage "$DIR/tmux-goto" "pane rows go back to showing the bare command" \
+    's#"$wname" "$label"#"$wname" "$cmd"#' chk_pane_shows_title
+# The expensive mistake: keying on the title means every /rename resets that
+# pane's frecency, so the ranking silently decays while the rows look right.
+sabotage "$DIR/tmux-goto" "the frecency key moves onto the title" \
+    's#"$state" "$sess" "$wname" "$cmd"#"$state" "$sess" "$wname" "$label"#' \
+    chk_pane_keys_on_command
 
 exit "$FAILED"

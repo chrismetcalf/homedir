@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# tmux-pane-titles-selftest — tests for bin/tmux-pane-titles.
+#
+# The gate is pure and tested with no server. The rest needs a real one,
+# because the whole subject is which WINDOW gets an option -- so it runs on a
+# throwaway socket, and every call the script makes is diverted there through
+# TMUX_PANE_TITLES_TMUX. Without that diversion a run would rewrite
+# pane-border-status on every window of the live server.
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$DIR/tmux-pane-titles"
+FAILED=0
+pass() { printf '  ok   %s\n' "$1"; }
+fail() { printf '  FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"; FAILED=1; }
+assert_eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "$2" "$3"; }
+
+TMUX_BIN="${TMUX_BIN:-tmux}"
+SOCK="$(mktemp -u)"
+# Named for this suite and this pid. tmux-dropdown-selftest's scratch session
+# was once called `main` -- the same name as the real session on this host --
+# so a misrouted run looked identical to a correct one.
+SESS="panetitles-selftest-$$"
+TM() { $TMUX_BIN -S "$SOCK" "$@"; }
+export TMUX_PANE_TITLES_TMUX="$TMUX_BIN -S $SOCK"
+
+cleanup() {
+    # Only ever kill a server whose EVERY session is one of ours. Checked per
+    # session rather than against one exact string, because this suite needs a
+    # second session to prove the sweep is server-wide -- and an equality check
+    # against the first name alone then refused to clean up, leaving a stray
+    # server behind on every run.
+    local s all_ours=1 any=0 listed=""
+    while IFS= read -r s; do
+        [ -n "$s" ] || continue
+        any=1; listed="$listed$s "
+        case "$s" in
+            "$SESS"|"$SESS"-*) ;;
+            *) all_ours=0 ;;
+        esac
+    done <<< "$(TM list-sessions -F '#{session_name}' 2>/dev/null)"
+    if [ "$any" = 1 ] && [ "$all_ours" = 1 ]; then
+        TM kill-server 2>/dev/null
+    elif [ "$any" = 1 ]; then
+        printf '  !! refusing to kill a server holding: %s\n' "$listed" >&2
+    fi
+    rm -f "$SOCK"
+}
+trap cleanup EXIT HUP INT TERM
+
+echo "tmux-pane-titles selftest"
+
+echo "the gate (pure, no server)"
+( export TMUX_PANE_TITLES_LIB=1
+  # shellcheck source=/dev/null
+  . "$SCRIPT"
+  assert_eq "no panes gets no border"       "off" "$(want_for on 0)"
+  assert_eq "one pane gets no border"       "off" "$(want_for on 1)"
+  assert_eq "two panes get one"             "top" "$(want_for on 2)"
+  assert_eq "five panes get one"            "top" "$(want_for on 5)"
+  assert_eq "the preference wins over any count" "off" "$(want_for off 5)"
+  # Fails to "off", which IS the behaviour this feature replaced -- borders
+  # nowhere. The sidebar fails OPEN for the same reason in reverse: degrading
+  # to what the host did before the feature existed.
+  assert_eq "a nonsense count falls back to no border" "off" "$(want_for on x)"
+  assert_eq "an empty count falls back to no border"   "off" "$(want_for on '')" )
+
+echo "server: one window at a time"
+TM -f /dev/null new-session -d -x 80 -y 20 -s "$SESS" >/dev/null 2>&1
+W1="$(TM display-message -p -t "$SESS" '#{window_id}')"
+border_of() { TM show-options -wv -t "$1" pane-border-status 2>/dev/null; }
+
+"$SCRIPT" ensure "$W1"
+assert_eq "an unsplit window gets no border" "off" "$(border_of "$W1")"
+
+TM split-window -d -t "$W1"
+"$SCRIPT" ensure "$W1"
+assert_eq "splitting earns the border" "top" "$(border_of "$W1")"
+
+# Closing the second pane must take it away again, or every window that was
+# ever split keeps paying a row forever.
+TM kill-pane -t "$W1".1
+"$SCRIPT" ensure "$W1"
+assert_eq "closing the pane gives the row back" "off" "$(border_of "$W1")"
+
+echo "server: windows are judged individually"
+TM new-window -d -t "$SESS" >/dev/null 2>&1
+W2="$(TM list-windows -t "$SESS" -F '#{window_id}' | tail -1)"
+TM split-window -d -t "$W2"
+"$SCRIPT" sweep
+assert_eq "the split window has a border" "top" "$(border_of "$W2")"
+assert_eq "and the unsplit one next to it does not" "off" "$(border_of "$W1")"
+
+echo "server: the sweep is server-wide, not session-scoped"
+# A hook's run-shell carries no session, so a session-scoped sweep reads
+# whichever session happens to be current -- which is not reliably the one that
+# changed. The sidebar shipped exactly that bug. This pins it by putting the
+# split window in a session that is NOT the one the sweep would default to.
+OTHER="$SESS-other"
+TM new-session -d -x 80 -y 20 -s "$OTHER" >/dev/null 2>&1
+W3="$(TM display-message -p -t "$OTHER" '#{window_id}')"
+TM split-window -d -t "$W3"
+TM set-option -w -t "$W3" pane-border-status off
+"$SCRIPT" sweep
+assert_eq "a window in another session is swept too" "top" "$(border_of "$W3")"
+
+echo "server: the preference"
+assert_eq "unset reads as on" "on" \
+    "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; pref' "$SCRIPT")"
+TM set-option -g '@tmarchy-pane-titles' off
+"$SCRIPT" sweep
+assert_eq "off removes the border from a split window" "off" "$(border_of "$W2")"
+TM set-option -g '@tmarchy-pane-titles' on
+"$SCRIPT" sweep
+assert_eq "on brings it back without a second keypress" "top" "$(border_of "$W2")"
+
+echo "server: status reports rather than changes"
+BEFORE="$(border_of "$W2")"
+STATUS_OUT="$("$SCRIPT" status 2>&1)"
+assert_eq "status changes nothing" "$BEFORE" "$(border_of "$W2")"
+case "$STATUS_OUT" in
+    *allow-set-title*) pass "status reports allow-set-title" ;;
+    *) fail "status reports allow-set-title" "allow-set-title" "$STATUS_OUT" ;;
+esac
+
+echo "sabotage proofs"
+# Every check asserts a VALUE, never merely an absence: a sabotage that crashes
+# the script would satisfy "no border was set", which is the vacuity
+# bin/claude-restore-plugins-selftest shipped twice.
+sabotage() {
+    local label="$1" expr="$2" fn="$3" broken
+    broken="$(mktemp)"; sed "$expr" "$SCRIPT" > "$broken"; chmod +x "$broken"
+    if cmp -s "$broken" "$SCRIPT"; then
+        fail "sabotage '$label' changed nothing" "a modified copy" "byte-identical file"
+        rm -f "$broken"; return
+    fi
+    if "$fn" "$broken" >/dev/null 2>&1; then
+        fail "sabotage not caught: $label" "the check fails against broken code" "it passed"
+    else
+        pass "sabotage caught: $label"
+    fi
+    rm -f "$broken"
+}
+
+# W1 is unsplit, W2 is split. Reset both so each check starts from a known
+# state rather than from whatever the previous one left.
+reset_borders() {
+    TM set-option -w -t "$W1" pane-border-status off
+    TM set-option -w -t "$W2" pane-border-status off
+    TM set-option -w -t "$W3" pane-border-status off
+}
+
+chk_gate_holds() {           # an unsplit window must still end up off
+    reset_borders; "$1" ensure "$W1" >/dev/null 2>&1
+    [ "$(border_of "$W1")" = off ]
+}
+chk_per_window() {           # the two must be able to DISAGREE
+    reset_borders; "$1" sweep >/dev/null 2>&1
+    [ "$(border_of "$W2")" = top ] && [ "$(border_of "$W1")" = off ]
+}
+chk_sweep_is_server_wide() { # the other session's window must be reached
+    reset_borders; "$1" sweep >/dev/null 2>&1
+    [ "$(border_of "$W3")" = top ]
+}
+chk_pref_defaults_on() {
+    TM set-option -gu '@tmarchy-pane-titles' 2>/dev/null
+    [ "$(TMUX_PANE_TITLES_LIB=1 bash -c '. "$0"; pref' "$1")" = on ]
+}
+
+sabotage "the two-pane gate stops gating" \
+    's#if \[ "$n" -ge 2 \]#if [ "$n" -ge 0 ]#' chk_gate_holds
+sabotage "the option is set globally instead of per window" \
+    's#set-option -w -t "$id" pane-border-status#set-option -g pane-border-status#' chk_per_window
+sabotage "the sweep goes back to being session-scoped" \
+    's#list-windows -a -F #list-windows -F #' chk_sweep_is_server_wide
+sabotage "an unset preference reads as off" \
+    's#\*)        printf .on. ;;#*)        printf "off" ;;#' chk_pref_defaults_on
+
+printf '\n'
+[ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
+printf 'FAILURES\n'; exit 1

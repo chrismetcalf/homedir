@@ -149,8 +149,17 @@ rows_from_lists() {
             "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname"
     done <<< "$windows"
 
-    while IFS=$'\t' read -r id sess idx wname cmd; do
+    # Six fields: the label is what the row SHOWS, the command is what it keys
+    # on. They have to be separate. A pane running an agent is titled by Claude
+    # Code itself ("✳ otto"), which is far more use on screen than the fifth
+    # "claude" in a column of them -- but it changes when a session is renamed,
+    # and a frecency key that moved on every /rename would rank nothing. tmux
+    # resolves the label, including the fall back to the command for a pane
+    # that set no title of its own (such a pane reports the HOSTNAME), so this
+    # stays pure and needs no host_short of its own.
+    while IFS=$'\t' read -r id sess idx wname cmd label; do
         [ -n "$id" ] || continue
+        [ -n "$label" ] || label="$cmd"
         state=""
         i=0
         while [ "$i" -lt "${#win_keys[@]}" ]; do
@@ -159,7 +168,7 @@ rows_from_lists() {
         done
         state_decor "$state"
         printf '%s\tpane\t%s%s [pane] %s:%s %s  %s%s%s  %s%s%s\t%s\tpane:%s:%s:%s\n' \
-            "$id" "$STATE_COLOUR" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$cmd" \
+            "$id" "$STATE_COLOUR" "$GLYPH_PANE" "$sess" "$idx" "$wname" "$label" \
             "$STATE_MARKER" "${STATE_COLOUR:+$C_RESET}" \
             "$C_DIM" "$id" "${C_DIM:+$C_RESET}" "$state" "$sess" "$wname" "$cmd"
     done <<< "$panes"
@@ -282,7 +291,7 @@ _collect_rows_raw() {
     rows_from_lists \
         "$(tmux list-sessions -F '#{session_name}'$'\t''#{session_windows}' 2>/dev/null)" \
         "$(tmux list-windows -a -F '#{window_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{@scout-state}' 2>/dev/null)" \
-        "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}' 2>/dev/null)"
+        "$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_index}'$'\t''#{window_name}'$'\t''#{pane_current_command}'$'\t''#{?#{==:#{pane_title},#{host_short}},#{pane_current_command},#{pane_title}}' 2>/dev/null)"
 }
 
 # Dispatch on the row's own kind field, never on the target's first character

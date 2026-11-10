@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# tmux-pane-titles — put each pane's title on its border, where it earns a row.
+#
+# Claude Code ALREADY NAMES ITS PANE. A pane running it carries the title
+# "✳ <session name>", so a session renamed with /rename says so within seconds:
+# measured live, three agent panes read "✳ homedir", "✳ Home Assistant" and
+# "✳ otto" with nothing of ours involved. So there is deliberately no renamer
+# here -- and one would lose a fight with it anyway, since allow-set-title is
+# on and Claude's next OSC overwrites whatever we set. What was actually
+# missing is that nothing DISPLAYED those titles: pane-border-status was off,
+# so the names existed and were invisible everywhere except the terminal's own
+# title bar (via set-titles-string, which already carries #T).
+#
+# The row is not free, which is the whole reason this script exists rather than
+# one global set-option. Measured on a scratch server: pane-border-status top
+# takes a single pane in a 20-row window from 20 rows to 19 -- so an unsplit
+# window pays a row to be told its own name, which it already shows on the tab.
+# A border is therefore set only where there are at least two panes to tell
+# apart.
+#
+#   ensure [<window>]  set it for one window (default: the current one)
+#   sweep              set it for every window on the server
+#   toggle             flip @tmarchy-pane-titles and re-sweep
+#   status             report the preference and what each window has
+#
+# Sourced with TMUX_PANE_TITLES_LIB=1 it defines its functions and exits, so
+# the selftest can exercise the pure parts with no tmux server.
+set -uo pipefail
+
+OPT='@tmarchy-pane-titles'
+
+# Every tmux call goes through here, and the override is read at CALL time --
+# never captured at source time. That is the tmux-gen lesson (an override
+# resolved at source time had every test run hitting the real, billed binary),
+# and the stake here is the user's live server: a suite that escaped onto it
+# would rewrite pane-border-status on every real window.
+tmux_cmd() { ${TMUX_PANE_TITLES_TMUX:-tmux} "$@"; }
+
+# on (default) | off. The preference is a PREFERENCE: `off` means never show
+# them, `on` means show them where they are worth a row -- it is not a promise
+# that every window has a border. Same split as the sidebar's @sidebar, where
+# width decides whether the preference is honoured right now.
+pref() {
+    local v
+    v="$(tmux_cmd show -gv "$OPT" 2>/dev/null)"
+    case "$v" in
+        off|0|no) printf 'off' ;;
+        *)        printf 'on' ;;
+    esac
+}
+
+# Pure: the decision is a function of the preference and the pane count, so it
+# is tested directly rather than inferred from live tmux state.
+want_for() {  # want_for <pref> <pane-count>
+    local p="${1:-on}" n="${2:-0}"
+    [ "$p" = off ] && { printf 'off'; return 0; }
+    case "$n" in
+        ''|*[!0-9]*) printf 'off'; return 0 ;;
+    esac
+    # Two panes is the first count where a border tells you something the tab
+    # does not already say.
+    if [ "$n" -ge 2 ]; then printf 'top'; else printf 'off'; fi
+}
+
+# -w, so a window keeps its own answer: two windows of one session routinely
+# differ, one split and one not.
+apply_to() {  # apply_to <window-id> <pane-count>
+    local id="$1" n="$2" want
+    want="$(want_for "$(pref)" "$n")"
+    tmux_cmd set-option -w -t "$id" pane-border-status "$want" 2>/dev/null
+}
+
+# list-windows -a, NOT -s. A hook's run-shell carries no session of its own, so
+# the session-scoped form reads whichever session happens to be current, which
+# is not reliably the one whose layout changed -- the exact bug the sidebar's
+# window-resized sweep shipped with, where an 84-column window kept its sidebar
+# because the current session resolved to another one. Nothing is risked by the
+# wider scope: every window is judged by its own pane count.
+sweep() {
+    local id n
+    while IFS=$'\t' read -r id n; do
+        [ -n "$id" ] || continue
+        apply_to "$id" "$n"
+    done <<< "$(tmux_cmd list-windows -a -F '#{window_id}'$'\t''#{window_panes}' 2>/dev/null)"
+}
+
+ensure() {
+    local target="${1:-}" id n out
+    if [ -n "$target" ]; then
+        out="$(tmux_cmd display-message -p -t "$target" '#{window_id}'$'\t''#{window_panes}' 2>/dev/null)"
+    else
+        out="$(tmux_cmd display-message -p '#{window_id}'$'\t''#{window_panes}' 2>/dev/null)"
+    fi
+    IFS=$'\t' read -r id n <<< "$out"
+    [ -n "$id" ] || return 0
+    apply_to "$id" "$n"
+}
+
+toggle() {
+    if [ "$(pref)" = on ]; then
+        tmux_cmd set-option -g "$OPT" off
+    else
+        tmux_cmd set-option -g "$OPT" on
+    fi
+    sweep
+    # Reported rather than silent, and it names what actually happened: a key
+    # that says "on" while nothing appears reads as broken, and the next thing
+    # you do about a broken key is press it again -- which turns it back off.
+    local p; p="$(pref)"
+    if [ "$p" = on ]; then
+        tmux_cmd display-message "pane titles: on (shown on windows with 2+ panes)"
+    else
+        tmux_cmd display-message "pane titles: off"
+    fi
+}
+
+status() {
+    printf 'pane titles\n\n'
+    printf '  preference       %s  (%s)\n' "$(pref)" "$OPT"
+    printf '  allow-set-title  %s  (off would stop Claude naming its own pane)\n' \
+        "$(tmux_cmd show -gv allow-set-title 2>/dev/null)"
+    printf '\n  %-12s %-7s %-6s %s\n' window panes border title
+    tmux_cmd list-windows -a -F '#{window_id}'$'\t''#{window_name}'$'\t''#{window_panes}'$'\t''#{pane-border-status}' 2>/dev/null \
+        | while IFS=$'\t' read -r id name n bs; do
+            printf '  %-12s %-7s %-6s %s\n' "$name" "$n" "${bs:-off}" \
+                "$(tmux_cmd display-message -p -t "$id" '#{pane_title}' 2>/dev/null)"
+        done
+}
+
+[ "${TMUX_PANE_TITLES_LIB:-}" = "1" ] && return 0
+
+case "${1:-ensure}" in
+    ensure) ensure "${2:-}" ;;
+    sweep)  sweep ;;
+    toggle) toggle ;;
+    status) status ;;
+    -h|--help)
+        sed -n '4,20p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+    *) printf 'tmux-pane-titles: unknown command: %s\n' "$1" >&2; exit 2 ;;
+esac
