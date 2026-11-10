@@ -10,6 +10,11 @@
 #
 # Navigation only. Enter jumps; Ctrl-V is deliberately unbound, because an agent
 # already lives in a pane and there is nothing to open a second copy of.
+#
+# Ctrl-W / Ctrl-B / Ctrl-D / Ctrl-A filter by state, reloading the list in
+# place the way tmux-files' ^g/^h/^u re-root it. There is deliberately no key
+# for idle: Ctrl-I *is* Tab in every terminal, so it cannot be bound without
+# taking Tab away. Idle is reachable as `tmux-agents --state idle`.
 set -uo pipefail
 
 SELF="${BASH_SOURCE[0]}"
@@ -26,24 +31,78 @@ DIR="$(dirname "$SELF")"
 ROWS_BIN="${TMUX_AGENTS_ROWS_BIN:-$DIR/tmux-agents-rows}"
 STATUS="${TMUX_AGENTS_STATUS:-$HOME/.tmux-scout/status.json}"
 
+# fzf hands a reload()/transform-header() body to `sh -c`, so the path to this
+# script reaches those bodies through the ENVIRONMENT and is referenced as
+# "$TMUX_AGENTS_SELF" inside them -- never interpolated. bin/tmux-files learned
+# that the hard way: a root pasted into a quoted argument closes the quote and
+# the remainder is syntax, which executed a payload from a directory named
+# x'$(touch /tmp/PROOF)'y. The state words in the bindings are our own literals
+# and safe; the path is not ours to trust.
+export TMUX_AGENTS_SELF="$SELF"
+
 # Tint each row by its state, using the same @theme-* values as the bar and
 # tmux-goto -- agent state should read identically everywhere.
 colourise() {
-    local wait busy done_c reset line state
+    local wait busy done_c reset line rest state
     wait=$(ansi_for "$(tmux show -gv @theme-wait 2>/dev/null)" 2>/dev/null)
     busy=$(ansi_for "$(tmux show -gv @theme-busy 2>/dev/null)" 2>/dev/null)
     done_c=$(ansi_for "$(tmux show -gv @theme-done 2>/dev/null)" 2>/dev/null)
     [ -n "$wait$busy$done_c" ] && reset=$'\033[0m' || reset=""
     while IFS= read -r line; do
         [ -n "$line" ] || continue
-        state=${line#*$'\t'}; state=${state#*$'\t'}; state=${state%% *}
+        # Field 3 is the state KEY, read positionally rather than matched out of
+        # the display text. The emitter's own note says why it is a field: the
+        # picker tints and filters on it, and parsing a word back out of the
+        # display would keep passing after the label changed shape, silently
+        # leaving every row uncoloured.
+        rest=${line#*$'\t'}          # kind \t state \t display
+        rest=${rest#*$'\t'}          # state \t display
+        state=${rest%%$'\t'*}
         case "$state" in
-            WAIT) printf '%s%s%s\n' "$wait" "$line" "$reset" ;;
-            WORK) printf '%s%s%s\n' "$busy" "$line" "$reset" ;;
-            DONE) printf '%s%s%s\n' "$done_c" "$line" "$reset" ;;
-            *)    printf '%s\n' "$line" ;;
+            "wait") printf '%s%s%s\n' "$wait" "$line" "$reset" ;;
+            "busy") printf '%s%s%s\n' "$busy" "$line" "$reset" ;;
+            "done") printf '%s%s%s\n' "$done_c" "$line" "$reset" ;;
+            *)      printf '%s\n' "$line" ;;
         esac
     done
+}
+
+# count_of <counts-line> <key> -- one tally out of the emitter's --counts line
+# ("wait=2 busy=1 done=1 idle=2 total=6"). A missing key reads as 0 rather than
+# as the whole line: ${1#*key=} returns the string unchanged when the key is
+# absent, so the digits guard is what stops "wait=2" being printed as a count.
+count_of() {
+    local v="${1#*"$2"=}"
+    v="${v%% *}"
+    case "$v" in
+        ''|*[!0-9]*) printf '0' ;;
+        *)           printf '%s' "$v" ;;
+    esac
+}
+
+# The header is rebuilt on every filter change through fzf's transform-header,
+# which runs a command -- change-header could only carry a string fixed when
+# the picker opened, so the counts would go stale the moment an agent finished.
+# Counts come from the emitter's --counts, i.e. from the classifier, not from
+# counting rows that survived a grep.
+header_line() {
+    local active="${1:-all}" c out="" key st n item
+    c="$("$ROWS_BIN" --counts 2>/dev/null)"
+    for st in wait busy "done" all; do
+        case "$st" in
+            wait)   key=w ;;
+            busy)   key=b ;;
+            "done") key=d ;;
+            *)      key=a ;;
+        esac
+        if [ "$st" = all ]; then n="$(count_of "$c" total)"; else n="$(count_of "$c" "$st")"; fi
+        item="$st($n)"
+        # Brackets rather than colour: a header's ANSI handling varies, and the
+        # active marker has to survive on a terminal that drops it.
+        [ "$st" = "$active" ] && item="[$item]"
+        out="$out  ^$key $item"
+    done
+    printf '%s' "${out#  }"
 }
 
 doctor() {
@@ -70,6 +129,14 @@ PY
 
 main() {
     TMUX_AGENTS_MAIN_RAN=1
+    # An initial filter, so the picker can be opened pre-narrowed from a
+    # binding. Validation is the emitter's job (it exits 2), not a second copy
+    # of the state list here.
+    local initial=all
+    case "${1:-}" in
+        --state)   initial="${2:-all}" ;;
+        --state=*) initial="${1#--state=}" ;;
+    esac
     if ! command -v node >/dev/null 2>&1; then
         printf '\ntmux-agents: node is not installed, and the row emitter needs it.\n\n'
         printf 'Press ENTER to close'; read -r _; exit 1
@@ -92,7 +159,12 @@ main() {
         printf 'Press ENTER to close'; read -r _; exit 1
     fi
     local rows choice pane rc
-    rows="$("$ROWS_BIN")"; rc=$?
+    rows="$("$ROWS_BIN" --state "$initial")"; rc=$?
+    if [ "$rc" = 2 ]; then
+        printf '\ntmux-agents: %s is not a state to filter by.\n\n' "$initial"
+        printf '  wait, busy, done, idle or all.\n\n'
+        printf 'Press ENTER to close'; read -r _; exit 1
+    fi
     if [ "$rc" = 3 ]; then
         printf '\ntmux-agents: the scout status file could not be parsed.\n  %s\n\n' "$STATUS"
         printf '  It exists but is not valid JSON -- scout may have been interrupted mid-write.\n\n'
@@ -107,15 +179,35 @@ main() {
         printf 'Press ENTER to close'; read -r _; exit 1
     fi
     if [ -z "$rows" ]; then
-        printf '\ntmux-agents: no live agents.\n\n'
-        printf '  %s parsed fine; every session in it is stale, ended, or has no pane.\n\n' "$STATUS"
+        # Three different empties, and they must not borrow each other's words.
+        # "nothing live" and "your status file is corrupt" were already
+        # distinguished above; a filter that matched nothing while agents ARE
+        # running is the third, and reporting it as "no live agents" would send
+        # you looking at scout for a picker that is working perfectly.
+        local total
+        total="$(count_of "$("$ROWS_BIN" --counts 2>/dev/null)" total)"
+        if [ "$initial" != all ] && [ "$total" -gt 0 ]; then
+            printf '\ntmux-agents: no %s agents (%s live).\n\n' "$initial" "$total"
+        else
+            printf '\ntmux-agents: no live agents.\n\n'
+            printf '  %s parsed fine; every session in it is stale, ended, or has no pane.\n\n' "$STATUS"
+        fi
         printf 'Press ENTER to close'; read -r _; exit 0
     fi
     # --tiebreak=index so equal-scoring matches keep the duration order above;
     # fzf's default of `length` would re-sort them by row width.
     # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
+    # --tiebreak=index must survive every reload, or the duration order the
+    # emitter went to the trouble of producing silently becomes fzf's default
+    # `length` -- a sort by row width, which looks almost plausible.
+    local rl="\"\$TMUX_AGENTS_SELF\" --rows" hd="\"\$TMUX_AGENTS_SELF\" --header"
     choice=$(printf '%s\n' "$rows" | colourise | fzf --ansi --tiebreak=index $(fzf_theme_opts) \
-        --delimiter=$'\t' --with-nth=3.. \
+        --delimiter=$'\t' --with-nth=4.. \
+        --header="$(header_line "$initial")" \
+        --bind "ctrl-w:reload($rl wait)+transform-header($hd wait)" \
+        --bind "ctrl-b:reload($rl busy)+transform-header($hd busy)" \
+        --bind "ctrl-d:reload($rl done)+transform-header($hd done)" \
+        --bind "ctrl-a:reload($rl all)+transform-header($hd all)" \
         --prompt='agent > ' --height=100% --reverse --no-multi) || exit 0
     pane=${choice%%$'\t'*}
     [ -n "$pane" ] || exit 0
@@ -132,6 +224,11 @@ main() {
 
 case "${1:-}" in
     --doctor) [ "${TMUX_AGENTS_LIB:-}" = "1" ] || { doctor; exit 0; } ;;
+    # Called by the reload/transform-header bindings above, not by hand. They
+    # live here rather than inline in the bindings so colourise and header_line
+    # each keep exactly one definition.
+    --rows)   [ "${TMUX_AGENTS_LIB:-}" = "1" ] || { "$ROWS_BIN" --state "${2:-all}" | colourise; exit 0; } ;;
+    --header) [ "${TMUX_AGENTS_LIB:-}" = "1" ] || { header_line "${2:-all}"; exit 0; } ;;
 esac
 
 [ "${TMUX_AGENTS_LIB:-}" = "1" ] || main "$@"

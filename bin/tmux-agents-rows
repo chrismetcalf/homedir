@@ -45,6 +45,37 @@ const STATUS = process.env.TMUX_AGENTS_STATUS
   || path.join(process.env.HOME || '', '.tmux-scout/status.json')
 const NOW = Number(process.env.TMUX_AGENTS_NOW) || Date.now()
 
+// --state narrows the emitted rows; --counts prints the tallies and exits.
+//
+// The filter lives HERE rather than as a grep in the picker, because a row's
+// state is sessionState() UNION paneIsPrompting() and this repo has already
+// paid once for that predicate existing twice -- lib/scout.js's paneStates()
+// and tmux-scout-next-wait held byte-identical copies, and the suite now greps
+// for a re-inlined `needsAttention ||` to stop them re-forking. A bash-side
+// `grep WAIT` over display text would be a third definition, keyed on a label
+// rather than on the classifier, and it would keep passing after the label
+// changed shape.
+const STATES = ['wait', 'busy', 'done', 'idle']
+let want = 'all'
+let countsOnly = false
+for (let i = 2; i < process.argv.length; i++) {
+  const a = process.argv[i]
+  if (a === '--counts') { countsOnly = true; continue }
+  if (a === '--state') { want = process.argv[++i] || ''; continue }
+  if (a.startsWith('--state=')) { want = a.slice('--state='.length); continue }
+  process.stderr.write('tmux-agents-rows: unknown argument: ' + a + '\n')
+  process.exit(2)
+}
+// Exit 2 on an unknown state, NEVER fall back to showing everything: a typo in
+// a key binding would then look exactly like the filter quietly not working,
+// which is the hardest kind of bug to see in a picker that is already full of
+// rows.
+if (want !== 'all' && !STATES.includes(want)) {
+  process.stderr.write('tmux-agents-rows: unknown --state ' + JSON.stringify(want)
+    + ' (want one of ' + STATES.join(', ') + ', all)\n')
+  process.exit(2)
+}
+
 // Live panes and the current pane come from the environment when set, so the
 // selftest needs no tmux server.
 const livePanes = new Set(
@@ -135,8 +166,24 @@ for (const s of Object.values(doc.sessions || {})) {
 rows.sort((a, b) => (ORDER[a.state] - ORDER[b.state])
   || (a.state === 'idle' ? a.ms - b.ms : b.ms - a.ms))
 
+// Counts are taken from the UNFILTERED set, which is what lets the picker's
+// header read `wait(2) busy(1)` while the list itself shows only waits. A
+// filtered count would collapse to "the rows you can already see".
+const counts = { wait: 0, busy: 0, done: 0, idle: 0 }
+for (const r of rows) counts[r.state]++
+
+if (countsOnly) {
+  process.stdout.write(STATES.map((s) => s + '=' + counts[s]).join(' ')
+    + ' total=' + rows.length + '\n')
+  process.exit(0)
+}
+
 const LABEL = { wait: 'WAIT', busy: 'WORK', done: 'DONE', idle: 'IDLE' }
 for (const r of rows) {
+  if (want !== 'all' && r.state !== want) continue
   const disp = `${LABEL[r.state]} ${human(r.ms).padStart(7)}  ${r.label.padEnd(22).slice(0, 22)}  ${r.detail}`
-  process.stdout.write(`${r.pane}\tagent\t${disp.replace(/\s+$/, '')}\n`)
+  // State is its OWN field, never recovered from the display label. The picker
+  // both tints and filters on it, and parsing a word back out of display text
+  // is how a renamed label silently stops colouring every row.
+  process.stdout.write(`${r.pane}\tagent\t${r.state}\t${disp.replace(/\s+$/, '')}\n`)
 }

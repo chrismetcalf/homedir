@@ -133,16 +133,19 @@ assert_eq "jump order is switch-client, select-window, select-pane" "ordered" \
 # the case block that dispatches on $state, and that each arm paints with its
 # OWN variable, not just that the state word appears somewhere.
 CASE_BLOCK="$(sed -n '/case "\$state" in/,/esac/p' "$DIR/tmux-agents")"
-assert_contains "colourise: WAIT arm paints with \$wait"   '$wait' \
-    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *WAIT)')"
-assert_contains "colourise: WORK arm paints with \$busy"   '$busy' \
-    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *WORK)')"
-assert_contains "colourise: DONE arm paints with \$done_c" '$done_c' \
-    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *DONE)')"
+assert_contains "colourise: wait arm paints with \$wait"   '$wait' \
+    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *"wait")')"
+assert_contains "colourise: busy arm paints with \$busy"   '$busy' \
+    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *"busy")')"
+assert_contains "colourise: done arm paints with \$done_c" '$done_c' \
+    "$(printf '%s\n' "$CASE_BLOCK" | grep '^ *"done")')"
 # Navigation only: no acting on agents from this tool.
 assert_eq "no kill in the picker"    "0" "$(grep -c 'kill-pane\|kill-window\|kill-session' "$DIR/tmux-agents")"
 assert_eq "ctrl-v is not bound"      "0" "$(grep -c 'expect=ctrl-v' "$DIR/tmux-agents")"
 assert_contains "tiebreak=index is set" "--tiebreak=index" "$(cat "$DIR/tmux-agents")"
+# Display starts at field 4 now that state is its own field. A stale 3.. would
+# put the raw state key on screen in front of every row.
+assert_contains "display starts past the state field" "--with-nth=4.." "$(cat "$DIR/tmux-agents")"
 # Empty states must explain rather than open an empty picker.
 assert_contains "absent status file is explained" "no scout status file" \
     "$(TMUX_AGENTS_STATUS=/definitely/absent bash "$DIR/tmux-agents" 2>&1 </dev/null || true)"
@@ -212,6 +215,130 @@ echo "doctor reports fzf and the row emitter"
 DOCTOR_OUT="$("$DIR/tmux-agents" --doctor)"
 assert_contains "doctor reports fzf" "fzf" "$DOCTOR_OUT"
 assert_contains "doctor reports whether the row emitter is executable" "rows bin exec" "$DOCTOR_OUT"
+
+echo "state filter"
+assert_eq "--state wait yields only waits" "wait" \
+    "$("$DIR/tmux-agents-rows" --state wait | cut -f3 | sort -u | tr -d '\n')"
+assert_eq "--state wait row count" "2" "$("$DIR/tmux-agents-rows" --state wait | grep -c .)"
+assert_eq "--state=idle accepts the equals form" "2" \
+    "$("$DIR/tmux-agents-rows" --state=idle | grep -c .)"
+assert_eq "--state all is every row" "6" "$("$DIR/tmux-agents-rows" --state all | grep -c .)"
+assert_eq "every row carries a state key in field 3" "6" \
+    "$("$DIR/tmux-agents-rows" | awk -F'\t' '$3 ~ /^(wait|busy|done|idle)$/' | grep -c .)"
+
+echo "counts"
+assert_eq "--counts tallies the unfiltered set" "wait=2 busy=1 done=1 idle=2 total=6" \
+    "$("$DIR/tmux-agents-rows" --counts)"
+# The header shows `wait(2) busy(1)` WHILE filtered to waits, so the tally must
+# not narrow with the filter -- otherwise it collapses to "the rows on screen".
+assert_contains "--counts ignores --state" "busy=1" \
+    "$("$DIR/tmux-agents-rows" --state wait --counts)"
+
+echo "unknown filter is refused, not widened"
+BAD_OUT="$("$DIR/tmux-agents-rows" --state nope 2>&1)"; BAD_RC=$?
+assert_eq "an unknown --state exits 2" "2" "$BAD_RC"
+assert_contains "and names the bad value" "unknown --state" "$BAD_OUT"
+assert_eq "and emits no rows" "0" "$("$DIR/tmux-agents-rows" --state nope 2>/dev/null | grep -c .)"
+UNK_OUT="$("$DIR/tmux-agents-rows" --wat 2>&1)"; UNK_RC=$?
+assert_eq "an unknown argument exits 2" "2" "$UNK_RC"
+assert_contains "and names the argument" "unknown argument" "$UNK_OUT"
+
+echo "header"
+assert_contains "header marks the active filter" "[wait(2)]" "$("$DIR/tmux-agents" --header wait)"
+assert_contains "header keeps the other counts visible" "busy(1)" "$("$DIR/tmux-agents" --header wait)"
+assert_contains "header totals under all" "[all(6)]" "$("$DIR/tmux-agents" --header all)"
+# ctrl-i IS Tab, so idle deliberately has no key and must not appear as one.
+assert_eq "no key is advertised for idle" "0" "$("$DIR/tmux-agents" --header all | grep -c 'idle(')"
+# The reload bodies must reach the script through the environment, never by
+# interpolation -- a path containing a quote would otherwise become syntax
+# inside fzf's `sh -c`. tmux-files executed a payload that way.
+BIND_LINES="$(grep 'reload(' "$DIR/tmux-agents" | grep -v '^[[:space:]]*#')"
+assert_contains "reload bodies go through \$rl, not a pasted path" 'reload($rl' "$BIND_LINES"
+assert_eq "no binding interpolates \$DIR or \$SELF" "0" \
+    "$(printf '%s\n' "$BIND_LINES" | grep -c '[$]DIR\|[$]SELF')"
+assert_contains "and \$rl carries the exported path" 'TMUX_AGENTS_SELF' \
+    "$(grep 'local rl=' "$DIR/tmux-agents")"
+assert_eq "all four filter keys are bound" "4" \
+    "$(grep -c 'ctrl-[wbda]:reload' "$DIR/tmux-agents")"
+
+echo "a filter matching nothing is its own empty"
+# Distinct from both "no live agents" and "corrupt status file": reporting it
+# as either would send you looking at scout for a picker that works.
+assert_contains "empty-under-filter names the filter and the live count" "no done agents" \
+    "$(TMUX_AGENTS_PANES="%10 %11" bash "$DIR/tmux-agents" --state done 2>&1 </dev/null || true)"
+assert_contains "empty-under-filter reports how many ARE live" "(2 live)" \
+    "$(TMUX_AGENTS_PANES="%10 %11" bash "$DIR/tmux-agents" --state done 2>&1 </dev/null || true)"
+# With nothing live at all, the filter must NOT claim "no done agents (0 live)";
+# that is the pre-existing empty and keeps its own words.
+assert_contains "nothing live still says no live agents" "no live agents" \
+    "$(TMUX_AGENTS_PANES=" " bash "$DIR/tmux-agents" --state done 2>&1 </dev/null || true)"
+
+echo "count_of"
+# Sourced for its functions; TMUX_AGENTS_LIB=1 keeps main and the dispatch from
+# running. A key that is absent must read as 0 -- ${1#*key=} returns the string
+# UNCHANGED when the key is missing, so without the digits guard a missing
+# total prints "wait=2" as a count.
+# shellcheck source=/dev/null
+( export TMUX_AGENTS_LIB=1; . "$DIR/tmux-agents"
+  assert_eq "count_of reads a tally"            "7" "$(count_of 'wait=7 busy=1 total=9' wait)"
+  assert_eq "count_of reads the total"          "9" "$(count_of 'wait=7 busy=1 total=9' total)"
+  assert_eq "an absent key reads as zero"       "0" "$(count_of 'wait=7 busy=1' total)"
+  assert_eq "an empty counts line reads as zero" "0" "$(count_of '' total)" )
+
+echo "sabotage proofs"
+# sabotage <file> <label> <sed-expr> <check-fn> -- the check MUST fail against
+# the broken copy. Two traps are closed here: a sed that changes nothing proves
+# nothing, and a sabotage that merely CRASHES satisfies any check asserting
+# only an absence, which is how bin/claude-restore-plugins-selftest shipped two
+# vacuous sabotages on its first run. Every check below asserts something
+# positive -- a value, an exit code, a message -- not just "no rows came back".
+sabotage() {
+    local file="$1" label="$2" expr="$3" fn="$4" broken
+    broken="$(mktemp)"; sed "$expr" "$file" > "$broken"; chmod +x "$broken"
+    if cmp -s "$broken" "$file"; then
+        fail "sabotage '$label' changed nothing" "a modified copy" "byte-identical file"
+        rm -f "$broken"; return
+    fi
+    if "$fn" "$broken" >/dev/null 2>&1; then
+        fail "sabotage not caught: $label" "the check fails against broken code" "it passed"
+    else
+        pass "sabotage caught: $label"
+    fi
+    rm -f "$broken"
+}
+
+chk_filter_narrows() {
+    local out; out="$("$1" --state wait 2>/dev/null)" || return 1
+    [ -n "$out" ] || return 1
+    [ "$(printf '%s\n' "$out" | cut -f3 | sort -u | tr -d '\n')" = "wait" ]
+}
+chk_counts_unfiltered() { "$1" --state wait --counts 2>/dev/null | grep -q 'busy=1'; }
+chk_bad_state_refused() {
+    local out rc
+    out="$("$1" --state nope 2>&1)"; rc=$?
+    [ "$rc" = 2 ] || return 1
+    printf '%s' "$out" | grep -q 'unknown --state'
+}
+chk_state_field() {
+    local out n; out="$("$1" 2>/dev/null)" || return 1
+    n="$(printf '%s\n' "$out" | grep -c .)"
+    [ "$n" -gt 0 ] || return 1
+    [ "$(printf '%s\n' "$out" | awk -F'\t' '$3 ~ /^(wait|busy|done|idle)$/' | grep -c .)" = "$n" ]
+}
+chk_header_marks_active() { "$1" --header wait 2>/dev/null | grep -q '\[wait('; }
+
+ROWS="$DIR/tmux-agents-rows"
+sabotage "$ROWS" "the --state filter stops narrowing" \
+    's#if (want !== .all. && r.state !== want) continue##' chk_filter_narrows
+sabotage "$ROWS" "counts narrow with the filter" \
+    's#for (const r of rows) counts\[r.state\]++#for (const r of rows) if (want === "all" || r.state === want) counts[r.state]++#' \
+    chk_counts_unfiltered
+sabotage "$ROWS" "an unknown state widens to all instead of exiting 2" \
+    's#process.exit(2)#want = "all"#' chk_bad_state_refused
+sabotage "$ROWS" "state stops being its own field" \
+    's#agent\\t${r.state}\\t#agent\\t#' chk_state_field
+sabotage "$DIR/tmux-agents" "the header stops marking the active filter" \
+    's#item="\[$item\]"#:#' chk_header_marks_active
 
 printf '\n'
 [ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }
