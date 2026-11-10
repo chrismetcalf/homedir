@@ -31,6 +31,45 @@ TMUX_GOTO_LIBDIR="$(dirname "$TMUX_GOTO_SELF")/lib"
 # them through the ENVIRONMENT and is referenced as "$TMUX_GOTO_SELF" there --
 # never interpolated. See bin/tmux-files for what a pasted path does.
 export TMUX_GOTO_SELF
+
+# The two binding bodies, as globals rather than locals in main(), because
+# esc_action below emits the same pair and a second copy of this escaping is a
+# second thing to get wrong.
+RL='"$TMUX_GOTO_SELF" --rows'
+HD='"$TMUX_GOTO_SELF" --header'
+
+# The active filter is remembered in a FILE, and Esc is the only reason it has
+# to be remembered: one key cannot both clear and exit, so Esc asks what is
+# left to do -- it clears the filter when one is on and otherwise aborts, which
+# is the double-Esc exit. A file rather than the header or the prompt because
+# those are DISPLAY text, and this picker already refuses to recover state from
+# display text (act_on dispatches on a hidden kind field for the same reason):
+# a reworded header would silently turn Esc back into a plain abort with
+# nothing on screen to say so. One file per invocation, so two pickers open at
+# once cannot see each other's filter. Deliberately not shared with
+# bin/tmux-agents -- same vocabulary, different row shape and state source, and
+# the two scripts already keep their own copies of the filter for that reason.
+record_state() {
+    local f="${TMUX_GOTO_STATE:-}"
+    [ -n "$f" ] && printf '%s\n' "$1" >"$f" 2>/dev/null
+    return 0
+}
+# Missing, unreadable or empty reads as `all`, which makes Esc abort -- the
+# behaviour the key had before the filters existed. Failing back to the
+# previous behaviour is the rule bin/lib/tmux-sidebar.sh already follows; the
+# alternative is a picker you cannot close.
+current_state() {
+    local f="${TMUX_GOTO_STATE:-}" s=""
+    [ -n "$f" ] && [ -r "$f" ] && IFS= read -r s <"$f"
+    printf '%s' "${s:-all}"
+}
+esc_action() {
+    if [ "$(current_state)" = all ]; then
+        printf 'abort'
+    else
+        printf 'reload(%s all)+transform-header(%s all)' "$RL" "$HD"
+    fi
+}
 # shellcheck source=lib/tmux-theme.sh
 [ -r "$TMUX_GOTO_LIBDIR/tmux-theme.sh" ] && . "$TMUX_GOTO_LIBDIR/tmux-theme.sh"
 
@@ -230,7 +269,11 @@ header_line() {
         [ "$st" = "$active" ] && item="[$item]"
         out="$out  ^$key $item"
     done
-    printf '%s' "${out#  }"
+    out="${out#  }"
+    # Only while a filter is on, because that is exactly when Esc clears rather
+    # than closes. Advertising it unconditionally would name a key that aborts.
+    [ "$active" != all ] && out="$out  esc clear"
+    printf '%s' "$out"
 }
 
 frecency_key_goto() {
@@ -366,14 +409,23 @@ main() {
     # matches keep the frecency order; the default `length` ranks by row width
     # and would undo the sort -- including after every reload below.
     # shellcheck disable=SC2046  # one token or nothing; see tmux-cmd
-    local rl="\"\$TMUX_GOTO_SELF\" --rows" hd="\"\$TMUX_GOTO_SELF\" --header"
+    # A pre-set value is honoured so the selftest can drive main with a file of
+    # its own; mktemp failing costs Esc its clear, not the picker.
+    if [ -z "${TMUX_GOTO_STATE:-}" ]; then
+        TMUX_GOTO_STATE="$(mktemp "${TMPDIR:-/tmp}/tmux-goto-state.XXXXXX" 2>/dev/null)" \
+            || TMUX_GOTO_STATE=""
+        export TMUX_GOTO_STATE
+        [ -n "$TMUX_GOTO_STATE" ] && trap 'rm -f "$TMUX_GOTO_STATE"' EXIT
+    fi
+    record_state "$initial"
     choice=$(printf '%s\n' "$rows" | fzf --ansi --tiebreak=index $(fzf_theme_opts) \
         --delimiter=$'\t' --with-nth=3 \
         --header="$(header_line "$all_rows" "$initial")" \
-        --bind "ctrl-w:reload($rl wait)+transform-header($hd wait)" \
-        --bind "ctrl-b:reload($rl busy)+transform-header($hd busy)" \
-        --bind "ctrl-d:reload($rl done)+transform-header($hd done)" \
-        --bind "ctrl-a:reload($rl all)+transform-header($hd all)" \
+        --bind "ctrl-w:reload($RL wait)+transform-header($HD wait)" \
+        --bind "ctrl-b:reload($RL busy)+transform-header($HD busy)" \
+        --bind "ctrl-d:reload($RL done)+transform-header($HD done)" \
+        --bind "ctrl-a:reload($RL all)+transform-header($HD all)" \
+        --bind "esc:transform(\"\$TMUX_GOTO_SELF\" --esc)" \
         --prompt='go to > ' --height=100% --reverse --no-multi) || exit 0
     frecency_record "$(frecency_path goto)" "$(frecency_key_goto "$choice")"
     act_on "$choice"
@@ -383,9 +435,13 @@ main() {
 # no theme: colours live in the display text, and the counts it reports come
 # from the state field, which load_theme does not touch.
 case "${1:-}" in
-    --rows)   [ "${TMUX_GOTO_LIB:-}" = "1" ] || { load_theme; filter_by_state "$(collect_rows)" "${2:-all}"; exit 0; } ;;
+    # --rows is what EVERY filter change runs, so it is the one place that has
+    # to record the new state -- a write in each binding body would be four
+    # copies and a fifth to forget when a key is added.
+    --rows)   [ "${TMUX_GOTO_LIB:-}" = "1" ] || { record_state "${2:-all}"; load_theme; filter_by_state "$(collect_rows)" "${2:-all}"; exit 0; } ;;
     --header) [ "${TMUX_GOTO_LIB:-}" = "1" ] || { header_line "$(collect_rows)" "${2:-all}"; exit 0; } ;;
     --counts) [ "${TMUX_GOTO_LIB:-}" = "1" ] || { counts_line "$(collect_rows)"; printf '\n'; exit 0; } ;;
+    --esc)    [ "${TMUX_GOTO_LIB:-}" = "1" ] || { esc_action; exit 0; } ;;
 esac
 
 [ "${TMUX_GOTO_LIB:-}" = "1" ] || main "$@"

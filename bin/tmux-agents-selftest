@@ -253,13 +253,44 @@ assert_eq "no key is advertised for idle" "0" "$("$DIR/tmux-agents" --header all
 # interpolation -- a path containing a quote would otherwise become syntax
 # inside fzf's `sh -c`. tmux-files executed a payload that way.
 BIND_LINES="$(grep 'reload(' "$DIR/tmux-agents" | grep -v '^[[:space:]]*#')"
-assert_contains "reload bodies go through \$rl, not a pasted path" 'reload($rl' "$BIND_LINES"
+assert_contains "reload bodies go through \$RL, not a pasted path" 'reload($RL' "$BIND_LINES"
 assert_eq "no binding interpolates \$DIR or \$SELF" "0" \
     "$(printf '%s\n' "$BIND_LINES" | grep -c '[$]DIR\|[$]SELF')"
-assert_contains "and \$rl carries the exported path" 'TMUX_AGENTS_SELF' \
-    "$(grep 'local rl=' "$DIR/tmux-agents")"
+assert_contains "and \$RL carries the exported path" 'TMUX_AGENTS_SELF' \
+    "$(grep '^RL=' "$DIR/tmux-agents")"
 assert_eq "all four filter keys are bound" "4" \
     "$(grep -c 'ctrl-[wbda]:reload' "$DIR/tmux-agents")"
+
+echo "esc clears the filter, and only when there is one"
+# One key cannot both clear and exit, so Esc asks the recorded state what is
+# left to do. Both halves are asserted: a version that always cleared would
+# leave a picker you cannot close, and one that always aborted would be the
+# old behaviour wearing a new header.
+ESCF="$(mktemp)"
+printf 'wait\n' > "$ESCF"
+ESC_FILTERED="$(TMUX_AGENTS_STATE="$ESCF" "$DIR/tmux-agents" --esc)"
+assert_contains "esc reloads every state while a filter is on" \
+    'reload("$TMUX_AGENTS_SELF" --rows all)' "$ESC_FILTERED"
+assert_contains "and puts the header back with it" \
+    'transform-header("$TMUX_AGENTS_SELF" --header all)' "$ESC_FILTERED"
+printf 'all\n' > "$ESCF"
+assert_eq "esc is a plain abort with no filter on" "abort" \
+    "$(TMUX_AGENTS_STATE="$ESCF" "$DIR/tmux-agents" --esc)"
+# Fails BACK to abort, which is what this key did before the filters existed --
+# the alternative failure mode is a popup that cannot be closed.
+assert_eq "an unreadable state file aborts rather than clearing" "abort" \
+    "$(TMUX_AGENTS_STATE=/nonexistent/agents-state "$DIR/tmux-agents" --esc)"
+assert_eq "and so does no state file at all" "abort" \
+    "$(env -u TMUX_AGENTS_STATE "$DIR/tmux-agents" --esc)"
+# --rows is what every filter key runs, so it is the one place that records.
+printf 'all\n' > "$ESCF"
+TMUX_AGENTS_STATE="$ESCF" "$DIR/tmux-agents" --rows wait >/dev/null
+assert_eq "--rows records the state it was asked for" "wait" "$(cat "$ESCF")"
+rm -f "$ESCF"
+assert_contains "the esc binding reaches this script through the environment" \
+    'esc:transform(\"\$TMUX_AGENTS_SELF\" --esc)' "$(grep 'esc:transform' "$DIR/tmux-agents")"
+assert_eq "the header advertises the clear only while filtered" "1 0" \
+    "$("$DIR/tmux-agents" --header wait | grep -c 'esc clear') $("$DIR/tmux-agents" --header all | grep -c 'esc clear')"
 
 echo "a filter matching nothing is its own empty"
 # Distinct from both "no live agents" and "corrupt status file": reporting it
@@ -326,6 +357,21 @@ chk_state_field() {
     [ "$(printf '%s\n' "$out" | awk -F'\t' '$3 ~ /^(wait|busy|done|idle)$/' | grep -c .)" = "$n" ]
 }
 chk_header_marks_active() { "$1" --header wait 2>/dev/null | grep -q '\[wait('; }
+chk_esc_clears() {
+    local f out; f="$(mktemp)"; printf 'wait\n' > "$f"
+    out="$(TMUX_AGENTS_STATE="$f" "$1" --esc 2>/dev/null)"; rm -f "$f"
+    case "$out" in *'reload('*'--rows all'*) return 0 ;; esac
+    return 1
+}
+chk_esc_aborts_unfiltered() {
+    [ "$(env -u TMUX_AGENTS_STATE "$1" --esc 2>/dev/null)" = "abort" ]
+}
+chk_rows_records() {
+    local f out; f="$(mktemp)"; printf 'all\n' > "$f"
+    TMUX_AGENTS_STATE="$f" TMUX_AGENTS_ROWS_BIN="$DIR/tmux-agents-rows" \
+        "$1" --rows wait >/dev/null 2>&1
+    out="$(cat "$f")"; rm -f "$f"; [ "$out" = "wait" ]
+}
 
 ROWS="$DIR/tmux-agents-rows"
 sabotage "$ROWS" "the --state filter stops narrowing" \
@@ -339,6 +385,15 @@ sabotage "$ROWS" "state stops being its own field" \
     's#agent\\t${r.state}\\t#agent\\t#' chk_state_field
 sabotage "$DIR/tmux-agents" "the header stops marking the active filter" \
     's#item="\[$item\]"#:#' chk_header_marks_active
+sabotage "$DIR/tmux-agents" "esc aborts even with a filter on" \
+    "s#printf 'reload(%s all).*#printf abort#" chk_esc_clears
+# The other direction, and the worse one: a picker whose Esc never aborts.
+sabotage "$DIR/tmux-agents" "an unknown state reads as filtered, so esc never exits" \
+    's#${s:-all}#${s:-wait}#' chk_esc_aborts_unfiltered
+# Without this write the file keeps whatever main seeded it with, so esc goes
+# back to aborting the moment you filter -- the feature silently absent.
+sabotage "$DIR/tmux-agents" "--rows stops recording the state it was asked for" \
+    's#record_state "${2:-all}"; ##' chk_rows_records
 
 printf '\n'
 [ "$FAILED" = 0 ] && { printf 'all passed\n'; exit 0; }

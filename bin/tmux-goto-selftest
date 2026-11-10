@@ -404,9 +404,35 @@ echo "bindings"
 assert_contains "display still shows field 3 only" "--with-nth=3 " "$(cat "$DIR/tmux-goto")"
 assert_eq "all four filter keys are bound" "4" "$(grep -c 'ctrl-[wbda]:reload' "$DIR/tmux-goto")"
 GOTO_BINDS="$(grep 'reload(' "$DIR/tmux-goto" | grep -v '^[[:space:]]*#')"
-assert_contains "reload bodies go through \$rl, not a pasted path" 'reload($rl' "$GOTO_BINDS"
+assert_contains "reload bodies go through \$RL, not a pasted path" 'reload($RL' "$GOTO_BINDS"
 assert_eq "no binding interpolates the resolved path" "0" \
     "$(printf '%s\n' "$GOTO_BINDS" | grep -c 'TMUX_GOTO_LIBDIR\|[$]DIR')"
+
+echo "esc clears the filter, and only when there is one"
+ESCF="$(mktemp)"
+printf 'wait\n' > "$ESCF"
+ESC_FILTERED="$(TMUX_GOTO_STATE="$ESCF" env -u TMUX_GOTO_LIB "$DIR/tmux-goto" --esc)"
+assert_contains "esc reloads every state while a filter is on" \
+    'reload("$TMUX_GOTO_SELF" --rows all)' "$ESC_FILTERED"
+assert_contains "and puts the header back with it" \
+    'transform-header("$TMUX_GOTO_SELF" --header all)' "$ESC_FILTERED"
+printf 'all\n' > "$ESCF"
+assert_eq "esc is a plain abort with no filter on" "abort" \
+    "$(TMUX_GOTO_STATE="$ESCF" env -u TMUX_GOTO_LIB "$DIR/tmux-goto" --esc)"
+assert_eq "an unreadable state file aborts rather than clearing" "abort" \
+    "$(TMUX_GOTO_STATE=/nonexistent/goto-state env -u TMUX_GOTO_LIB "$DIR/tmux-goto" --esc)"
+assert_eq "and so does no state file at all" "abort" \
+    "$(env -u TMUX_GOTO_STATE -u TMUX_GOTO_LIB "$DIR/tmux-goto" --esc)"
+printf 'all\n' > "$ESCF"
+TMUX_GOTO_STATE="$ESCF" env -u TMUX_GOTO_LIB "$DIR/tmux-goto" --rows all >/dev/null
+printf 'all\n' > "$ESCF"
+TMUX_GOTO_STATE="$ESCF" env -u TMUX_GOTO_LIB "$DIR/tmux-goto" --rows wait >/dev/null
+assert_eq "--rows records the state it was asked for" "wait" "$(cat "$ESCF")"
+rm -f "$ESCF"
+assert_contains "the esc binding reaches this script through the environment" \
+    'esc:transform(\"\$TMUX_GOTO_SELF\" --esc)' "$(grep 'esc:transform' "$DIR/tmux-goto")"
+assert_eq "the header advertises the clear only while filtered" "1 0" \
+    "$(header_line "$out" wait | grep -c 'esc clear') $(header_line "$out" all | grep -c 'esc clear')"
 
 echo "sabotage proofs"
 sabotage() {
@@ -475,5 +501,20 @@ sabotage "$DIR/tmux-goto" "pane rows go back to showing the bare command" \
 sabotage "$DIR/tmux-goto" "the frecency key moves onto the title" \
     's#"$state" "$sess" "$wname" "$cmd"#"$state" "$sess" "$wname" "$label"#' \
     chk_pane_keys_on_command
+
+chk_esc_clears() {
+    local f out; f="$(mktemp)"; printf 'wait\n' > "$f"
+    out="$(TMUX_GOTO_STATE="$f" env -u TMUX_GOTO_LIB "$1" --esc 2>/dev/null)"; rm -f "$f"
+    case "$out" in *'reload('*'--rows all'*) return 0 ;; esac
+    return 1
+}
+chk_esc_aborts_unfiltered() {
+    [ "$(env -u TMUX_GOTO_STATE -u TMUX_GOTO_LIB "$1" --esc 2>/dev/null)" = "abort" ]
+}
+
+sabotage "$DIR/tmux-goto" "esc aborts even with a filter on" \
+    "s#printf 'reload(%s all).*#printf abort#" chk_esc_clears
+sabotage "$DIR/tmux-goto" "an unknown state reads as filtered, so esc never exits" \
+    's#${s:-all}#${s:-wait}#' chk_esc_aborts_unfiltered
 
 exit "$FAILED"
