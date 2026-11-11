@@ -318,6 +318,39 @@ echo "waiting animation"
 # not change what the caller learns -- the query now runs in the background so
 # the line can animate, and `wait` is the only thing preserving the exit status
 # that the timeout check depends on.
+# Before the pty work, two checks that need no pty at all: the spinner must
+# survive with NO COLOUR available, and the two ways that happens are separate
+# bugs. `local accent reset` declared both UNSET, so under `set -u` the frame
+# printf died -- on `reset` when ansi_for returned nothing (any tmux without
+# tmarchy's @theme-accent, which is every scratch server), and on `accent` when
+# bin/lib is not linked at all so ansi_for does not exist (a fresh checkout,
+# the case homedir-doctor has its own check for). It killed the tool at the
+# FIRST frame, before the reply was ever rendered or inserted, so `prefix + g`
+# closed having silently done nothing -- and the canary assertion in the safety
+# block above then "passed" against a tool that had not run.
+#
+# Each arm is a SUBPROCESS with the lookups neutered, and that is the whole
+# point rather than tidiness: called in this shell it would reach the real tmux
+# and read THIS host's live @theme-accent, so accent would be non-empty, reset
+# would get assigned, and both checks would pass against the broken code they
+# exist to catch. Sabotaged by restoring `word accent reset` on spin_while's
+# local line, which fails "the spinner survives an empty accent" and "the
+# spinner survives a missing theme lib" and nothing else.
+spin_survives() {  # spin_survives <setup-to-run-after-sourcing>
+    bash -c '
+        export TMUX_GEN_LIB=1
+        . "'"$DIR"'/tmux-gen"
+        '"$1"'
+        ( exec sleep 0.2 ) & _p=$!
+        spin_while "$_p" >/dev/null
+        echo survived
+    ' 2>/dev/null
+}
+assert_eq "the spinner survives an empty accent" "survived" \
+    "$(spin_survives 'tmux() { return 0; }')"
+assert_eq "the spinner survives a missing theme lib" "survived" \
+    "$(spin_survives 'unset -f ansi_for; tmux() { return 0; }')"
+
 GEN_STUB=$(mktemp -d)
 cat > "$GEN_STUB/slow" <<'STUB'
 #!/usr/bin/env bash

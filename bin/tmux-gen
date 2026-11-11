@@ -188,11 +188,21 @@ GEN_WORDS=(Pondering Rummaging Conjuring Divining Consulting Puzzling
 # result is drawn over the same line, so anything left behind would sit in the
 # middle of the answer.
 spin_while() {
-    local pid="$1" i=0 start=$SECONDS word accent reset
+    local pid="$1" i=0 start=$SECONDS word accent='' reset=''
     word=${GEN_WORDS[$((RANDOM % ${#GEN_WORDS[@]}))]}
     # Themed if tmarchy is loaded and we are in tmux; plain otherwise. Both
     # lookups are guarded because this has to work on a fresh checkout and
     # outside tmux, where a missing colour must cost nothing.
+    #
+    # Both are INITIALISED above, and that is the whole guard rather than a
+    # tidiness: `local accent reset` declares them UNSET, so under `set -u` the
+    # printf below dies on the no-colour path -- `reset` when ansi_for returned
+    # nothing, `accent` when bin/lib is not linked at all and ansi_for does not
+    # exist. It killed the tool at the FIRST spinner frame, before the reply was
+    # ever rendered or inserted, so the symptom was a popup that closed having
+    # done nothing. Invisible on a host with tmarchy loaded (accent is non-empty
+    # there, so reset gets assigned), which is exactly the shape of bug that
+    # survives on the one host nobody tests: a fresh checkout.
     if declare -f ansi_for >/dev/null 2>&1; then
         accent=$(ansi_for "$(tmux show -gv @theme-accent 2>/dev/null)")
         [ -n "$accent" ] && reset=$'\033[0m'
